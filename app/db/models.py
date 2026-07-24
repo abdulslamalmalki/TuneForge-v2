@@ -665,12 +665,112 @@ class Setting(Base):
 
 class CanonicalSetting(Base):
     __tablename__ = "canonical_settings"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('active', 'deprecated')",
+            name="ck_canonical_setting_status",
+        ),
+        Index("ix_canonical_settings_status", "status"),
+    )
 
     canonical_id: Mapped[str] = mapped_column(Text, primary_key=True)
     canonical_name: Mapped[str] = mapped_column(Text, unique=True)
     description: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, server_default="active")
     created_at: Mapped[str] = mapped_column(Text)
     updated_at: Mapped[str] = mapped_column(Text)
+
+
+class CanonicalIdentityEvent(Base):
+    __tablename__ = "canonical_identity_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    canonical_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("canonical_settings.canonical_id", ondelete="CASCADE"),
+        index=True,
+    )
+    action: Mapped[str] = mapped_column(Text)
+    actor: Mapped[str] = mapped_column(Text)
+    detail: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(Text)
+
+
+class SettingMenuContext(Base):
+    """Current reviewed menu-path projection for one approved source setting."""
+
+    __tablename__ = "setting_menu_contexts"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('active', 'revoked')",
+            name="ck_setting_menu_context_status",
+        ),
+        Index("ix_setting_menu_contexts_status", "status"),
+    )
+
+    setting_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("settings.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    menu_path: Mapped[str] = mapped_column(Text)
+    normalized_menu_path: Mapped[str] = mapped_column(Text)
+    source_page_number: Mapped[int] = mapped_column(Integer)
+    evidence_excerpt: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text)
+    current_event_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("setting_menu_context_events.id", ondelete="RESTRICT"),
+        unique=True,
+    )
+    actor: Mapped[str] = mapped_column(Text)
+    reviewed_at: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[str] = mapped_column(Text)
+
+
+class SettingMenuContextEvent(Base):
+    """Append-only audit history for reviewed menu-path evidence."""
+
+    __tablename__ = "setting_menu_context_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    setting_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("settings.id", ondelete="CASCADE"),
+        index=True,
+    )
+    action: Mapped[str] = mapped_column(Text)
+    actor: Mapped[str] = mapped_column(Text)
+    detail: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(Text)
+
+
+class SettingMenuContextCitation(Base):
+    """Append-only official-manual page citation attached to one review event."""
+
+    __tablename__ = "setting_menu_context_citations"
+    __table_args__ = (
+        Index(
+            "ux_setting_menu_context_citations_event_page",
+            "event_id",
+            "page_number",
+            unique=True,
+        ),
+        Index("ix_setting_menu_context_citations_setting_id", "setting_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    setting_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("settings.id", ondelete="CASCADE"),
+    )
+    event_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("setting_menu_context_events.id", ondelete="CASCADE"),
+    )
+    page_number: Mapped[int] = mapped_column(Integer)
+    evidence_excerpt: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(Text)
 
 
 class CanonicalSettingCategory(Base):
@@ -841,6 +941,81 @@ class CanonicalSuggestionEvent(Base):
     action: Mapped[str] = mapped_column(Text)
     actor: Mapped[str] = mapped_column(Text)
     detail: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(Text)
+
+
+class CanonicalIdentityProposal(Base):
+    """Durable reviewer queue item for a proposed new canonical identity."""
+
+    __tablename__ = "canonical_identity_proposals"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'approved', 'rejected')",
+            name="ck_canonical_identity_proposal_status",
+        ),
+        CheckConstraint(
+            "confidence_basis_points BETWEEN 0 AND 10000",
+            name="ck_canonical_identity_proposal_confidence",
+        ),
+        Index("ux_canonical_identity_proposals_canonical_id", "canonical_id", unique=True),
+        Index("ix_canonical_identity_proposals_status", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    canonical_id: Mapped[str] = mapped_column(Text)
+    canonical_name: Mapped[str] = mapped_column(Text)
+    description: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text)
+    confidence_basis_points: Mapped[int] = mapped_column(Integer)
+    evidence_json: Mapped[str] = mapped_column(Text)
+    engine_version: Mapped[str] = mapped_column(Text)
+    review_note: Mapped[str | None] = mapped_column(Text)
+    actor: Mapped[str | None] = mapped_column(Text)
+    approved_canonical_id: Mapped[str | None] = mapped_column(
+        Text,
+        ForeignKey("canonical_settings.canonical_id", ondelete="RESTRICT"),
+    )
+    created_at: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[str] = mapped_column(Text)
+    reviewed_at: Mapped[str | None] = mapped_column(Text)
+
+
+class CanonicalIdentityProposalSetting(Base):
+    __tablename__ = "canonical_identity_proposal_settings"
+    __table_args__ = (
+        Index(
+            "ux_canonical_identity_proposal_settings",
+            "proposal_id",
+            "setting_id",
+            unique=True,
+        ),
+        Index("ix_canonical_identity_proposal_settings_setting_id", "setting_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    proposal_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("canonical_identity_proposals.id", ondelete="CASCADE"),
+    )
+    setting_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("settings.id", ondelete="RESTRICT"),
+    )
+    created_at: Mapped[str] = mapped_column(Text)
+
+
+class CanonicalIdentityProposalEvent(Base):
+    __tablename__ = "canonical_identity_proposal_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    proposal_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("canonical_identity_proposals.id", ondelete="CASCADE"),
+        index=True,
+    )
+    action: Mapped[str] = mapped_column(Text)
+    actor: Mapped[str] = mapped_column(Text)
+    detail: Mapped[str] = mapped_column(Text)
     created_at: Mapped[str] = mapped_column(Text)
 
 

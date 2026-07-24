@@ -67,17 +67,127 @@
   </div>
 </section>
 
-{% if backlog.proposed_groups %}
+{% if identity_proposals %}
+<section class="admin-panel">
+  <header class="admin-panel-heading">
+    <div>
+      <p class="admin-eyebrow">Durable decision queue</p>
+      <h2>Canonical identity proposals</h2>
+    </div>
+    <span class="queue-count">{{ identity_proposals|length }} proposals</span>
+  </header>
+  <div class="identity-proposal-list">
+    {% for proposal in identity_proposals %}
+    <article class="identity-proposal-card">
+      <header>
+        <div>
+          <span class="proposal-status proposal-status-{{ proposal.status }}">{{ proposal.status }}</span>
+          <h3>{{ proposal.canonical_name }}</h3>
+          <code>{{ proposal.canonical_id }}</code>
+        </div>
+        <span class="confidence{% if proposal.approval_ready %} confidence-auto{% else %} confidence-manual{% endif %}">
+          {{ '%.2f'|format(proposal.confidence_basis_points / 100) }}%
+        </span>
+      </header>
+      <p>{{ proposal.description }}</p>
+
+      <div class="proposal-source-grid">
+        {% for source in proposal.sources %}
+        <section class="proposal-source-card">
+          <div>
+            <strong>{{ source.vendor_name }} &middot; {{ source.setting_name }}</strong>
+            <span>Manual {{ source.manual_id }} &middot; setting page {{ source.page_number }}</span>
+          </div>
+          {% if source.menu_context and source.menu_context.status == 'active' %}
+          <div class="menu-context-approved">
+            <span>Reviewed menu path</span>
+            <strong>{{ source.menu_context.menu_path }}</strong>
+            {% for citation in source.menu_context.citations %}
+            <small>Official manual page {{ citation.page_number }} &middot; {{ citation.evidence_excerpt }}</small>
+            {% endfor %}
+          </div>
+          <details>
+            <summary>Revoke this menu evidence</summary>
+            <form action="/canonicalization/settings/{{ source.setting_id }}/menu-context/revoke" method="post">
+              <label>Reason<textarea name="reason" rows="2" required></textarea></label>
+              <button class="admin-button danger" type="submit">Revoke evidence</button>
+            </form>
+          </details>
+          {% else %}
+          <form class="menu-context-form" action="/canonicalization/settings/{{ source.setting_id }}/menu-context" method="post">
+            <label>
+              Reviewed menu path
+              <input name="menu_path" placeholder="Advanced > AMD CBS > CPU Common Options" required>
+            </label>
+            <label>
+              Official manual page
+              <input name="source_page_number" type="number" min="1" value="{{ source.page_number }}" required>
+            </label>
+            <label>
+              Short evidence excerpt
+              <textarea name="evidence_excerpt" rows="2" required></textarea>
+            </label>
+            <label>
+              Reviewer note
+              <input name="note" placeholder="Breadcrumb and setting verified visually">
+            </label>
+            <button class="admin-button secondary" type="submit">Save reviewed path</button>
+          </form>
+          {% endif %}
+        </section>
+        {% endfor %}
+      </div>
+
+      {% if proposal.readiness_reasons %}
+      <div class="proposal-readiness">
+        <strong>Approval remains locked</strong>
+        <ul>{% for reason in proposal.readiness_reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
+        <small>After adding menu evidence, run the conservative reviewer again to refresh confidence.</small>
+      </div>
+      {% endif %}
+
+      {% if proposal.status == 'pending' %}
+      <div class="proposal-actions">
+        <form action="/canonicalization/identity-proposals/{{ proposal.proposal_id }}/approve" method="post">
+          <label>Approval rationale<textarea name="note" rows="2" required></textarea></label>
+          <button class="admin-button primary" type="submit"{% if not proposal.approval_ready %} disabled{% endif %}>Approve identity and mappings</button>
+        </form>
+        <form action="/canonicalization/identity-proposals/{{ proposal.proposal_id }}/reject" method="post">
+          <label>Rejection reason<textarea name="reason" rows="2" required></textarea></label>
+          <button class="admin-button danger" type="submit">Reject proposal</button>
+        </form>
+      </div>
+      {% elif proposal.status == 'rejected' %}
+      <p><strong>Rejected:</strong> {{ proposal.review_note }}</p>
+      <form action="/canonicalization/identity-proposals/{{ proposal.proposal_id }}/reopen" method="post">
+        <label>Reason to reconsider<textarea name="reason" rows="2" required></textarea></label>
+        <button class="admin-button secondary" type="submit">Reopen proposal</button>
+      </form>
+      {% else %}
+      <p>
+        Approved as
+        <a href="/canonical-settings/{{ proposal.approved_canonical_id }}">{{ proposal.approved_canonical_id }}</a>.
+        All proposal and mapping audit records remain preserved.
+      </p>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% set unpersisted_groups = backlog.proposed_groups | selectattr('proposal_id', 'equalto', none) | list %}
+{% if unpersisted_groups %}
 <section class="admin-panel">
   <header class="admin-panel-heading">
     <div>
       <p class="admin-eyebrow">Cross-manual consensus</p>
-      <h2>Proposed new canonical identities</h2>
+      <h2>New groups awaiting durable review records</h2>
     </div>
-    <span class="queue-count">{{ backlog.proposed_groups|length }} groups</span>
+    <span class="queue-count">{{ unpersisted_groups|length }} groups</span>
   </header>
   <div class="canonicalization-group-list">
-    {% for group in backlog.proposed_groups %}
+    {% for group in unpersisted_groups %}
     <article>
       <div>
         <strong>{{ group.canonical_name }}</strong>
@@ -85,7 +195,7 @@
       </div>
       <span class="confidence confidence-manual">{{ group.confidence_percent }}</span>
       <p>{{ group.reasons|join(' ') }}</p>
-      <small>Source settings: {{ group.setting_ids|join(', ') }}</small>
+      <small>Run the conservative reviewer to create the audited proposal.</small>
     </article>
     {% endfor %}
   </div>
@@ -131,6 +241,9 @@
             <a href="/settings/{{ item.setting_id }}"><strong>{{ item.effective_name }}</strong></a>
             <span>{{ item.vendor_name }} &middot; Manual {{ item.manual_id }} &middot; Page {{ item.page_number }}</span>
             <small>{{ item.effective_description or 'No reviewed description.' }}</small>
+            {% if item.reviewed_menu_path %}
+            <small><strong>Menu:</strong> {{ item.reviewed_menu_path }}</small>
+            {% endif %}
           </td>
           <td>
             {% if item.candidate_canonical_id %}

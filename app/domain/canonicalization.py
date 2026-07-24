@@ -18,6 +18,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
+    CanonicalIdentityProposal,
+    CanonicalIdentityProposalEvent,
+    CanonicalIdentityProposalSetting,
     CanonicalMappingSuggestion,
     CanonicalSetting,
     CanonicalSettingAlias,
@@ -28,6 +31,7 @@ from app.db.models import (
     MotherboardModel,
     Setting,
     SettingCanonicalMapping,
+    SettingMenuContext,
 )
 from app.domain import canonical_settings, hardware
 from app.domain.errors import CanonicalSettingError
@@ -81,6 +85,7 @@ class CanonicalizationEntry:
     reasons: tuple[str, ...]
     signals: tuple[CanonicalizationSignal, ...]
     support_setting_ids: tuple[int, ...]
+    reviewed_menu_path: str | None = None
     proposed_new_canonical_id: str | None = None
     proposed_group_size: int = 0
     proposed_vendor_count: int = 0
@@ -101,6 +106,9 @@ class ProposedCanonicalGroup:
     confidence_basis_points: int
     automatic_eligible: bool
     reasons: tuple[str, ...]
+    proposal_id: int | None = None
+    proposal_status: str = "unpersisted"
+    reviewed_menu_paths: tuple[str, ...] = ()
 
     @property
     def confidence_percent(self) -> str:
@@ -134,6 +142,8 @@ class CanonicalizationRunReport:
     new_canonical_settings: tuple[ProposedCanonicalGroup, ...]
     remaining_manual_review_count: int
     pending_suggestion_count: int
+    identity_proposals_created_count: int = 0
+    identity_proposals_refreshed_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -181,6 +191,7 @@ def evaluate_backlog(session: Session) -> CanonicalizationEvaluation:
         )
     )
     profiles = _profiles(session)
+    _apply_reviewed_menu_contexts(session, rows, profiles)
     profile_index = _index_profiles(profiles)
     manual_ids = {
         manual.id
@@ -202,7 +213,7 @@ def evaluate_backlog(session: Session) -> CanonicalizationEvaluation:
         )
         for setting, manual in rows
     )
-    groups = _proposed_groups(entries)
+    groups = _attach_proposal_state(session, _proposed_groups(entries))
     group_by_setting = {
         setting_id: group for group in groups for setting_id in group.setting_ids
     }
@@ -281,6 +292,8 @@ def run_reviewer(session: Session) -> CanonicalizationRunReport:
     evaluation = evaluate_backlog(session)
     auto_items: list[CanonicalizationReportItem] = []
     pending_suggestions = 0
+    proposals_created = 0
+    proposals_refreshed = 0
 
     try:
         for entry in evaluation.entries:
@@ -344,6 +357,11 @@ def run_reviewer(session: Session) -> CanonicalizationRunReport:
                     support_setting_ids=entry.support_setting_ids,
                 )
             )
+        proposals_created, proposals_refreshed = _persist_identity_proposals(
+            session,
+            evaluation.proposed_groups,
+            created_at=now,
+        )
         session.commit()
     except Exception:
         session.rollback()
@@ -360,6 +378,8 @@ def run_reviewer(session: Session) -> CanonicalizationRunReport:
         new_canonical_settings=(),
         remaining_manual_review_count=len(evaluation.entries) - len(auto_items),
         pending_suggestion_count=pending_suggestions,
+        identity_proposals_created_count=proposals_created,
+        identity_proposals_refreshed_count=proposals_refreshed,
     )
 
 
@@ -385,10 +405,192 @@ def reverse_automatic_mapping(
     )
 
 
+def source_trust_reasons(setting: Setting, manual: Manual) -> tuple[str, ...]:
+    """Expose the automatic reviewer's fail-closed source checks."""
+    return _trust_reasons(setting, manual)
+
+
+def official_manual(manual: Manual) -> bool:
+    """Return whether a manual satisfies official vendor provenance rules."""
+    return _official_manual(manual)
+
+
+def _apply_reviewed_menu_contexts(
+    session: Session,
+    backlog_rows: list[object],
+    profiles: list[_CanonicalProfile],
+) -> None:
+    settings = {
+        setting.id: setting
+        for setting, _ in backlog_rows
+    }
+    settings.update(
+        {
+            setting.id: setting
+            for profile in profiles
+            for setting, _ in profile.mapped_rows
+        }
+    )
+    if not settings:
+        return
+    for setting in settings.values():
+        setting.reviewed_menu_path = None
+    contexts = session.scalars(
+        select(SettingMenuContext).where(
+            SettingMenuContext.setting_id.in_(settings),
+            SettingMenuContext.status == "active",
+        )
+    )
+    for context in contexts:
+        settings[context.setting_id].reviewed_menu_path = context.menu_path
+
+
+def _attach_proposal_state(
+    session: Session,
+    groups: tuple[ProposedCanonicalGroup, ...],
+) -> tuple[ProposedCanonicalGroup, ...]:
+    if not groups:
+        return ()
+    proposal_by_id = {
+        proposal.canonical_id: proposal
+        for proposal in session.scalars(
+            select(CanonicalIdentityProposal).where(
+                CanonicalIdentityProposal.canonical_id.in_(
+                    group.canonical_id for group in groups
+                )
+            )
+        )
+    }
+    return tuple(
+        replace(
+            group,
+            proposal_id=proposal.id,
+            proposal_status=proposal.status,
+        )
+        if (proposal := proposal_by_id.get(group.canonical_id)) is not None
+        else group
+        for group in groups
+    )
+
+
+def _persist_identity_proposals(
+    session: Session,
+    groups: tuple[ProposedCanonicalGroup, ...],
+    *,
+    created_at: str,
+) -> tuple[int, int]:
+    created = 0
+    refreshed = 0
+    for group in groups:
+        if session.get(CanonicalSetting, group.canonical_id) is not None:
+            continue
+        proposal = session.scalar(
+            select(CanonicalIdentityProposal).where(
+                CanonicalIdentityProposal.canonical_id == group.canonical_id
+            )
+        )
+        evidence = {
+            "engine_version": ENGINE_VERSION,
+            "confidence_basis_points": group.confidence_basis_points,
+            "automatic_eligible": group.automatic_eligible,
+            "setting_ids": list(group.setting_ids),
+            "manual_ids": list(group.manual_ids),
+            "vendor_ids": list(group.vendor_ids),
+            "reviewed_menu_paths": list(group.reviewed_menu_paths),
+            "reasons": list(group.reasons),
+        }
+        evidence_json = json.dumps(evidence, sort_keys=True)
+        if proposal is None:
+            proposal = CanonicalIdentityProposal(
+                canonical_id=group.canonical_id,
+                canonical_name=group.canonical_name,
+                description=group.description,
+                status="pending",
+                confidence_basis_points=group.confidence_basis_points,
+                evidence_json=evidence_json,
+                engine_version=ENGINE_VERSION,
+                review_note=None,
+                actor=None,
+                approved_canonical_id=None,
+                created_at=created_at,
+                updated_at=created_at,
+                reviewed_at=None,
+            )
+            session.add(proposal)
+            session.flush()
+            for setting_id in group.setting_ids:
+                session.add(
+                    CanonicalIdentityProposalSetting(
+                        proposal_id=proposal.id,
+                        setting_id=setting_id,
+                        created_at=created_at,
+                    )
+                )
+            session.add(
+                CanonicalIdentityProposalEvent(
+                    proposal_id=proposal.id,
+                    action="generated",
+                    actor=AUTOMATIC_ACTOR,
+                    detail=evidence_json,
+                    created_at=created_at,
+                )
+            )
+            created += 1
+            continue
+        if proposal.status != "pending":
+            continue
+
+        existing_setting_ids = set(
+            session.scalars(
+                select(CanonicalIdentityProposalSetting.setting_id).where(
+                    CanonicalIdentityProposalSetting.proposal_id == proposal.id
+                )
+            )
+        )
+        new_setting_ids = set(group.setting_ids) - existing_setting_ids
+        changed = (
+            proposal.canonical_name != group.canonical_name
+            or proposal.description != group.description
+            or proposal.confidence_basis_points != group.confidence_basis_points
+            or proposal.evidence_json != evidence_json
+            or proposal.engine_version != ENGINE_VERSION
+            or bool(new_setting_ids)
+        )
+        if not changed:
+            continue
+        proposal.canonical_name = group.canonical_name
+        proposal.description = group.description
+        proposal.confidence_basis_points = group.confidence_basis_points
+        proposal.evidence_json = evidence_json
+        proposal.engine_version = ENGINE_VERSION
+        proposal.updated_at = created_at
+        for setting_id in sorted(new_setting_ids):
+            session.add(
+                CanonicalIdentityProposalSetting(
+                    proposal_id=proposal.id,
+                    setting_id=setting_id,
+                    created_at=created_at,
+                )
+            )
+        session.add(
+            CanonicalIdentityProposalEvent(
+                proposal_id=proposal.id,
+                action="refreshed",
+                actor=AUTOMATIC_ACTOR,
+                detail=evidence_json,
+                created_at=created_at,
+            )
+        )
+        refreshed += 1
+    return created, refreshed
+
+
 def _profiles(session: Session) -> list[_CanonicalProfile]:
     identities = list(
         session.scalars(
-            select(CanonicalSetting).order_by(CanonicalSetting.canonical_id)
+            select(CanonicalSetting)
+            .where(CanonicalSetting.status == canonical_settings.IDENTITY_ACTIVE)
+            .order_by(CanonicalSetting.canonical_id)
         )
     )
     profiles = {
@@ -758,6 +960,12 @@ def _entry(
         reasons=reasons,
         signals=signals,
         support_setting_ids=support_ids,
+        reviewed_menu_path=(
+            value
+            if isinstance((value := getattr(setting, "reviewed_menu_path", None)), str)
+            and value.strip()
+            else None
+        ),
     )
 
 
@@ -786,21 +994,39 @@ def _proposed_groups(
             continue
         trusted_sources = all(entry.source_trusted for entry in values)
         canonical_id = canonical_slug(values[0].effective_name)
-        menu_contexts = {
-            signal.detail
-            for entry in values
-            for signal in entry.signals
-            if signal.key == "menu_context" and signal.state == "exact"
+        reviewed_menu_paths = tuple(
+            sorted(
+                {
+                    entry.reviewed_menu_path.strip()
+                    for entry in values
+                    if entry.reviewed_menu_path
+                },
+                key=str.casefold,
+            )
+        )
+        normalized_menu_paths = {
+            normalize_alias(path) for path in reviewed_menu_paths
         }
-        menu_verified = len(menu_contexts) == 1
-        confidence = 10000 if menu_verified else 9000
+        menu_complete = all(entry.reviewed_menu_path for entry in values)
+        menu_exact = menu_complete and len(normalized_menu_paths) == 1
+        confidence = 10000 if menu_exact else (9950 if menu_complete else 9000)
         reasons = (
             "Exact normalized name and description agree across multiple official manuals.",
             f"Evidence spans {len(manual_ids)} manuals and {len(vendor_ids)} vendors.",
             (
-                "Reviewed BIOS menu context agrees across every source."
-                if menu_verified
+                "Reviewed BIOS menu context is recorded for every source."
+                if menu_complete
                 else "Reviewed BIOS menu context is unavailable; human approval is required."
+            ),
+            (
+                "The reviewed menu hierarchy is identical across sources."
+                if menu_exact
+                else (
+                    "Vendor menu hierarchies differ and require the proposal reviewer's "
+                    "explicit equivalence decision."
+                    if menu_complete
+                    else "No menu hierarchy comparison can be made yet."
+                )
             ),
             (
                 "Every source passes official provenance and citation review."
@@ -819,10 +1045,11 @@ def _proposed_groups(
                 confidence_basis_points=confidence,
                 automatic_eligible=(
                     trusted_sources
-                    and menu_verified
+                    and menu_complete
                     and confidence >= CONFIDENCE_THRESHOLD_BP
                 ),
                 reasons=reasons,
+                reviewed_menu_paths=reviewed_menu_paths,
             )
         )
     return tuple(sorted(groups, key=lambda value: value.canonical_name.casefold()))
@@ -974,9 +1201,8 @@ def _manual_platform_ids(
 
 
 def _menu_context(setting: Setting) -> str | None:
-    # Menu-path provenance is intentionally absent from schema revision 0018.
-    # This hook keeps missing context fail-closed and makes a later reviewed
-    # menu-path model an additive change instead of an inference.
+    # evaluate_backlog attaches only active, reviewer-approved menu evidence.
+    # Missing or revoked context therefore remains fail-closed.
     value = getattr(setting, "reviewed_menu_path", None)
     return normalize_alias(value) if isinstance(value, str) and value.strip() else None
 

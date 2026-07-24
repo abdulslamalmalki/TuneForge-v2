@@ -55,6 +55,7 @@ _SEARCH_SQL = text(
     " ON setting_canonical_mappings.setting_id = settings.id"
     " LEFT JOIN canonical_settings"
     " ON canonical_settings.canonical_id = setting_canonical_mappings.canonical_id"
+    " AND canonical_settings.status = 'active'"
     " LEFT JOIN canonical_setting_classifications"
     " ON canonical_setting_classifications.canonical_id = canonical_settings.canonical_id"
     " LEFT JOIN canonical_setting_categories"
@@ -197,12 +198,22 @@ def _sanitize(query: str) -> str:
 def _resolve_exact_canonical_id(session: Session, query: str) -> str | None:
     value = " ".join(query.split())
     identity = session.get(CanonicalSetting, value)
-    candidate_ids = {identity.canonical_id} if identity is not None else set()
+    candidate_ids = (
+        {identity.canonical_id}
+        if identity is not None and identity.status == canonical_settings.IDENTITY_ACTIVE
+        else set()
+    )
     normalized = normalize_alias(value)
     if normalized:
         alias = session.scalar(
-            select(CanonicalSettingAlias).where(
-                CanonicalSettingAlias.normalized_alias == normalized
+            select(CanonicalSettingAlias)
+            .join(
+                CanonicalSetting,
+                CanonicalSetting.canonical_id == CanonicalSettingAlias.canonical_id,
+            )
+            .where(
+                CanonicalSettingAlias.normalized_alias == normalized,
+                CanonicalSetting.status == canonical_settings.IDENTITY_ACTIVE,
             )
         )
         if alias is not None:

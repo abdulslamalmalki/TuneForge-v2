@@ -243,6 +243,10 @@ def _clean_state(_create_schema):
         AuthEvent,
         AuthSession,
         CanonicalClassificationEvent,
+        CanonicalIdentityEvent,
+        CanonicalIdentityProposal,
+        CanonicalIdentityProposalEvent,
+        CanonicalIdentityProposalSetting,
         CanonicalMappingSuggestion,
         CanonicalSetting,
         CanonicalSettingAlias,
@@ -262,6 +266,9 @@ def _clean_state(_create_schema):
         ReferralPointer,
         ReferralPointerEvent,
         ReferralPointerSetting,
+        SettingMenuContext,
+        SettingMenuContextCitation,
+        SettingMenuContextEvent,
         UnansweredLookup,
         UserAccount,
     )
@@ -285,8 +292,15 @@ def _clean_state(_create_schema):
         session.query(EvidenceSource).delete()
         session.query(CanonicalSuggestionEvent).delete()
         session.query(CanonicalMappingSuggestion).delete()
+        session.query(CanonicalIdentityProposalEvent).delete()
+        session.query(CanonicalIdentityProposalSetting).delete()
+        session.query(CanonicalIdentityProposal).delete()
+        session.query(SettingMenuContextCitation).delete()
+        session.query(SettingMenuContext).delete()
+        session.query(SettingMenuContextEvent).delete()
         session.query(CanonicalClassificationEvent).delete()
         session.query(CanonicalSettingClassification).delete()
+        session.query(CanonicalIdentityEvent).delete()
         session.query(IngestionBatchItem).delete()
         session.query(IngestionBatch).delete()
         session.query(Manual).delete()

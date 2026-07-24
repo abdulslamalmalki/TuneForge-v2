@@ -106,7 +106,7 @@ def explain_canonical_id(
 ) -> GuidanceExplanation | None:
     canonical_id = canonical_id.strip()
     identity = session.get(CanonicalSetting, canonical_id)
-    if identity is None:
+    if identity is None or identity.status != canonical_settings.IDENTITY_ACTIVE:
         return None
     return _explanation_for_identity(
         session,
@@ -127,7 +127,11 @@ def list_coverage(session: Session, *, approved_only: bool = False) -> list[Guid
             .group_by(GuidanceClaimSetting.canonical_id)
         ).all()
     )
-    identities = session.scalars(select(CanonicalSetting).order_by(CanonicalSetting.canonical_name))
+    identities = session.scalars(
+        select(CanonicalSetting)
+        .where(CanonicalSetting.status == canonical_settings.IDENTITY_ACTIVE)
+        .order_by(CanonicalSetting.canonical_name)
+    )
     rows = [
         GuidanceCoverageRow(
             canonical_id=identity.canonical_id,
@@ -149,7 +153,7 @@ def _resolve_identity(
     if len(query) > config.MAX_CANONICAL_SETTING_NAME_LENGTH:
         raise GuidanceReadError("Setting lookup is too long.")
     identity = session.get(CanonicalSetting, query)
-    if identity is not None:
+    if identity is not None and identity.status == canonical_settings.IDENTITY_ACTIVE:
         return identity, "canonical_id", None
     normalized = normalize_alias(query)
     if not normalized:
@@ -160,7 +164,10 @@ def _resolve_identity(
             CanonicalSetting,
             CanonicalSetting.canonical_id == CanonicalSettingAlias.canonical_id,
         )
-        .where(CanonicalSettingAlias.normalized_alias == normalized)
+        .where(
+            CanonicalSettingAlias.normalized_alias == normalized,
+            CanonicalSetting.status == canonical_settings.IDENTITY_ACTIVE,
+        )
     ).first()
     mapped_matches = canonical_settings.find_mapped_name_matches(session, query)
     candidate_ids = {match.canonical_id for match in mapped_matches}

@@ -241,7 +241,7 @@ def test_upgrade_backfills_existing_manual_provenance(tmp_path):
             )
         }
         assert len(auth_tables) == 3
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0018",)
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0019",)
 
 
 def test_hardware_migration_backfill_matches_phase1_scope_rules(tmp_path):

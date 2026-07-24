@@ -592,6 +592,17 @@ protected reviewer queue. Suggestions retain structured evidence and automatic
 decisions use the existing append-only mapping history with an explicit reversal
 workflow. See `docs/canonicalization-backlog.md`.
 
+Canonical Identity Review and Menu Context in v1.4 makes new-identity proposals
+durable and reviewer-controlled. Reviewed BIOS menu paths carry append-only,
+multi-page official-manual citations; proposal generation, refresh, rejection,
+reopening, and approval each retain audit events. Approval atomically creates
+the active Canonical Setting and reviewer mappings only while every evidence
+gate still passes. Canonical identities can later be deprecated and reactivated
+without deletion, and deprecated identities are excluded from the public
+Library, search, guidance, and referral projections. The first visually
+verified pilot approved four identities and eight mappings across ASUS,
+ASRock, GIGABYTE, and MSI while leaving all uncertain records unmapped.
+
 Hardware Applicability Phases 1 and 2 define and persist stable identities for
 five CPU/socket platforms, nine chipset families, 29 chipsets, and 15 known
 motherboard models. Migration 0009 backfilled the original eight production

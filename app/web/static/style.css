@@ -4894,6 +4894,170 @@ button.danger {
   line-height: 1.5;
 }
 
+.identity-proposal-list {
+  display: grid;
+  gap: 1rem;
+  padding: 0 1.25rem 1.25rem;
+}
+
+.identity-proposal-card {
+  background: #fbfcfb;
+  border: 1px solid #dbe4df;
+  border-radius: 1rem;
+  display: grid;
+  gap: 1rem;
+  padding: 1.1rem;
+}
+
+.identity-proposal-card > header {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.identity-proposal-card h3 {
+  color: #173a2d;
+  font-size: 1.15rem;
+  margin: 0.35rem 0 0.15rem;
+}
+
+.identity-proposal-card > p {
+  color: #4c5c54;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.proposal-status {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 0.25rem 0.5rem;
+  text-transform: uppercase;
+}
+
+.proposal-status-pending {
+  background: #fff1d6;
+  color: #78510c;
+}
+
+.proposal-status-approved {
+  background: #dff3e8;
+  color: #155c3d;
+}
+
+.proposal-status-rejected {
+  background: #fbe4e3;
+  color: #8a2e28;
+}
+
+.proposal-source-grid {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.proposal-source-card {
+  background: #fff;
+  border: 1px solid #e0e7e3;
+  border-radius: 0.8rem;
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+  padding: 0.9rem;
+}
+
+.proposal-source-card > div:first-child {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.proposal-source-card span,
+.proposal-source-card small {
+  color: #66736d;
+  font-size: 0.8rem;
+}
+
+.menu-context-approved {
+  background: #edf8f2;
+  border: 1px solid #c6e3d3;
+  border-radius: 0.7rem;
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.75rem;
+}
+
+.menu-context-approved strong {
+  color: #164e37;
+  overflow-wrap: anywhere;
+}
+
+.menu-context-form,
+.proposal-actions form,
+.proposal-source-card details form,
+.identity-proposal-card > form {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.menu-context-form label,
+.proposal-actions label,
+.proposal-source-card details label,
+.identity-proposal-card > form label {
+  color: #34443c;
+  display: grid;
+  font-size: 0.76rem;
+  font-weight: 700;
+  gap: 0.3rem;
+}
+
+.menu-context-form input,
+.menu-context-form textarea,
+.proposal-actions textarea,
+.proposal-source-card details textarea,
+.identity-proposal-card > form textarea {
+  background: #fff;
+  border: 1px solid #cbd6d0;
+  border-radius: 0.55rem;
+  color: #1f3129;
+  font: inherit;
+  padding: 0.55rem 0.65rem;
+  width: 100%;
+}
+
+.proposal-readiness {
+  background: #fff8e9;
+  border-left: 3px solid #d39a2c;
+  color: #65490f;
+  padding: 0.75rem 0.9rem;
+}
+
+.proposal-readiness ul {
+  margin: 0.4rem 0;
+  padding-left: 1.2rem;
+}
+
+.proposal-actions {
+  border-top: 1px solid #e1e7e3;
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-top: 1rem;
+}
+
+.admin-button.danger {
+  background: #fff;
+  border-color: #d6aaa7;
+  color: #8a2e28;
+}
+
+.admin-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 .canonicalization-filters {
   align-items: end;
   border-bottom: 1px solid #e1e7e3;
@@ -5025,6 +5189,11 @@ button.danger {
   }
 
   .canonicalization-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .proposal-source-grid,
+  .proposal-actions {
     grid-template-columns: 1fr;
   }
 }

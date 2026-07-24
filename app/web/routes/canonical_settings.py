@@ -82,6 +82,7 @@ def detail(request: Request, canonical_id: str, session: SessionDep) -> HTMLResp
             "categories": canonical_domain.list_categories(session),
             "risk_levels": RISK_LEVELS,
             "error": None,
+            "notice": request.query_params.get("notice", ""),
         },
     )
 
@@ -115,12 +116,45 @@ def classify(
                 "categories": canonical_domain.list_categories(session),
                 "risk_levels": RISK_LEVELS,
                 "error": error.message,
+                "notice": "",
             },
             status_code=400,
         )
     return RedirectResponse(
         url=f"/canonical-settings/{canonical_id}",
         status_code=303,
+    )
+
+
+@router.post("/canonical-settings/{canonical_id}/deprecate")
+def deprecate(
+    request: Request,
+    canonical_id: str,
+    session: SessionDep,
+    reason: Annotated[str, Form()] = "",
+):
+    return _change_identity_status(
+        request,
+        session,
+        canonical_id=canonical_id,
+        status=canonical_domain.IDENTITY_DEPRECATED,
+        reason=reason,
+    )
+
+
+@router.post("/canonical-settings/{canonical_id}/reactivate")
+def reactivate(
+    request: Request,
+    canonical_id: str,
+    session: SessionDep,
+    reason: Annotated[str, Form()] = "",
+):
+    return _change_identity_status(
+        request,
+        session,
+        canonical_id=canonical_id,
+        status=canonical_domain.IDENTITY_ACTIVE,
+        reason=reason,
     )
 
 
@@ -204,4 +238,42 @@ def _suggestion_error(
             "error": message,
         },
         status_code=400,
+    )
+
+
+def _change_identity_status(
+    request: Request,
+    session: Session,
+    *,
+    canonical_id: str,
+    status: str,
+    reason: str,
+):
+    value = canonical_domain.get_detail(session, canonical_id)
+    if value is None:
+        raise HTTPException(status_code=404, detail="Canonical setting not found.")
+    try:
+        canonical_domain.set_identity_status(
+            session,
+            value.identity,
+            status=status,
+            reason=reason,
+        )
+    except CanonicalSettingError as error:
+        return templates.TemplateResponse(
+            request,
+            "canonical_setting_detail.html",
+            {
+                "detail": canonical_domain.get_detail(session, canonical_id),
+                "categories": canonical_domain.list_categories(session),
+                "risk_levels": RISK_LEVELS,
+                "error": error.message,
+                "notice": "",
+            },
+            status_code=400,
+        )
+    action = "deprecated" if status == canonical_domain.IDENTITY_DEPRECATED else "reactivated"
+    return RedirectResponse(
+        url=f"/canonical-settings/{canonical_id}?notice=Canonical+identity+{action}.",
+        status_code=303,
     )

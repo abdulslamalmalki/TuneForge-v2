@@ -62,7 +62,15 @@ class SuggestionQueueRow:
 def refresh_suggestions(session: Session) -> int:
     """Persist new exact-alias suggestions without reviving prior decisions."""
     alias_by_key = {
-        alias.normalized_alias: alias for alias in session.scalars(select(CanonicalSettingAlias))
+        alias.normalized_alias: alias
+        for alias in session.scalars(
+            select(CanonicalSettingAlias)
+            .join(
+                CanonicalSetting,
+                CanonicalSetting.canonical_id == CanonicalSettingAlias.canonical_id,
+            )
+            .where(CanonicalSetting.status == canonical_settings.IDENTITY_ACTIVE)
+        )
     }
     existing = {
         (row.setting_id, row.canonical_id)
@@ -160,6 +168,7 @@ def list_queue(
         .where(
             CanonicalMappingSuggestion.status == STATUS_PENDING,
             Setting.status == "approved",
+            CanonicalSetting.status == canonical_settings.IDENTITY_ACTIVE,
             SettingCanonicalMapping.setting_id.is_(None),
         )
         .order_by(

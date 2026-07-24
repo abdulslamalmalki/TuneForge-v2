@@ -93,6 +93,8 @@ def build_answer(
     identity = (
         session.get(CanonicalSetting, question.canonical_id) if question.canonical_id else None
     )
+    if identity is not None and identity.status != canonical_settings.IDENTITY_ACTIVE:
+        identity = None
     pointers = refusal_gaps.referrals_for_matches(
         session,
         canonical_id=question.canonical_id,

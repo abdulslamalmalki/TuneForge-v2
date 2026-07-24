@@ -6,7 +6,7 @@ from pathlib import Path
 COMPONENT_ROOT = Path(__file__).resolve().parent.parent
 
 # Single source for the version shown in OpenAPI and /api/v1/health.
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.4.0"
 
 # Authentication is required by default. Tests explicitly opt into the legacy
 # local-only bypass so existing domain and HTTP regression tests stay focused
@@ -23,7 +23,7 @@ TRUSTED_HOSTS = tuple(
     )
     if host.strip()
 )
-EXPECTED_DATABASE_REVISION = "0018"
+EXPECTED_DATABASE_REVISION = "0019"
 
 # Overridable so tests can run against a temporary data directory (NFR-6).
 DATA_DIR = Path(os.environ.get("KNOWLEDGE_BUILDER_DATA_DIR", str(COMPONENT_ROOT / "data")))

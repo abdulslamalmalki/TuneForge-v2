@@ -7,7 +7,26 @@
 <p><a href="/guidance?setting={{ detail.identity.canonical_id }}">View accepted citation-first guidance</a></p>
 <p><code>{{ detail.identity.canonical_id }}</code></p>
 <p>{{ detail.identity.description or 'No vendor-neutral description recorded.' }}</p>
+<p><strong>Status:</strong> {{ detail.identity.status | capitalize }}</p>
+{% if notice %}<p class="notice">{{ notice }}</p>{% endif %}
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<details>
+  <summary>Identity lifecycle controls</summary>
+  {% if detail.identity.status == 'active' %}
+  <form action="/canonical-settings/{{ detail.identity.canonical_id }}/deprecate" method="post">
+    <label for="deprecation_reason">Deprecation reason</label>
+    <textarea id="deprecation_reason" name="reason" rows="2" required></textarea>
+    <button type="submit">Deprecate without deleting</button>
+  </form>
+  {% else %}
+  <form action="/canonical-settings/{{ detail.identity.canonical_id }}/reactivate" method="post">
+    <label for="reactivation_reason">Reactivation reason</label>
+    <textarea id="reactivation_reason" name="reason" rows="2" required></textarea>
+    <button type="submit">Reactivate identity</button>
+  </form>
+  {% endif %}
+</details>
 
 <h2>Classification</h2>
 {% if detail.classification %}
@@ -73,6 +92,15 @@
   <li>{{ event.created_at }} &mdash; {{ event.action }} by {{ event.actor }}</li>
   {% else %}
   <li>No classification events recorded.</li>
+  {% endfor %}
+</ul>
+
+<h2>Identity lifecycle history</h2>
+<ul>
+  {% for event in detail.identity_events %}
+  <li>{{ event.created_at }} &mdash; {{ event.action }} by {{ event.actor }}</li>
+  {% else %}
+  <li>No identity lifecycle events recorded.</li>
   {% endfor %}
 </ul>
 {% endblock %}

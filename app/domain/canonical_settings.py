@@ -12,6 +12,7 @@ from app import config
 from app.auth.context import current_actor
 from app.db.models import (
     CanonicalClassificationEvent,
+    CanonicalIdentityEvent,
     CanonicalMappingEvent,
     CanonicalSetting,
     CanonicalSettingAlias,
@@ -40,6 +41,11 @@ ACTION_REMAPPED = "remapped"
 ACTION_UNMAPPED = "unmapped"
 ACTION_CLASSIFIED = "classified"
 ACTION_RECLASSIFIED = "reclassified"
+IDENTITY_ACTIVE = "active"
+IDENTITY_DEPRECATED = "deprecated"
+ACTION_IDENTITY_CREATED = "created"
+ACTION_IDENTITY_DEPRECATED = "deprecated"
+ACTION_IDENTITY_REACTIVATED = "reactivated"
 
 
 @dataclass(frozen=True)
@@ -81,6 +87,7 @@ class CanonicalCatalogRow:
     category_id: str | None
     category_name: str | None
     risk_level: str | None
+    status: str
 
 
 @dataclass(frozen=True)
@@ -131,10 +138,15 @@ class CanonicalDetail:
     mappings: tuple[CanonicalMappedSetting, ...]
     classification: CanonicalClassificationView | None
     classification_events: tuple[CanonicalClassificationEvent, ...]
+    identity_events: tuple[CanonicalIdentityEvent, ...]
 
 
-def list_catalog(session: Session) -> list[CanonicalCatalogRow]:
-    rows = session.execute(
+def list_catalog(
+    session: Session,
+    *,
+    include_deprecated: bool = True,
+) -> list[CanonicalCatalogRow]:
+    statement = (
         select(
             CanonicalSetting,
             func.count(SettingCanonicalMapping.setting_id),
@@ -163,6 +175,9 @@ def list_catalog(session: Session) -> list[CanonicalCatalogRow]:
         )
         .order_by(CanonicalSetting.canonical_name)
     )
+    if not include_deprecated:
+        statement = statement.where(CanonicalSetting.status == IDENTITY_ACTIVE)
+    rows = session.execute(statement)
     return [
         CanonicalCatalogRow(
             canonical_id=identity.canonical_id,
@@ -173,6 +188,7 @@ def list_catalog(session: Session) -> list[CanonicalCatalogRow]:
             category_id=(classification_view.category_id if classification_view else None),
             category_name=(classification_view.category_name if classification_view else None),
             risk_level=(classification_view.risk_level if classification_view else None),
+            status=identity.status,
         )
         for identity, mapping_count, vendor_count, classification, category in rows
         for classification_view in [_classification_view(classification, category)]
@@ -215,6 +231,7 @@ def get_detail(session: Session, canonical_id: str) -> CanonicalDetail | None:
         mappings=mappings,
         classification=get_classification(session, canonical_id),
         classification_events=tuple(list_classification_events(session, canonical_id)),
+        identity_events=tuple(list_identity_events(session, canonical_id)),
     )
 
 
@@ -303,7 +320,10 @@ def find_mapped_name_matches(session: Session, value: str) -> list[CanonicalMapp
             SettingCanonicalMapping.canonical_id == CanonicalSetting.canonical_id,
         )
         .join(Setting, Setting.id == SettingCanonicalMapping.setting_id)
-        .where(Setting.status == "approved")
+        .where(
+            Setting.status == "approved",
+            CanonicalSetting.status == IDENTITY_ACTIVE,
+        )
         .order_by(CanonicalSetting.canonical_id, Setting.id)
     )
     matches: dict[str, CanonicalMappedNameMatch] = {}
@@ -351,11 +371,27 @@ def create_identity(
         canonical_id=canonical_id,
         canonical_name=name,
         description=description or None,
+        status=IDENTITY_ACTIVE,
         created_at=now,
         updated_at=now,
     )
     session.add(identity)
     session.flush()
+    session.add(
+        CanonicalIdentityEvent(
+            canonical_id=canonical_id,
+            action=ACTION_IDENTITY_CREATED,
+            actor=actor,
+            detail=json.dumps(
+                {
+                    "before": None,
+                    "after": {"status": IDENTITY_ACTIVE},
+                },
+                sort_keys=True,
+            ),
+            created_at=now,
+        )
+    )
     seen_alias_keys: set[str] = set()
     for alias in (name, *aliases):
         key = normalize_alias(alias)
@@ -380,6 +416,71 @@ def create_identity(
 def list_categories(session: Session) -> list[CanonicalSettingCategory]:
     return list(
         session.scalars(select(CanonicalSettingCategory).order_by(CanonicalSettingCategory.ordinal))
+    )
+
+
+def set_identity_status(
+    session: Session,
+    identity: CanonicalSetting,
+    *,
+    status: str,
+    reason: str,
+    actor: str | None = None,
+    commit: bool = True,
+) -> bool:
+    """Deprecate or reactivate an identity without deleting knowledge history."""
+    actor = actor or current_actor()
+    status = status.strip().casefold()
+    reason = reason.strip()
+    if status not in {IDENTITY_ACTIVE, IDENTITY_DEPRECATED}:
+        raise CanonicalSettingError("Canonical identity status is invalid.")
+    if not reason:
+        raise CanonicalSettingError("A canonical identity status reason is required.")
+    if len(reason) > config.MAX_CANONICAL_MAPPING_NOTE_LENGTH:
+        raise CanonicalSettingError("Canonical identity status reason is too long.")
+    if identity.status == status:
+        return False
+
+    before = identity.status
+    now = utc_now_iso()
+    identity.status = status
+    identity.updated_at = now
+    action = (
+        ACTION_IDENTITY_DEPRECATED
+        if status == IDENTITY_DEPRECATED
+        else ACTION_IDENTITY_REACTIVATED
+    )
+    session.add(
+        CanonicalIdentityEvent(
+            canonical_id=identity.canonical_id,
+            action=action,
+            actor=actor,
+            detail=json.dumps(
+                {
+                    "before": {"status": before},
+                    "after": {"status": status},
+                    "reason": reason,
+                },
+                sort_keys=True,
+            ),
+            created_at=now,
+        )
+    )
+    if commit:
+        session.commit()
+    return True
+
+
+def list_identity_events(
+    session: Session,
+    canonical_id: str,
+) -> list[CanonicalIdentityEvent]:
+    return list(
+        session.scalars(
+            select(CanonicalIdentityEvent)
+            .where(CanonicalIdentityEvent.canonical_id == canonical_id)
+            .order_by(CanonicalIdentityEvent.id)
+        )
     )
 
 
@@ -549,7 +650,10 @@ def suggest_for_setting(session: Session, setting: Setting) -> list[CanonicalSug
             CanonicalSetting,
             CanonicalSetting.canonical_id == CanonicalSettingAlias.canonical_id,
         )
-        .where(CanonicalSettingAlias.normalized_alias == key)
+        .where(
+            CanonicalSettingAlias.normalized_alias == key,
+            CanonicalSetting.status == IDENTITY_ACTIVE,
+        )
         .order_by(CanonicalSetting.canonical_name)
     )
     return [
@@ -578,6 +682,8 @@ def map_setting(
     identity = session.get(CanonicalSetting, canonical_id)
     if identity is None:
         raise CanonicalSettingError("Canonical setting not found.")
+    if identity.status != IDENTITY_ACTIVE:
+        raise CanonicalSettingError("Deprecated canonical settings cannot receive mappings.")
     if mapping_method not in {MAPPING_REVIEWER, MAPPING_SEED, MAPPING_AUTOMATIC}:
         raise CanonicalSettingError("Mapping method is invalid.")
     note = note.strip()

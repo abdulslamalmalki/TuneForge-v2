@@ -34,3 +34,32 @@ def test_admin_canonicalization_page_explains_fail_closed_policy(client):
     assert "Canonicalization Backlog" in response.text
     assert "99.50%" in response.text
     assert "evidence fails closed" in response.text
+
+
+def test_identity_review_api_exposes_empty_queue_and_audited_lifecycle(client):
+    assert client.get("/api/v1/canonicalization/identity-proposals").json() == []
+    missing_context = client.put(
+        "/api/v1/canonicalization/settings/999/menu-context",
+        json={
+            "menu_path": "Advanced > AMD CBS",
+            "source_page_number": 1,
+            "evidence_excerpt": "Official menu evidence.",
+        },
+    )
+    assert missing_context.status_code == 400
+
+    created = client.post(
+        "/api/v1/canonical-settings",
+        json={"name": "Lifecycle Test Control"},
+    ).json()
+    canonical_id = created["canonical_id"]
+    deprecated = client.post(
+        f"/api/v1/canonicalization/identities/{canonical_id}/deprecate",
+        json={"reason": "Reviewer is correcting this identity."},
+    )
+    assert deprecated.json()["status"] == "deprecated"
+    reactivated = client.post(
+        f"/api/v1/canonicalization/identities/{canonical_id}/reactivate",
+        json={"reason": "Reviewer re-verified the identity."},
+    )
+    assert reactivated.json()["status"] == "active"

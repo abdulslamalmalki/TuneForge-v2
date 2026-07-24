@@ -4,6 +4,7 @@ import json
 from sqlalchemy import select
 
 from app.db.models import (
+    CanonicalIdentityProposal,
     CanonicalMappingSuggestion,
     CanonicalSetting,
     CanonicalSuggestionEvent,
@@ -11,7 +12,12 @@ from app.db.models import (
     Setting,
     SettingCanonicalMapping,
 )
-from app.domain import canonical_settings, canonicalization, manuals
+from app.domain import (
+    canonical_identity_review,
+    canonical_settings,
+    canonicalization,
+    manuals,
+)
 
 
 def _trusted_setting(
@@ -24,11 +30,22 @@ def _trusted_setting(
     marker: str,
     status: str = "approved",
     page_review_status: str = "correct",
+    extra_pages: int = 0,
 ):
     vendor_id = vendor.casefold()
     manual = manuals.create_manual(
         db_session,
-        io.BytesIO(pdf_bytes_factory(texts=[f"{marker} official BIOS guide. " * 30])),
+        io.BytesIO(
+            pdf_bytes_factory(
+                texts=[
+                    f"{marker} official BIOS guide. " * 30,
+                    *(
+                        f"{marker} official BIOS hierarchy page {page}. " * 20
+                        for page in range(2, extra_pages + 2)
+                    ),
+                ]
+            )
+        ),
         original_filename=f"{marker}.pdf",
         vendor=vendor,
         model_name="AMD 800 Series",
@@ -260,3 +277,172 @@ def test_cross_vendor_new_identity_group_remains_human_reviewed_without_menu_pat
     report = canonicalization.run_reviewer(db_session)
     assert report.new_canonical_settings == ()
     assert db_session.get(CanonicalSetting, group.canonical_id) is None
+
+
+def test_reviewed_menu_context_is_cited_audited_and_revocable(
+    db_session,
+    pdf_bytes_factory,
+):
+    setting = _trusted_setting(
+        db_session,
+        pdf_bytes_factory,
+        vendor="ASUS",
+        name="Pattern Length",
+        description="Specifies the pattern length.",
+        marker="menu-context",
+        extra_pages=1,
+    )
+
+    canonical_identity_review.review_menu_context(
+        db_session,
+        setting.id,
+        menu_path="Advanced > AMD CBS > DDR Training Options",
+        source_page_number=1,
+        evidence_excerpt="Pattern Length Specifies the pattern length.",
+        supporting_citations=(
+            (2, "AMD CBS contains the reviewed DDR Training Options hierarchy."),
+        ),
+        note="Breadcrumb and setting were visually reviewed.",
+    )
+    view = canonical_identity_review.get_menu_context(db_session, setting.id)
+    assert view.menu_path == "Advanced > AMD CBS > DDR Training Options"
+    assert view.source_page_number == 1
+    assert view.source_url == "https://www.asus.com/support/menu-context"
+    assert [(citation.page_number, citation.evidence_excerpt) for citation in view.citations] == [
+        (1, "Pattern Length Specifies the pattern length."),
+        (2, "AMD CBS contains the reviewed DDR Training Options hierarchy."),
+    ]
+    assert [
+        event.action
+        for event in canonical_identity_review.list_menu_context_events(
+            db_session,
+            setting.id,
+        )
+    ] == ["approved"]
+
+    canonical_identity_review.revoke_menu_context(
+        db_session,
+        setting.id,
+        reason="The breadcrumb applies to a neighboring subsection.",
+    )
+    assert canonical_identity_review.get_menu_context(db_session, setting.id).status == (
+        canonical_identity_review.MENU_CONTEXT_REVOKED
+    )
+    assert [
+        event.action
+        for event in canonical_identity_review.list_menu_context_events(
+            db_session,
+            setting.id,
+        )
+    ] == ["approved", "revoked"]
+
+
+def test_canonical_identity_proposal_requires_menu_evidence_then_approves_atomically(
+    db_session,
+    pdf_bytes_factory,
+):
+    description = "Specifies the pattern length."
+    first = _trusted_setting(
+        db_session,
+        pdf_bytes_factory,
+        vendor="ASUS",
+        name="Pattern Length",
+        description=description,
+        marker="proposal-asus",
+    )
+    second = _trusted_setting(
+        db_session,
+        pdf_bytes_factory,
+        vendor="ASRock",
+        name="Pattern Length",
+        description=description,
+        marker="proposal-asrock",
+    )
+
+    first_report = canonicalization.run_reviewer(db_session)
+    assert first_report.identity_proposals_created_count == 1
+    (proposal,) = canonical_identity_review.list_identity_proposals(db_session)
+    assert proposal.status == canonical_identity_review.PROPOSAL_PENDING
+    assert proposal.approval_ready is False
+    assert proposal.confidence_basis_points == 9000
+
+    for setting in (first, second):
+        canonical_identity_review.review_menu_context(
+            db_session,
+            setting.id,
+            menu_path="Advanced > AMD CBS > DDR Training Options",
+            source_page_number=1,
+            evidence_excerpt="Pattern Length Specifies the pattern length.",
+        )
+    refreshed = canonicalization.run_reviewer(db_session)
+    assert refreshed.identity_proposals_refreshed_count == 1
+    proposal = canonical_identity_review.get_identity_proposal(
+        db_session,
+        proposal.proposal_id,
+    )
+    assert proposal.approval_ready is True
+    assert proposal.confidence_basis_points == 10000
+
+    identity = canonical_identity_review.approve_identity_proposal(
+        db_session,
+        proposal.proposal_id,
+        note="Exact behavior and menu hierarchy agree in both official manuals.",
+    )
+    assert identity.canonical_id == "pattern-length"
+    assert identity.status == canonical_settings.IDENTITY_ACTIVE
+    assert {
+        db_session.get(SettingCanonicalMapping, setting.id).canonical_id
+        for setting in (first, second)
+    } == {"pattern-length"}
+    assert (
+        db_session.get(CanonicalIdentityProposal, proposal.proposal_id).status
+        == canonical_identity_review.PROPOSAL_APPROVED
+    )
+    assert [
+        event.action
+        for event in canonical_identity_review.list_identity_proposal_events(
+            db_session,
+            proposal.proposal_id,
+        )
+    ] == ["generated", "refreshed", "approved"]
+
+
+def test_identity_proposal_rejection_can_be_reopened_without_losing_history(
+    db_session,
+    pdf_bytes_factory,
+):
+    description = "Controls a reviewed cross-vendor feature."
+    for vendor in ("ASUS", "MSI"):
+        _trusted_setting(
+            db_session,
+            pdf_bytes_factory,
+            vendor=vendor,
+            name="Shared Review Control",
+            description=description,
+            marker=f"reopen-{vendor.casefold()}",
+        )
+    canonicalization.run_reviewer(db_session)
+    (proposal,) = canonical_identity_review.list_identity_proposals(db_session)
+
+    canonical_identity_review.reject_identity_proposal(
+        db_session,
+        proposal.proposal_id,
+        reason="The menu hierarchy has not been verified.",
+    )
+    canonical_identity_review.reopen_identity_proposal(
+        db_session,
+        proposal.proposal_id,
+        reason="New official menu evidence is now available.",
+    )
+
+    assert canonical_identity_review.get_identity_proposal(
+        db_session,
+        proposal.proposal_id,
+    ).status == canonical_identity_review.PROPOSAL_PENDING
+    assert [
+        event.action
+        for event in canonical_identity_review.list_identity_proposal_events(
+            db_session,
+            proposal.proposal_id,
+        )
+    ] == ["generated", "rejected", "reopened"]

@@ -21,7 +21,7 @@ from app.db.models import (
     SettingCanonicalMapping,
     UnansweredLookup,
 )
-from app.domain import evidence_sources
+from app.domain import canonical_settings, evidence_sources
 from app.domain.errors import EvidenceSourceError, ReferralPointerError
 from app.domain.extraction_runs import utc_now_iso
 from app.normalization.canonical_settings import normalize_alias
@@ -122,7 +122,11 @@ def nearest_canonical_matches(
         return ()
     identities = {
         row.canonical_id: row
-        for row in session.scalars(select(CanonicalSetting).order_by(CanonicalSetting.canonical_id))
+        for row in session.scalars(
+            select(CanonicalSetting)
+            .where(CanonicalSetting.status == canonical_settings.IDENTITY_ACTIVE)
+            .order_by(CanonicalSetting.canonical_id)
+        )
     }
     candidates: list[tuple[str, str, str]] = []
     for identity in identities.values():
@@ -132,7 +136,14 @@ def nearest_canonical_matches(
                 (identity.canonical_id, identity.canonical_id, "canonical_id"),
             )
         )
-    for alias in session.scalars(select(CanonicalSettingAlias)):
+    for alias in session.scalars(
+        select(CanonicalSettingAlias)
+        .join(
+            CanonicalSetting,
+            CanonicalSetting.canonical_id == CanonicalSettingAlias.canonical_id,
+        )
+        .where(CanonicalSetting.status == canonical_settings.IDENTITY_ACTIVE)
+    ):
         if alias.canonical_id in identities:
             candidates.append((alias.canonical_id, alias.display_alias, "reviewed_alias"))
     mapped_rows = session.execute(
@@ -341,9 +352,16 @@ def register_referral_pointer(
     if not review_note or len(review_note) > config.MAX_EVIDENCE_REVIEW_NOTE_LENGTH:
         raise ReferralPointerError("A concise reviewer note is required.")
     canonical_ids = tuple(dict.fromkeys(item.strip() for item in canonical_ids if item.strip()))
-    missing = [item for item in canonical_ids if session.get(CanonicalSetting, item) is None]
-    if missing:
-        raise ReferralPointerError(f"Unknown canonical setting: {missing[0]}.")
+    unavailable = [
+        item
+        for item in canonical_ids
+        if (identity := session.get(CanonicalSetting, item)) is None
+        or identity.status != canonical_settings.IDENTITY_ACTIVE
+    ]
+    if unavailable:
+        raise ReferralPointerError(
+            f"Unknown or deprecated canonical setting: {unavailable[0]}."
+        )
     duplicate = session.scalar(
         select(ReferralPointer.id).where(
             ReferralPointer.publisher_id == publisher_id,
@@ -456,6 +474,16 @@ def referrals_for_matches(
     if canonical_id:
         canonical_ids.insert(0, canonical_id)
     canonical_ids = list(dict.fromkeys(canonical_ids))
+    if canonical_ids:
+        active_ids = set(
+            session.scalars(
+                select(CanonicalSetting.canonical_id).where(
+                    CanonicalSetting.canonical_id.in_(canonical_ids),
+                    CanonicalSetting.status == canonical_settings.IDENTITY_ACTIVE,
+                )
+            )
+        )
+        canonical_ids = [item for item in canonical_ids if item in active_ids]
     linked_ids: list[int] = []
     if canonical_ids:
         linked_ids = list(

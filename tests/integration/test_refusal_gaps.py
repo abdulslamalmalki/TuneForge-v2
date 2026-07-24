@@ -150,6 +150,37 @@ def test_referral_registry_rejects_nonofficial_domains_and_duplicates(client):
     assert "already registered" in duplicate.json()["detail"]
 
 
+def test_referral_registry_rejects_deprecated_canonical_identity(client):
+    canonical_id = _create_identity(client)
+    deprecated = client.post(
+        f"/api/v1/canonicalization/identities/{canonical_id}/deprecate",
+        json={"reason": "Reviewer withdrew this identity from public use."},
+    )
+    assert deprecated.status_code == 200
+
+    pointer = _register_pointer(client, canonical_id)
+    assert pointer.status_code == 400
+    assert "Unknown or deprecated canonical setting" in pointer.json()["detail"]
+
+
+def test_deprecated_identity_does_not_surface_its_linked_referral(client):
+    canonical_id = _create_identity(client)
+    assert _register_pointer(client, canonical_id).status_code == 200
+
+    deprecated = client.post(
+        f"/api/v1/canonicalization/identities/{canonical_id}/deprecate",
+        json={"reason": "Reviewer withdrew this identity from public use."},
+    )
+    assert deprecated.status_code == 200
+
+    response = client.get(
+        "/api/v1/guidance/explain",
+        params={"setting": "Precision Boost Overdriv"},
+    )
+    assert response.status_code == 404
+    assert response.json()["referral_pointers"] == []
+
+
 def test_referral_retirement_is_audited_and_removes_pointer_from_refusals(client, db_session):
     canonical_id = _create_identity(client)
     pointer = _register_pointer(client, canonical_id).json()

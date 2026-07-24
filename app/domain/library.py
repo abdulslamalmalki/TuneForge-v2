@@ -193,7 +193,7 @@ def browse(
 
 def canonical_detail(session: Session, canonical_id: str) -> LibraryCanonicalDetail | None:
     identity = session.get(CanonicalSetting, canonical_id)
-    if identity is None:
+    if identity is None or identity.status != canonical_settings.IDENTITY_ACTIVE:
         return None
     sources = tuple(
         item
@@ -258,7 +258,14 @@ def approved_source_count(session: Session) -> int:
 
 
 def canonical_count(session: Session) -> int:
-    return session.scalar(select(func.count()).select_from(CanonicalSetting)) or 0
+    return (
+        session.scalar(
+            select(func.count())
+            .select_from(CanonicalSetting)
+            .where(CanonicalSetting.status == canonical_settings.IDENTITY_ACTIVE)
+        )
+        or 0
+    )
 
 
 def guidance_count(session: Session) -> int:
@@ -331,7 +338,7 @@ def _filtered_canonical_settings(
 
     values = []
     normalized_query = normalize_alias(query)
-    for row in canonical_settings.list_catalog(session):
+    for row in canonical_settings.list_catalog(session, include_deprecated=False):
         identity = session.get(CanonicalSetting, row.canonical_id)
         if identity is None:
             continue
@@ -439,6 +446,10 @@ def _load_source_settings(
     covered = {row.canonical_id for row in guidance_read.list_coverage(session, approved_only=True)}
     values = []
     for setting, manual, canonical, classification, category in rows:
+        if canonical is not None and canonical.status != canonical_settings.IDENTITY_ACTIVE:
+            canonical = None
+            classification = None
+            category = None
         view = applicability[manual.id]
         targets = tuple(
             LibraryApplicabilityTarget(

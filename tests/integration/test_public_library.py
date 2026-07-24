@@ -1,7 +1,7 @@
 """Public BIOS Settings Library trust, discovery, citation, and UI contracts."""
 
 from app import config
-from app.db.models import ExtractionRun, Setting
+from app.db.models import CanonicalSetting, ExtractionRun, Setting
 from app.db.session import SessionLocal
 from app.domain import canonical_settings, review
 
@@ -308,3 +308,37 @@ def test_library_api_is_documented_as_an_explicit_public_contract(client):
     assert "/api/v1/library/source/{setting_id}" in paths
     response = paths["/api/v1/library/settings"]["get"]["responses"]["200"]
     assert response["content"]["application/json"]["schema"]["$ref"].endswith("/LibraryPageOut")
+
+
+def test_deprecated_canonical_identity_is_hidden_but_source_evidence_remains_public(
+    client,
+    pdf_bytes_factory,
+):
+    canonical_id, asus_id, _, _, _, _ = _knowledge_fixture(client, pdf_bytes_factory)
+    with SessionLocal() as session:
+        identity = session.get(CanonicalSetting, canonical_id)
+        canonical_settings.set_identity_status(
+            session,
+            identity,
+            status=canonical_settings.IDENTITY_DEPRECATED,
+            reason="Reviewer is correcting this cross-vendor identity.",
+        )
+
+    assert client.get(f"/api/v1/library/canonical/{canonical_id}").status_code == 404
+    catalog = client.get(
+        "/api/v1/library/settings",
+        params={"q": "Precision Boost Overdrive"},
+    ).json()
+    assert catalog["total"] == 0
+    source = client.get(f"/api/v1/library/source/{asus_id}").json()
+    assert source["setting"]["canonical_id"] is None
+
+    with SessionLocal() as session:
+        identity = session.get(CanonicalSetting, canonical_id)
+        canonical_settings.set_identity_status(
+            session,
+            identity,
+            status=canonical_settings.IDENTITY_ACTIVE,
+            reason="Corrected identity was re-verified.",
+        )
+    assert client.get(f"/api/v1/library/canonical/{canonical_id}").status_code == 200

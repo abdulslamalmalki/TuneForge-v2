@@ -283,3 +283,51 @@ def test_persistent_exact_alias_queue_accepts_and_dismisses_with_audit(
         "dismissed": 1,
     }
     assert canonical_suggestions.refresh_suggestions(db_session) == 0
+
+
+def test_canonical_identity_deprecation_is_audited_reversible_and_blocks_mapping(
+    db_session,
+    pdf_bytes_factory,
+):
+    identity = canonical_settings.create_identity(db_session, name="Fast Boot")
+    setting = _setting(
+        db_session,
+        pdf_bytes_factory,
+        name="Fast Boot",
+    )
+
+    assert canonical_settings.set_identity_status(
+        db_session,
+        identity,
+        status=canonical_settings.IDENTITY_DEPRECATED,
+        reason="Superseded after reviewer correction.",
+    )
+    with pytest.raises(CanonicalSettingError, match="Deprecated"):
+        canonical_settings.map_setting(
+            db_session,
+            setting,
+            canonical_id=identity.canonical_id,
+        )
+    assert canonical_settings.list_catalog(
+        db_session,
+        include_deprecated=False,
+    ) == []
+
+    assert canonical_settings.set_identity_status(
+        db_session,
+        identity,
+        status=canonical_settings.IDENTITY_ACTIVE,
+        reason="Reviewer confirmed the original identity remains valid.",
+    )
+    canonical_settings.map_setting(
+        db_session,
+        setting,
+        canonical_id=identity.canonical_id,
+    )
+    assert [
+        event.action
+        for event in canonical_settings.list_identity_events(
+            db_session,
+            identity.canonical_id,
+        )
+    ] == ["created", "deprecated", "reactivated"]
