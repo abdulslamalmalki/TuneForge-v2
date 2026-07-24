@@ -1,0 +1,25 @@
+{% extends "layout.html" %}
+{% block title %}Ingestion batches &mdash; Knowledge Builder{% endblock %}
+{% block content %}
+<h1>Ingestion batches</h1>
+{% if batches %}
+<table>
+  <thead><tr><th>Batch</th><th>Status</th><th>Files</th><th>Accepted</th><th>Errors</th><th>Created</th></tr></thead>
+  <tbody>
+  {% for batch in batches %}
+  <tr>
+    <td><a href="/batches/{{ batch.id }}">Batch {{ batch.id }}</a></td>
+    <td>{{ batch.status | replace('_', ' ') }}</td>
+    <td>{{ batch.total_count }}</td>
+    <td>{{ batch.accepted_count }}</td>
+    <td>{{ batch.failed_count }}</td>
+    <td>{{ batch.created_at }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty-state">No ingestion batches yet.</p>
+{% endif %}
+<p><a href="/batches/upload">Upload a batch</a></p>
+{% endblock %}

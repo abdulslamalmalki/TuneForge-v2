@@ -1,0 +1,183 @@
+{% extends "layout.html" %}
+
+{% block title %}Search — Knowledge Builder{% endblock %}
+
+{% block content %}
+<h1>Search</h1>
+<form action="/search" method="get">
+  <label for="q">Keywords</label>
+  <input id="q" name="q" type="search" value="{{ query }}">
+  <label for="vendor_id">Vendor</label>
+  <select id="vendor_id" name="vendor_id">
+    <option value="">All vendors</option>
+    {% for vendor in vendors %}
+    <option value="{{ vendor.vendor_id }}"{% if vendor_id == vendor.vendor_id %} selected{% endif %}>
+      {{ vendor.canonical_name }}
+    </option>
+    {% endfor %}
+  </select>
+  <label for="platform_id">Platform</label>
+  <select id="platform_id" name="platform_id">
+    <option value="">All platforms</option>
+    {% for platform in platforms %}
+    <option value="{{ platform.platform_id }}"{% if platform_id == platform.platform_id %} selected{% endif %}>
+      {{ platform.canonical_name }}
+    </option>
+    {% endfor %}
+  </select>
+  <label for="chipset_family_id">Chipset family</label>
+  <select id="chipset_family_id" name="chipset_family_id">
+    <option value="">All chipset families</option>
+    {% for family in chipset_families %}
+    <option value="{{ family.family_id }}"{% if chipset_family_id == family.family_id %} selected{% endif %}>
+      {{ family.canonical_name }}
+    </option>
+    {% endfor %}
+  </select>
+  <label for="chipset_id">Chipset</label>
+  <select id="chipset_id" name="chipset_id">
+    <option value="">All chipsets</option>
+    {% for chipset in chipsets %}
+    <option value="{{ chipset.chipset_id }}"{% if chipset_id == chipset.chipset_id %} selected{% endif %}>
+      {{ chipset.canonical_name }}
+    </option>
+    {% endfor %}
+  </select>
+  <label for="model_id">Motherboard</label>
+  <select id="model_id" name="model_id">
+    <option value="">All motherboards</option>
+    {% for model in motherboard_models %}
+    <option value="{{ model.model_id }}"{% if model_id == model.model_id %} selected{% endif %}>
+      {{ model.canonical_name }}
+    </option>
+    {% endfor %}
+  </select>
+  <label for="cpu_model_id">System CPU (AM5 pilot)</label>
+  <select id="cpu_model_id" name="cpu_model_id">
+    <option value="">No exact-system context</option>
+    {% for cpu in system_cpus %}
+    <option value="{{ cpu.cpu_model_id }}"{% if cpu_model_id == cpu.cpu_model_id %} selected{% endif %}>
+      {{ cpu.canonical_name }}
+    </option>
+    {% endfor %}
+  </select>
+  <label for="canonical_id">Canonical setting</label>
+  <select id="canonical_id" name="canonical_id">
+    <option value="">All canonical settings</option>
+    {% for canonical in canonical_settings %}
+    <option value="{{ canonical.canonical_id }}"{% if canonical_id == canonical.canonical_id %} selected{% endif %}>
+      {{ canonical.canonical_name }}
+    </option>
+    {% endfor %}
+  </select>
+  <label for="category_id">Canonical category</label>
+  <select id="category_id" name="category_id">
+    <option value="">All categories</option>
+    {% for category in categories %}
+    <option value="{{ category.category_id }}"{% if category_id == category.category_id %} selected{% endif %}>
+      {{ category.canonical_name }}
+    </option>
+    {% endfor %}
+  </select>
+  <label for="risk_level">Canonical risk</label>
+  <select id="risk_level" name="risk_level">
+    <option value="">All risk levels</option>
+    {% for risk in risk_levels %}
+    <option value="{{ risk }}"{% if risk_level == risk %} selected{% endif %}>
+      {{ risk | capitalize }}
+    </option>
+    {% endfor %}
+  </select>
+  <button type="submit">Search</button>
+</form>
+
+{% if context_error %}<p class="error">{{ context_error }}</p>{% endif %}
+{% if system_context %}
+<section class="system-context-card">
+  <strong>System context:</strong>
+  {{ system_context.vendor_name }} {{ system_context.motherboard_model_name }} ·
+  {{ system_context.cpu_model_name }}
+  <span class="equivalence-citations">BIOS-version applicability is not yet modeled.</span>
+</section>
+{% endif %}
+
+{% if not searched %}
+<p class="empty-state">Search approved settings.</p>
+{% elif results %}
+<table>
+  <thead>
+    <tr>
+      <th>Setting</th>
+      <th>Description</th>
+      <th>Manual</th>
+      <th>Applicability</th>
+      <th>Canonical identity</th>
+      <th>Category / risk</th>
+      <th>Page</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for result in results %}
+    <tr>
+      <td><a href="/settings/{{ result.setting_id }}">{{ result.effective_name }}</a></td>
+      <td>{{ result.snippet or '—' }}</td>
+      <td>{{ result.manual_label }}</td>
+      <td>
+        {{ (result.applicability_scope or 'unknown') | replace('_', ' ') }}
+        {% for target_id in result.applicability_target_ids %}
+        <code>{{ target_id }}</code>{% if not loop.last %}, {% endif %}
+        {% endfor %}
+        {% if result.context_match %}
+        <span class="status status-{{ result.context_match.status }}">{{ result.context_match.label }}</span>
+        <span class="equivalence-citations">{{ result.context_match.reason }}</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if result.canonical_id %}
+        <a href="/canonical-settings/{{ result.canonical_id }}"><strong>{{ result.canonical_name }}</strong></a>
+        <p>
+          <a class="guidance-link" href="/guidance?setting={{ result.canonical_id }}{% if system_context %}&amp;motherboard_model_id={{ system_context.motherboard_model_id }}&amp;cpu_model_id={{ system_context.cpu_model_id }}{% endif %}">
+            Open citation-first guidance
+          </a>
+        </p>
+        {% if result.equivalent_vendor_names %}
+        <div class="vendor-equivalence">
+          <span class="vendor-equivalence-title">Equivalent Vendor Names</span>
+          <ul>
+            {% for equivalent in result.equivalent_vendor_names %}
+            <li>
+              <strong>{{ equivalent.vendor_name }}</strong> &mdash; {{ equivalent.setting_name }}
+              <span class="equivalence-citations">
+                {% for citation in equivalent.citations %}
+                <a href="/settings/{{ citation.setting_id }}">{{ citation.manual_label }}, page {{ citation.page_number }}</a>{% if citation.source_url %}
+                (<a href="{{ citation.source_url }}">source URL</a>){% endif %}{% if not loop.last %}; {% endif %}
+                {% endfor %}
+              </span>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+        {% else %}
+        <span class="status">No reviewed canonical mapping</span>
+        <span class="equivalence-citations">Citation-first guidance is unavailable until a reviewer maps this source setting.</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if result.category_name %}
+        {{ result.category_name }} / {{ result.risk_level | capitalize }}
+        {% else %}&mdash;{% endif %}
+      </td>
+      <td>{{ result.page_number }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty-state">
+  No approved settings match — settings must be approved before they appear here.
+  TuneForge will not fill the gap from unreviewed sources or model memory.
+</p>
+{% include "_referral_pointers.html" %}
+{% endif %}
+{% endblock %}

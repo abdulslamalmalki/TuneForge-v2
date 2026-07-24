@@ -1,0 +1,15 @@
+{% extends "layout.html" %}
+{% block title %}Upload a batch &mdash; Knowledge Builder{% endblock %}
+{% block content %}
+<h1>Upload a manual batch</h1>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+<form action="/batches" method="post" enctype="multipart/form-data">
+  <p>
+    <label for="files">Official manual PDFs (up to 50)</label>
+    <input type="file" id="files" name="files" accept="application/pdf" multiple required>
+  </p>
+  <p class="notice">Each file is validated independently. Valid unique PDFs enter provenance
+    and eligibility preflight; one invalid or duplicate file will not cancel the others.</p>
+  <p><button type="submit">Upload batch and run preflight</button></p>
+</form>
+{% endblock %}

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Reviewed, citation-first BIOS knowledge across motherboard vendors.">
+  <title>{% block title %}TuneForge{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v={{ app_version }}">
+</head>
+<body class="public-site">
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <header class="public-header">
+    <nav class="public-nav" aria-label="Public navigation">
+      <a class="public-brand" href="/" aria-label="TuneForge home">
+        <span class="brand-mark" aria-hidden="true">T</span>
+        <span>TuneForge</span>
+      </a>
+      <div class="public-nav-links">
+        <a href="/library"{% if request.url.path.startswith('/library') %} aria-current="page"{% endif %}>BIOS Settings</a>
+        <a href="/compare"{% if request.url.path == '/compare' %} aria-current="page"{% endif %}>Compare Vendors</a>
+        <a href="/answer"{% if request.url.path == '/answer' %} aria-current="page"{% endif %}>Ask TuneForge</a>
+        <a href="/upload-manual"{% if request.url.path == '/upload-manual' %} aria-current="page"{% endif %}>Upload Manual</a>
+      </div>
+    </nav>
+  </header>
+  <main id="main-content" class="public-main {% block main_class %}{% endblock %}">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="public-footer">
+    <div>
+      <strong>TuneForge</strong>
+      <span>Verified BIOS settings across vendors.</span>
+    </div>
+    <p>Official citations · Human reviewed · <a href="/admin">Administrator workspace</a></p>
+  </footer>
+</body>
+</html>

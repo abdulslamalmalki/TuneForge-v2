@@ -1,0 +1,75 @@
+{% extends "layout.html" %}
+
+{% block title %}Discover provenance &mdash; Knowledge Builder{% endblock %}
+
+{% block content %}
+<h1>Review discovered provenance</h1>
+<p><strong>Manual:</strong> {{ manual.original_filename }}</p>
+
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+{% if not discovery or discovery.status == 'pending' %}
+<p class="notice">Metadata extraction and official support-page discovery are in progress.
+Refresh this page shortly.</p>
+{% else %}
+<p class="notice">{{ discovery.message }}</p>
+{% if discovery.query %}<p><strong>Search:</strong> <code>{{ discovery.query }}</code></p>{% endif %}
+
+<form action="/manuals/{{ manual.id }}/provenance/confirm" method="post">
+  <p><label for="vendor">Vendor</label>
+    <input id="vendor" name="vendor" required maxlength="100" value="{{ form.vendor or '' }}"></p>
+  <p><label for="model_name">Model or applicable series</label>
+    <input id="model_name" name="model_name" maxlength="100" value="{{ form.model_name or '' }}"></p>
+  <p><label for="document_title">Document title</label>
+    <input id="document_title" name="document_title" required maxlength="300"
+           value="{{ form.document_title or '' }}"></p>
+
+  {% if discovery.candidates %}
+  <fieldset>
+    <legend>Detected official support pages</legend>
+    {% for candidate in discovery.candidates %}
+    <p>
+      <label>
+        <input type="radio" name="source_url" value="{{ candidate.url }}"
+               {% if loop.first %}checked{% endif %}>
+        {{ candidate.title }} &mdash; confidence {{ candidate.confidence }}%
+      </label><br>
+      <small>{{ candidate.evidence }}</small><br>
+      <a href="{{ candidate.url }}" target="_blank" rel="noopener noreferrer">Open official page</a>
+      {% if candidate.snippet %}<br><small>{{ candidate.snippet }}</small>{% endif %}
+    </p>
+    {% endfor %}
+  </fieldset>
+  {% else %}
+  <input type="hidden" name="source_url" value="">
+  {% endif %}
+
+  <p><label for="manual_source_url">Official support page override</label>
+    <input type="url" id="manual_source_url" name="manual_source_url" maxlength="2048"
+           placeholder="https://www.vendor.example/.../support"
+           value="{{ manual_source_url or '' }}">
+    <small>When entered, this overrides the selected suggestion and is validated against the vendor.</small>
+  </p>
+  <p><label for="document_version">Document version</label>
+    <input id="document_version" name="document_version" maxlength="100"
+           value="{{ form.document_version or '' }}"></p>
+  <p><label for="published_on">Published date</label>
+    <input type="date" id="published_on" name="published_on"
+           value="{{ form.published_on or '' }}"></p>
+  <p><label for="language">Language</label>
+    <input id="language" name="language" required maxlength="35"
+           value="{{ form.language or 'en' }}"></p>
+  <p><label for="board_revision">Board revision</label>
+    <input id="board_revision" name="board_revision" maxlength="100"
+           value="{{ form.board_revision or '' }}"></p>
+  <p><label for="chipset">Chipset/platform</label>
+    <input id="chipset" name="chipset" maxlength="100" value="{{ form.chipset or '' }}"></p>
+  <p><button type="submit">Confirm provenance and review eligibility</button></p>
+</form>
+{% endif %}
+
+<form action="/manuals/{{ manual.id }}/provenance/discover" method="post">
+  <button type="submit">Run discovery again</button>
+</form>
+<p><a href="/manuals/{{ manual.id }}/provenance/edit">Use manual provenance entry</a></p>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "layout.html" %}
+
+{% block title %}AM5 Question Acceptance — TuneForge{% endblock %}
+
+{% block content %}
+<h1>AM5 Product-Question Acceptance</h1>
+<p>{{ report.scope_notice }}</p>
+
+<section class="system-context-card">
+  <h2>Acceptance Summary</h2>
+  <dl class="coverage-summary">
+    <dt>Status</dt><dd><span class="status status-{{ report.summary.acceptance_status }}">{{ report.summary.acceptance_status }}</span></dd>
+    <dt>Passing questions</dt><dd>{{ report.summary.passing_question_count }} / {{ report.summary.total_question_count }}</dd>
+    <dt>Expected supported</dt><dd>{{ report.summary.expected_supported_count }}</dd>
+    <dt>Expected refusals</dt><dd>{{ report.summary.expected_refusal_count }}</dd>
+    <dt>Actually supported</dt><dd>{{ report.summary.actual_supported_count }}</dd>
+    <dt>Actually refused</dt><dd>{{ report.summary.actual_refusal_count }}</dd>
+    <dt>Unexpected evidence gaps</dt><dd>{{ report.summary.unexpected_gap_count }}</dd>
+  </dl>
+</section>
+
+<p class="notice">
+  A refusal passes when the question intentionally requires a capability TuneForge has not
+  reviewed. A refusal fails when a v1 factual question should be supported but its required
+  accepted claim type is missing.
+</p>
+
+<h2>Question Set</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Question</th>
+      <th>Evidence contract</th>
+      <th>Expected</th>
+      <th>Actual</th>
+      <th>Acceptance</th>
+      <th>Reason</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in report.questions %}
+    <tr>
+      <td>
+        <strong>{{ row.question }}</strong>
+        <span class="equivalence-citations"><code>{{ row.question_id }}</code> · {{ row.category }}</span>
+        {% if row.canonical_id %}
+        <a href="/guidance?setting={{ row.canonical_id }}">Open citation-first guidance</a>
+        {% endif %}
+      </td>
+      <td>
+        {{ row.capability | replace('_', ' ') }}
+        {% if row.required_claim_types %}
+        <span class="equivalence-citations">Requires: {{ row.required_claim_types | join(', ') }}</span>
+        {% endif %}
+        {% if row.available_claim_types %}
+        <span class="equivalence-citations">Accepted: {{ row.available_claim_types | join(', ') }} ({{ row.approved_claim_count }} claims)</span>
+        {% endif %}
+      </td>
+      <td>{{ row.expected_outcome }}</td>
+      <td>{{ row.actual_outcome }}</td>
+      <td><span class="status status-{{ 'passed' if row.passed else 'blocked' }}">{{ 'passed' if row.passed else 'gap' }}</span></td>
+      <td>{{ row.reason }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Next Actions</h2>
+<ol>
+  {% for action in report.next_actions %}<li>{{ action }}</li>{% endfor %}
+</ol>
+
+<p><a href="/am5-coverage">Return to AM5 evidence coverage</a></p>
+{% endblock %}

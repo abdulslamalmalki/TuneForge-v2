@@ -1,0 +1,48 @@
+{% extends "admin_layout.html" %}
+{% block title %}Accounts · TuneForge Admin{% endblock %}
+{% block page_title %}Accounts{% endblock %}
+{% block content %}
+<div class="admin-page-heading">
+  <div><p class="admin-kicker">Access control</p><h1>Curator accounts</h1><p>Create named reviewers and keep security changes auditable.</p></div>
+</div>
+{% if message %}<div class="notice success" role="status">{{ message }}</div>{% endif %}
+{% if error %}<div class="notice error" role="alert">{{ error }}</div>{% endif %}
+
+<section class="admin-panel account-create-panel">
+  <div class="admin-panel-heading"><div><span>New account</span><h2>Add a curator</h2></div></div>
+  <form action="/admin/users" method="post" class="account-create-form">
+    <label>Display name<input name="display_name" value="{{ values.get('display_name', '') }}" required maxlength="100"></label>
+    <label>Username<input name="username" value="{{ values.get('username', '') }}" required minlength="3" maxlength="32"></label>
+    <label>Role<select name="role">{% for role in roles %}<option value="{{ role }}" {% if values.get('role', 'reviewer') == role %}selected{% endif %}>{{ role|title }}</option>{% endfor %}</select></label>
+    <label>Password<input type="password" name="password" autocomplete="new-password" required minlength="12" maxlength="128"></label>
+    <label>Confirm password<input type="password" name="password_confirm" autocomplete="new-password" required minlength="12" maxlength="128"></label>
+    <button class="primary-button" type="submit">Create account</button>
+  </form>
+</section>
+
+<section class="admin-panel">
+  <div class="admin-panel-heading"><div><span>Authorized people</span><h2>{{ users|length }} accounts</h2></div></div>
+  <div class="account-list">
+    {% for user in users %}
+    <article class="account-row">
+      <span class="admin-avatar" aria-hidden="true">{{ user.display_name[:1]|upper }}{{ user.username[:1]|upper }}</span>
+      <div class="account-main"><strong>{{ user.display_name }}</strong><span>@{{ user.username }} · {{ user.role|title }}</span></div>
+      <span class="status-badge {{ user.status }}">{{ user.status|title }}</span>
+      <div class="account-actions">
+        <details><summary>Reset password</summary><form action="/admin/users/{{ user.id }}/password" method="post"><input type="password" name="password" aria-label="New password" placeholder="New password" minlength="12" maxlength="128" required><input type="password" name="password_confirm" aria-label="Confirm new password" placeholder="Confirm password" minlength="12" maxlength="128" required><button type="submit">Reset</button></form></details>
+        {% if user.status == 'active' and user.id != administrator.user_id %}<form action="/admin/users/{{ user.id }}/disable" method="post"><button type="submit" class="danger-button">Disable</button></form>{% endif %}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="admin-panel">
+  <div class="admin-panel-heading"><div><span>Append-only history</span><h2>Recent security events</h2></div></div>
+  <div class="activity-list">
+    {% for event in events %}
+    <div class="activity-row"><span class="activity-mark" aria-hidden="true"></span><div><strong>{{ event.action|replace('_', ' ')|title }}</strong><span>{{ event.actor }}{% if event.subject_user_id and user_by_id.get(event.subject_user_id) %} · {{ user_by_id[event.subject_user_id].username }}{% endif %}</span></div><time>{{ event.created_at }}</time></div>
+    {% else %}<p class="empty-state">No security events yet.</p>{% endfor %}
+  </div>
+</section>
+{% endblock %}

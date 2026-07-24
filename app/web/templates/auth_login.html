@@ -1,0 +1,20 @@
+{% extends "auth_layout.html" %}
+{% block title %}Sign in · TuneForge{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <span class="auth-eyebrow">Protected workspace</span>
+  <h1>Sign in to TuneForge Admin</h1>
+  <p>Public BIOS guidance stays open. Curation and source records require an authorized account.</p>
+  {% if error %}<div class="auth-error" role="alert">{{ error }}</div>{% endif %}
+  <form action="/login" method="post" class="auth-form">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label>Username
+      <input name="username" value="{{ username }}" autocomplete="username" required autofocus>
+    </label>
+    <label>Password
+      <input type="password" name="password" autocomplete="current-password" required>
+    </label>
+    <button type="submit" class="primary-button">Sign in</button>
+  </form>
+</section>
+{% endblock %}

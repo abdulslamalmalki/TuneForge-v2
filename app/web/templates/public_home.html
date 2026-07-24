@@ -1,0 +1,103 @@
+{% extends "public_layout.html" %}
+
+{% block title %}TuneForge — BIOS settings, explained with evidence{% endblock %}
+
+{% block content %}
+<section class="public-hero">
+  <div class="hero-copy">
+    <p class="eyebrow"><span class="live-dot" aria-hidden="true"></span> AMD AM5 knowledge pilot</p>
+    <h1>Understand your BIOS settings. <span>See the evidence.</span></h1>
+    <p class="hero-intro">
+      Find reviewed explanations, equivalent names across motherboard vendors,
+      and official citations—without invented answers.
+    </p>
+  </div>
+
+  <form class="public-search" action="/answer" method="get">
+    <label for="home-setting">What do you want to understand about your BIOS?</label>
+    <div class="search-row">
+      <input
+        id="home-setting"
+        name="setting"
+        type="search"
+        list="home-covered-settings"
+        placeholder="Try: What does PBO Scalar do?"
+        autocomplete="off"
+        required
+      >
+      <button type="submit">Find answer</button>
+    </div>
+    <datalist id="home-covered-settings">
+      {% for row in covered_settings %}
+      <option value="{{ row.canonical_name }}"></option>
+      {% endfor %}
+      {% for question in featured_questions %}
+      <option value="{{ question.question }}"></option>
+      {% endfor %}
+    </datalist>
+    <p>Use a setting name, vendor alias, or one of TuneForge's reviewed questions.</p>
+  </form>
+
+  <div class="trust-row" aria-label="TuneForge principles">
+    <div><strong>Official sources</strong><span>Page-level citations</span></div>
+    <div><strong>Cross-vendor</strong><span>Equivalent BIOS names</span></div>
+    <div><strong>Fail-closed</strong><span>Clear when evidence is missing</span></div>
+  </div>
+</section>
+
+<section class="public-section question-section" aria-labelledby="common-questions">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">A good place to start</p>
+      <h2 id="common-questions">Common AM5 questions</h2>
+    </div>
+    <a href="/assistant">View all guided answers <span aria-hidden="true">→</span></a>
+  </div>
+
+  {% if featured_questions %}
+  <div class="question-grid">
+    {% for question in featured_questions %}
+    <a class="question-card" href="/assistant?question_id={{ question.question_id }}">
+      <span class="question-category">{{ question.category | replace('_', ' ') }}</span>
+      <strong>{{ question.question }}</strong>
+      <span class="card-action">Read reviewed answer <span aria-hidden="true">→</span></span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="public-empty">Reviewed questions will appear here when accepted evidence is available.</p>
+  {% endif %}
+</section>
+
+<section class="system-callout library-callout">
+  <div>
+    <p class="eyebrow">Explore the reviewed corpus</p>
+    <h2>Browse BIOS knowledge directly.</h2>
+    <p>Search every approved source setting, compare vendor names, filter by hardware, and inspect official citations.</p>
+  </div>
+  <a class="secondary-button" href="/library">Open the Library</a>
+</section>
+
+<section class="public-section how-section" aria-labelledby="how-it-works">
+  <div class="section-heading compact-heading">
+    <div>
+      <p class="eyebrow">Built for trust</p>
+      <h2 id="how-it-works">How TuneForge answers</h2>
+    </div>
+  </div>
+  <ol class="how-grid">
+    <li><span>01</span><strong>Resolve the setting</strong><p>Match a reviewed canonical setting or vendor-specific name.</p></li>
+    <li><span>02</span><strong>Retrieve accepted facts</strong><p>Use only claims approved from trusted evidence sources.</p></li>
+    <li><span>03</span><strong>Show the limits</strong><p>Cite every answer and refuse what the evidence cannot support.</p></li>
+  </ol>
+</section>
+
+<section class="system-callout">
+  <div>
+    <p class="eyebrow">Make it relevant</p>
+    <h2>Tell TuneForge which AM5 system you use.</h2>
+    <p>Add reviewed motherboard and CPU identity context while keeping applicability limits visible.</p>
+  </div>
+  <a class="secondary-button" href="/system-context">Set up my system</a>
+</section>
+{% endblock %}

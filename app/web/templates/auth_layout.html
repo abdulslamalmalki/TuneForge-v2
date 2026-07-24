@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Secure access to TuneForge knowledge operations.">
+  <title>{% block title %}TuneForge access{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body class="auth-site">
+  <main class="auth-shell">
+    <a class="auth-brand" href="/">
+      <span class="brand-mark" aria-hidden="true">T</span>
+      <span><strong>TuneForge</strong><small>Knowledge operations</small></span>
+    </a>
+    {% block content %}{% endblock %}
+    <a class="auth-public-link" href="/">Return to the public site</a>
+  </main>
+</body>
+</html>

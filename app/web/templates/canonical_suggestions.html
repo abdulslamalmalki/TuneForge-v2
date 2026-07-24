@@ -1,0 +1,77 @@
+{% extends "layout.html" %}
+
+{% block title %}Mapping Suggestions — Knowledge Builder{% endblock %}
+
+{% block content %}
+<h1>Canonical Mapping Suggestions</h1>
+<p>
+  These are exact matches against reviewer-curated aliases. A suggestion never
+  becomes a mapping until a reviewer accepts it after checking the source context.
+</p>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<p>
+  Pending: {{ counts.pending }} &middot;
+  Accepted: {{ counts.accepted }} &middot;
+  Dismissed: {{ counts.dismissed }}
+</p>
+
+<form action="/canonical-suggestions" method="get">
+  <label for="canonical_id">Canonical identity</label>
+  <select id="canonical_id" name="canonical_id">
+    <option value="">All identities</option>
+    {% for identity in catalog %}
+    <option value="{{ identity.canonical_id }}"{% if canonical_id == identity.canonical_id %} selected{% endif %}>
+      {{ identity.canonical_name }}
+    </option>
+    {% endfor %}
+  </select>
+  <button type="submit">Filter</button>
+</form>
+<form action="/canonical-suggestions/refresh" method="post">
+  <button type="submit">Refresh exact matches</button>
+</form>
+
+<table>
+  <thead>
+    <tr>
+      <th>Source setting</th><th>Manual</th><th>Suggested identity</th>
+      <th>Classification</th><th>Review decision</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in queue %}
+    <tr>
+      <td>
+        <a href="/settings/{{ row.setting_id }}">{{ row.effective_name }}</a>
+        <br>Page {{ row.page_number }}
+      </td>
+      <td><a href="/manuals/{{ row.manual_id }}">{{ row.manual_label }}</a></td>
+      <td>
+        <a href="/canonical-settings/{{ row.canonical_id }}">{{ row.canonical_name }}</a>
+        <br>Matched alias: {{ row.matched_alias }}
+      </td>
+      <td>
+        {{ row.category_name or 'Unclassified' }}
+        <br>{{ (row.risk_level or 'unclassified') | capitalize }} risk
+      </td>
+      <td>
+        <form action="/canonical-suggestions/{{ row.suggestion_id }}/accept" method="post">
+          <label for="note-{{ row.suggestion_id }}">Acceptance note</label>
+          <input id="note-{{ row.suggestion_id }}" name="note"
+                 placeholder="Source behavior reviewed">
+          <button type="submit">Accept mapping</button>
+        </form>
+        <form action="/canonical-suggestions/{{ row.suggestion_id }}/dismiss" method="post">
+          <label for="reason-{{ row.suggestion_id }}">Dismissal reason</label>
+          <input id="reason-{{ row.suggestion_id }}" name="reason" required>
+          <button type="submit">Dismiss</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5">No pending exact-alias suggestions.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,120 @@
+{% extends "public_layout.html" %}
+
+{% block title %}Guided AM5 answers — TuneForge{% endblock %}
+
+{% block content %}
+<section class="guided-intro">
+  <p class="eyebrow">Reviewed question library</p>
+  <h1>Guided AM5 answers</h1>
+  <p>Choose a common question. TuneForge will show accepted facts with citations—or clearly explain why it cannot answer yet.</p>
+  <span class="no-ai-note">No language model is connected or required.</span>
+</section>
+
+{% if system_context %}
+<section class="public-context-bar">
+  <span class="context-icon" aria-hidden="true">✓</span>
+  <div><strong>{{ system_context.vendor_name }} {{ system_context.motherboard_model_name }}</strong><span>{{ system_context.cpu_model_name }} · Identity context only</span></div>
+  <a href="/system-context">Change</a>
+</section>
+{% else %}
+<section class="context-prompt"><div><strong>Using a specific AM5 system?</strong><span>Add reviewed motherboard and CPU identity context.</span></div><a href="/system-context">Set my system</a></section>
+{% endif %}
+
+<form class="question-picker" action="/assistant" method="get">
+  {% if motherboard_model_id %}<input type="hidden" name="motherboard_model_id" value="{{ motherboard_model_id }}">{% endif %}
+  {% if cpu_model_id %}<input type="hidden" name="cpu_model_id" value="{{ cpu_model_id }}">{% endif %}
+  <label for="question_id">What would you like to understand?</label>
+  <div class="picker-row">
+    <select id="question_id" name="question_id" required>
+      <option value="">Choose a reviewed question</option>
+      {% for question in questions %}
+      <option value="{{ question.question_id }}"{% if question_id == question.question_id %} selected{% endif %}>{{ question.question }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit">Show answer</button>
+  </div>
+</form>
+
+{% if error %}<p class="public-error" role="alert">{{ error }}</p>{% endif %}
+
+{% if answer %}
+<article class="answer-result guided-result">
+  <header class="answer-heading">
+    <div>
+      <p class="eyebrow">{{ answer.question.category | replace('_', ' ') }}</p>
+      <h2>{{ answer.question.question }}</h2>
+    </div>
+    {% if answer.presentation.outcome == 'supported' %}
+    <span class="answer-status supported"><span aria-hidden="true">✓</span> Reviewed answer</span>
+    {% else %}
+    <span class="answer-status unavailable">Evidence unavailable</span>
+    {% endif %}
+  </header>
+
+  {% if answer.presentation.context_notice %}<p class="public-warning">{{ answer.presentation.context_notice }}</p>{% endif %}
+
+  {% if answer.presentation.statements %}
+    {% for statement in answer.presentation.statements %}
+    <section class="public-fact">
+      <span class="fact-type">{{ statement.claim_type | capitalize }}</span>
+      <p>{{ statement.text }}</p>
+      <div class="citation-list">
+        {% for citation in statement.citations %}
+        <a class="citation-card" href="{{ citation.source_url }}" target="_blank" rel="noreferrer">
+          <span class="citation-number">{{ loop.index }}</span>
+          <span><strong>{{ citation.publisher_name }}</strong><small>{{ citation.source_title }} · Page {{ citation.page_number }}{% if citation.section_heading %} · {{ citation.section_heading }}{% endif %}</small></span>
+          <span aria-hidden="true">↗</span>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+
+    {% if answer.presentation.equivalent_vendor_names %}
+    <section class="public-equivalence" aria-labelledby="guided-equivalent-names">
+      <div class="subsection-heading"><div><p class="eyebrow">Cross-vendor identity</p><h3 id="guided-equivalent-names">Equivalent vendor names</h3></div></div>
+      <div class="equivalence-grid">
+        {% for equivalent in answer.presentation.equivalent_vendor_names %}
+        <div class="equivalence-card"><span>{{ equivalent.vendor_name }}</span><strong>{{ equivalent.setting_name }}</strong></div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+  {% else %}
+    <section class="inline-refusal">
+      <span class="refusal-icon" aria-hidden="true">?</span>
+      <div><h3>TuneForge cannot verify this yet.</h3><p>{{ answer.presentation.refusal_message }}</p></div>
+    </section>
+  {% endif %}
+
+  <details class="answer-limits">
+    <summary>Answer scope and limitations</summary>
+    <p>{{ answer.presentation.scope_notice }}</p>
+    <p>{{ answer.presentation.recommendation_notice }}</p>
+  </details>
+
+  {% if answer.presentation.referral_pointers %}
+  <section class="public-referrals">
+    <h3>Official places to continue</h3>
+    <p>Navigation links only—not accepted evidence for this answer.</p>
+    {% for pointer in answer.presentation.referral_pointers %}
+    <a href="{{ pointer.source_url }}" target="_blank" rel="noreferrer"><span><strong>{{ pointer.title }}</strong><small>{{ pointer.publisher_name }}</small></span><span aria-hidden="true">↗</span></a>
+    {% endfor %}
+  </section>
+  {% endif %}
+</article>
+{% else %}
+<section class="question-preview" aria-labelledby="available-questions">
+  <div class="section-heading compact-heading"><div><p class="eyebrow">Available now</p><h2 id="available-questions">Choose from {{ questions | length }} reviewed questions</h2></div></div>
+  <div class="question-list">
+    {% for question in questions %}
+    <a href="/assistant?question_id={{ question.question_id }}{% if motherboard_model_id and cpu_model_id %}&amp;motherboard_model_id={{ motherboard_model_id }}&amp;cpu_model_id={{ cpu_model_id }}{% endif %}">
+      <span class="question-outcome {% if question.outcome == 'supported' %}available{% else %}limited{% endif %}" aria-hidden="true"></span>
+      <span><strong>{{ question.question }}</strong><small>{% if question.outcome == 'supported' %}Reviewed evidence available{% else %}TuneForge will explain the current limitation{% endif %}</small></span>
+      <span aria-hidden="true">→</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

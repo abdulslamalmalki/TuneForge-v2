@@ -1,0 +1,13 @@
+{% extends "public_layout.html" %}
+
+{% block title %}Manual Submission Received — TuneForge{% endblock %}
+{% block main_class %}submission-main{% endblock %}
+
+{% block content %}
+<section class="submission-confirmation">
+  <span class="submission-confirmation-mark" aria-hidden="true">✓</span>
+  {% if duplicate %}<p class="eyebrow">Already in the review system</p><h1>This official manual was previously submitted.</h1><p>No duplicate record was created. The existing document remains in TuneForge’s private verification and review workflow.</p>{% else %}<p class="eyebrow">Submission received</p><h1>The manual is now awaiting verification.</h1><p>TuneForge will classify the document and keep all extracted settings private until reviewers approve them.</p>{% endif %}
+  <div class="submission-reference"><span>Submission reference</span><strong>{{ reference }}</strong></div>
+  <div class="submission-confirmation-actions"><a class="primary-link-button" href="/library">Return to BIOS Settings</a><a class="secondary-button" href="/upload-manual">Submit another manual</a></div>
+</section>
+{% endblock %}

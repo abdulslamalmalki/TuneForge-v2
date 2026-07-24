@@ -1,0 +1,141 @@
+{% extends "layout.html" %}
+
+{% block title %}Extraction acceptance &mdash; Knowledge Builder{% endblock %}
+
+{% block content %}
+<h1>Extraction acceptance</h1>
+<p>
+  <a href="/manuals/{{ manual.id }}">{{ manual.document_title }}</a>
+  &middot; parser {{ report.parser_version or 'not run' }}
+</p>
+{% if error %}
+<p class="error" role="alert">{{ error }}</p>
+{% endif %}
+
+{% if report.acceptance_complete %}
+<p class="notice"><span class="status status-succeeded">certified</span>
+The candidate review and omission inspection are complete.</p>
+{% else %}
+<p class="warning"><span class="status status-warning">provisional</span>
+Metrics remain provisional until provenance is complete, every candidate is reviewed,
+every approved page reference is checked, and the curator certifies the manual inspection.</p>
+{% endif %}
+
+<h2>Metrics</h2>
+<dl>
+  <dt>Run status</dt><dd>{{ report.run_status or 'not recorded' }}</dd>
+  <dt>Total extracted candidates</dt><dd>{{ report.total_candidates }}</dd>
+  <dt>Reviewed</dt><dd>{{ report.reviewed_count }}</dd>
+  <dt>Drafts remaining</dt><dd>{{ report.draft_count }}</dd>
+  <dt>Approved</dt><dd>{{ report.approved_count }}</dd>
+  <dt>Approved after correction</dt><dd>{{ report.corrected_count }}</dd>
+  <dt>Rejected</dt><dd>{{ report.rejected_count }}</dd>
+  <dt>Empty extracted descriptions</dt><dd>{{ report.empty_description_count }}</dd>
+  <dt>Approved page references reviewed</dt>
+  <dd>{{ report.page_reviewed_count }} / {{ report.approved_count }}</dd>
+  <dt>Extracted page references correct</dt><dd>{{ report.page_correct_count }}</dd>
+  <dt>Page references corrected</dt><dd>{{ report.page_corrected_count }}</dd>
+  <dt>Page-reference accuracy</dt>
+  <dd>{{ '{:.1%}'.format(report.page_accuracy) if report.page_accuracy is not none else 'not available' }}</dd>
+  <dt>Recorded missed settings</dt><dd>{{ report.missed_count }}</dd>
+  <dt>Review completion</dt><dd>{{ '{:.1%}'.format(report.review_completion) }}</dd>
+  <dt>Candidate precision</dt>
+  <dd>{{ '{:.1%}'.format(report.precision) if report.precision is not none else 'not available' }}</dd>
+  <dt>Estimated recall</dt>
+  <dd>{{ '{:.1%}'.format(report.estimated_recall) if report.estimated_recall is not none else 'not available' }}</dd>
+  <dt>Provenance complete</dt><dd>{{ 'yes' if report.provenance_complete else 'no' }}</dd>
+  <dt>Manual inspected for omissions</dt>
+  <dd>{{ manual.acceptance_reviewed_at or 'not certified' }}</dd>
+</dl>
+<p><a href="/review?manual_id={{ manual.id }}">Continue reviewing candidates</a></p>
+
+<h2>Approved-setting page references</h2>
+{% if page_references %}
+<table>
+  <thead>
+    <tr><th>Setting</th><th>Extracted page</th><th>Current page</th><th>Status</th><th>Review</th></tr>
+  </thead>
+  <tbody>
+  {% for item in page_references %}
+    <tr>
+      <td><a href="/settings/{{ item.setting_id }}">{{ item.name }}</a></td>
+      <td>{{ item.extracted_page_number }}</td>
+      <td>
+        <a href="/manuals/{{ manual.id }}/file#page={{ item.effective_page_number }}"
+           target="_blank" rel="noopener">{{ item.effective_page_number }}</a>
+      </td>
+      <td>{{ item.review_status }}</td>
+      <td>
+        <form action="/manuals/{{ manual.id }}/settings/{{ item.setting_id }}/page-reference" method="post">
+          <label for="page-reference-{{ item.setting_id }}">Verified PDF page</label>
+          <input type="number" id="page-reference-{{ item.setting_id }}" name="page_number"
+                 min="1" max="{{ manual.page_count }}" value="{{ item.effective_page_number }}" required>
+          <button type="submit">Save page review</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty-state">No approved settings need page-reference review.</p>
+{% endif %}
+
+<h2>Settings missed by the parser</h2>
+{% if missed_settings %}
+<table>
+  <thead><tr><th>Page</th><th>Name</th><th>Description</th><th>Note</th><th>Action</th></tr></thead>
+  <tbody>
+  {% for item in missed_settings %}
+    <tr>
+      <td>{{ item.page_number }}</td>
+      <td>{{ item.name }}</td>
+      <td>{{ item.description or '' }}</td>
+      <td>{{ item.note or '' }}</td>
+      <td>
+        <form action="/manuals/{{ manual.id }}/missed-settings/{{ item.id }}/dismiss" method="post">
+          <label for="reason-{{ item.id }}">Dismissal reason</label>
+          <input id="reason-{{ item.id }}" name="reason" required>
+          <button type="submit">Dismiss</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty-state">No missed settings recorded.</p>
+{% endif %}
+
+<h3>Record a missed setting</h3>
+<form action="/manuals/{{ manual.id }}/missed-settings" method="post">
+  <p>
+    <label for="name">Setting name</label>
+    <input id="name" name="name" maxlength="300" value="{{ form.name or '' }}" required>
+  </p>
+  <p>
+    <label for="page_number">PDF page number</label>
+    <input type="number" id="page_number" name="page_number" min="1"
+           max="{{ manual.page_count }}" value="{{ form.page_number or '' }}" required>
+  </p>
+  <p>
+    <label for="description">Description (optional)</label>
+    <textarea id="description" name="description" rows="4">{{ form.description or '' }}</textarea>
+  </p>
+  <p>
+    <label for="note">Evaluation note (optional)</label>
+    <textarea id="note" name="note" rows="3">{{ form.note or '' }}</textarea>
+  </p>
+  <button type="submit">Record missed setting</button>
+</form>
+
+<h2>Certify omission inspection</h2>
+<p>Certify only after comparing the full BIOS section against the candidate list and checking every approved setting's PDF page.</p>
+<form action="/manuals/{{ manual.id }}/acceptance/certify" method="post">
+  <p>
+    <label for="notes">Acceptance notes (optional)</label>
+    <textarea id="notes" name="notes" rows="4">{{ manual.acceptance_notes or '' }}</textarea>
+  </p>
+  <button type="submit">Certify manual inspection</button>
+</form>
+{% endblock %}

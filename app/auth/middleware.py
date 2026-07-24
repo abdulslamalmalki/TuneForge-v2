@@ -1,0 +1,137 @@
+"""Application-wide identity, route policy, and browser security headers."""
+
+from urllib.parse import quote, urlsplit
+
+from fastapi import Request
+from fastapi.responses import JSONResponse, RedirectResponse, Response
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+
+from app import config
+from app.auth.context import reset_actor, set_actor
+from app.db.session import SessionLocal
+from app.domain import auth
+
+_PUBLIC_EXACT = {
+    "/",
+    "/answer",
+    "/compare",
+    "/library",
+    "/upload-manual",
+    "/login",
+    "/setup",
+    "/api/v1/health",
+    "/api/v1/ready",
+    "/api/v1/interface-contract",
+    "/api/v1/interface/presentation",
+    "/api/v1/interface/questions",
+    "/api/v1/interface/route",
+}
+_PUBLIC_PREFIXES = (
+    "/static/",
+    "/library/",
+    "/api/v1/interface/questions/",
+    "/api/v1/library/",
+)
+_UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+class AuthBoundaryMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        if config.AUTH_MODE == "disabled":
+            principal = auth.LOCAL_PRINCIPAL
+            setup_required = False
+        else:
+            with SessionLocal() as session:
+                principal = auth.principal_for_token(
+                    session, request.cookies.get(config.AUTH_COOKIE_NAME)
+                )
+                setup_required = auth.user_count(session) == 0
+        request.state.user = principal
+        request.state.setup_required = setup_required
+
+        policy_response = self._policy_response(request, principal, setup_required)
+        if policy_response is not None:
+            return self._secure(policy_response, protected=not self._is_public(request.url.path))
+
+        actor_token = set_actor(principal.username if principal else "anonymous")
+        try:
+            response = await call_next(request)
+        finally:
+            reset_actor(actor_token)
+        return self._secure(response, protected=not self._is_public(request.url.path))
+
+    def _policy_response(
+        self,
+        request: Request,
+        principal: auth.Principal | None,
+        setup_required: bool,
+    ) -> Response | None:
+        if config.AUTH_MODE == "disabled":
+            return None
+        path = request.url.path
+        if request.method in _UNSAFE_METHODS and not _same_origin(request):
+            return self._forbidden(request, "Same-origin confirmation is required.")
+        if self._is_public(path):
+            return None
+        if setup_required:
+            if path.startswith("/api/"):
+                return JSONResponse(
+                    {"detail": "Authentication setup is required."}, status_code=503
+                )
+            return RedirectResponse(url=f"/setup?next={_next_path(request)}", status_code=303)
+        if principal is None:
+            if path.startswith("/api/"):
+                return JSONResponse(
+                    {"detail": "Authentication required."},
+                    status_code=401,
+                    headers={"WWW-Authenticate": "Cookie"},
+                )
+            return RedirectResponse(url=f"/login?next={_next_path(request)}", status_code=303)
+        return None
+
+    @staticmethod
+    def _is_public(path: str) -> bool:
+        return path in _PUBLIC_EXACT or path.startswith(_PUBLIC_PREFIXES)
+
+    @staticmethod
+    def _forbidden(request: Request, message: str) -> Response:
+        if request.url.path.startswith("/api/"):
+            return JSONResponse({"detail": message}, status_code=403)
+        return Response(message, status_code=403, media_type="text/plain")
+
+    @staticmethod
+    def _secure(response: Response, *, protected: bool) -> Response:
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "same-origin")
+        response.headers.setdefault(
+            "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
+        )
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'self'; img-src 'self' data:; style-src 'self'; "
+            "script-src 'none'; object-src 'none'; base-uri 'self'; "
+            "form-action 'self'; frame-ancestors 'none'",
+        )
+        if protected:
+            response.headers.setdefault("Cache-Control", "no-store")
+        return response
+
+
+def _same_origin(request: Request) -> bool:
+    origin = request.headers.get("origin", "")
+    if origin:
+        parsed = urlsplit(origin)
+        return parsed.scheme == request.url.scheme and parsed.netloc == request.url.netloc
+    # Non-browser API clients cannot send browser Origin reliably. Requiring a
+    # non-simple custom header keeps cross-origin forms from invoking mutations.
+    return (
+        request.url.path.startswith("/api/") and request.headers.get("x-tuneforge-request") == "1"
+    )
+
+
+def _next_path(request: Request) -> str:
+    value = request.url.path
+    if request.url.query:
+        value += "?" + request.url.query
+    return quote(value, safe="")

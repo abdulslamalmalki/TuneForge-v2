@@ -1,0 +1,178 @@
+{% extends "admin_layout.html" %}
+
+{% block title %}Canonicalization Backlog &mdash; TuneForge Admin{% endblock %}
+{% block page_title %}Canonicalization backlog{% endblock %}
+
+{% block content %}
+<section class="admin-welcome canonicalization-hero">
+  <div>
+    <p class="admin-eyebrow">Citation-first identity review</p>
+    <h1>{{ '{:,}'.format(backlog.total) }} approved settings need canonical review.</h1>
+    <p>
+      {{ engine_version }} combines reviewed names, descriptions, vendor aliases,
+      document applicability, official provenance, and BIOS menu context. Missing
+      evidence fails closed.
+    </p>
+  </div>
+  <form action="/canonicalization/review" method="post">
+    <button class="admin-button primary" type="submit">Run conservative reviewer</button>
+    <small>Automatic approval requires at least {{ '%.2f'|format(threshold) }}%.</small>
+  </form>
+</section>
+
+{% if notice %}<p class="admin-notice">{{ notice }}</p>{% endif %}
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+{% if report %}
+<section class="admin-panel canonicalization-report" aria-labelledby="run-report-title">
+  <header class="admin-panel-heading">
+    <div>
+      <p class="admin-eyebrow">Completed run {{ report.run_id }}</p>
+      <h2 id="run-report-title">Reviewer report</h2>
+    </div>
+  </header>
+  <div class="canonicalization-summary">
+    <div><strong>{{ '{:,}'.format(report.evaluated_count) }}</strong><span>Evaluated</span></div>
+    <div><strong>{{ report.auto_approved_mappings|length }}</strong><span>Auto-approved</span></div>
+    <div><strong>{{ report.new_canonical_settings|length }}</strong><span>New canonical settings</span></div>
+    <div><strong>{{ '{:,}'.format(report.remaining_manual_review_count) }}</strong><span>Manual review</span></div>
+  </div>
+  {% if report.auto_approved_mappings %}
+  <ul class="canonicalization-decisions">
+    {% for item in report.auto_approved_mappings %}
+    <li>
+      <strong>{{ item.setting_name }}</strong>
+      <span>&rarr; {{ item.canonical_name }} &middot; {{ '%.2f'|format(item.confidence_basis_points / 100) }}%</span>
+      <small>{{ item.reasons|join(' ') }}</small>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="admin-empty">
+    No record met every automatic gate. Nothing was guessed or published.
+  </p>
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="admin-panel canonicalization-policy">
+  <header class="admin-panel-heading">
+    <div><p class="admin-eyebrow">Hard safety boundary</p><h2>Automatic decision policy</h2></div>
+  </header>
+  <div class="canonicalization-policy-grid">
+    <div><strong>Trusted source</strong><span>Official HTTPS vendor URL, eligible manual, certified acceptance, and reviewed page.</span></div>
+    <div><strong>Identity agreement</strong><span>Normalized name plus an existing alias or approved mapped precedent.</span></div>
+    <div><strong>Context agreement</strong><span>Reviewed description, hardware applicability, and BIOS menu path must agree.</span></div>
+    <div><strong>Fail closed</strong><span>Ambiguity, conflicts, or missing context always stay in this backlog.</span></div>
+  </div>
+</section>
+
+{% if backlog.proposed_groups %}
+<section class="admin-panel">
+  <header class="admin-panel-heading">
+    <div>
+      <p class="admin-eyebrow">Cross-manual consensus</p>
+      <h2>Proposed new canonical identities</h2>
+    </div>
+    <span class="queue-count">{{ backlog.proposed_groups|length }} groups</span>
+  </header>
+  <div class="canonicalization-group-list">
+    {% for group in backlog.proposed_groups %}
+    <article>
+      <div>
+        <strong>{{ group.canonical_name }}</strong>
+        <span>{{ group.vendor_ids|join(', ')|upper }} &middot; {{ group.manual_ids|length }} manuals</span>
+      </div>
+      <span class="confidence confidence-manual">{{ group.confidence_percent }}</span>
+      <p>{{ group.reasons|join(' ') }}</p>
+      <small>Source settings: {{ group.setting_ids|join(', ') }}</small>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section class="admin-panel">
+  <header class="admin-panel-heading">
+    <div><p class="admin-eyebrow">Human work queue</p><h2>Approved, unmapped source settings</h2></div>
+    <span class="queue-count">Page {{ backlog.page }} of {{ backlog.pages }}</span>
+  </header>
+  <form class="canonicalization-filters" action="/canonicalization" method="get">
+    <label>
+      Search
+      <input name="query" value="{{ query }}" placeholder="Setting or canonical name">
+    </label>
+    <label>
+      Vendor
+      <select name="vendor_id">
+        <option value="">All vendors</option>
+        {% for vendor in vendors %}
+        <option value="{{ vendor.vendor_id }}"{% if vendor.vendor_id == vendor_id %} selected{% endif %}>{{ vendor.canonical_name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="admin-button secondary" type="submit">Filter backlog</button>
+  </form>
+
+  <div class="canonicalization-table-wrap">
+    <table class="canonicalization-table">
+      <thead>
+        <tr>
+          <th>Source setting</th>
+          <th>Best candidate</th>
+          <th>Confidence</th>
+          <th>Why human review remains</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in backlog.items %}
+        <tr>
+          <td>
+            <a href="/settings/{{ item.setting_id }}"><strong>{{ item.effective_name }}</strong></a>
+            <span>{{ item.vendor_name }} &middot; Manual {{ item.manual_id }} &middot; Page {{ item.page_number }}</span>
+            <small>{{ item.effective_description or 'No reviewed description.' }}</small>
+          </td>
+          <td>
+            {% if item.candidate_canonical_id %}
+            <a href="/canonical-settings/{{ item.candidate_canonical_id }}">{{ item.candidate_canonical_name }}</a>
+            {% elif item.proposed_new_canonical_id %}
+            <strong>New: {{ item.proposed_new_canonical_id }}</strong>
+            <span>{{ item.proposed_group_size }} records &middot; {{ item.proposed_vendor_count }} vendors</span>
+            {% else %}
+            <span>No defensible candidate</span>
+            {% endif %}
+          </td>
+          <td>
+            <span class="confidence{% if item.automatic_eligible %} confidence-auto{% else %} confidence-manual{% endif %}">{{ item.confidence_percent }}</span>
+            <small>{% if item.automatic_eligible %}Automatic threshold passed{% else %}Human decision required{% endif %}</small>
+          </td>
+          <td>
+            <ul>
+              {% for reason in item.reasons %}<li>{{ reason }}</li>{% endfor %}
+            </ul>
+            {% if item.signals %}
+            <details>
+              <summary>Evidence signals</summary>
+              {% for signal in item.signals %}
+              <p><strong>{{ signal.label }}:</strong> {{ signal.state }} &mdash; {{ signal.detail }}</p>
+              {% endfor %}
+            </details>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="admin-empty">No backlog records match these filters.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if backlog.pages > 1 %}
+  <nav class="canonicalization-pagination" aria-label="Backlog pages">
+    {% if backlog.page > 1 %}<a href="/canonicalization?query={{ query|urlencode }}&vendor_id={{ vendor_id|urlencode }}&page={{ backlog.page - 1 }}">Previous</a>{% endif %}
+    <span>{{ backlog.page }} / {{ backlog.pages }}</span>
+    {% if backlog.page < backlog.pages %}<a href="/canonicalization?query={{ query|urlencode }}&vendor_id={{ vendor_id|urlencode }}&page={{ backlog.page + 1 }}">Next</a>{% endif %}
+  </nav>
+  {% endif %}
+</section>
+{% endblock %}

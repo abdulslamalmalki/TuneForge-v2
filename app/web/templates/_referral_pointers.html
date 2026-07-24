@@ -1,0 +1,19 @@
+{% if referral_pointers %}
+<section class="official-referrals" aria-labelledby="official-referral-title">
+  <h2 id="official-referral-title">Official references</h2>
+  <p class="notice">
+    TuneForge still refuses to answer from unreviewed material. These reviewer-verified links
+    are navigation pointers only; their contents are not accepted claims.
+  </p>
+  <ul>
+    {% for pointer in referral_pointers %}
+    <li>
+      <a href="{{ pointer.source_url }}"><strong>{{ pointer.title }}</strong></a>
+      &mdash; {{ pointer.publisher_name }}
+      {% if pointer.document_id %} &middot; {{ pointer.document_id }}{% endif %}
+      {% if pointer.document_version %} &middot; {{ pointer.document_version }}{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}

@@ -1,0 +1,47 @@
+{% extends "layout.html" %}
+
+{% block title %}Upload Evidence Source — Knowledge Builder{% endblock %}
+
+{% block content %}
+<h1>Upload Official Evidence Source</h1>
+<p>
+  This intake is limited to official PDF documents from supported publishers.
+  Uploading creates a pending record; it does not make the content trusted until review.
+</p>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<form action="/evidence-sources" method="post" enctype="multipart/form-data">
+  <label for="file">Official PDF</label>
+  <input id="file" name="file" type="file" accept="application/pdf,.pdf" required>
+
+  <label for="publisher_id">Publisher</label>
+  <select id="publisher_id" name="publisher_id" required>
+    <option value="">Choose publisher</option>
+    {% for publisher_id, publisher in publishers.items() %}
+    <option value="{{ publisher_id }}" {% if form.publisher_id == publisher_id %}selected{% endif %}>
+      {{ publisher[0] }}
+    </option>
+    {% endfor %}
+  </select>
+
+  <label for="title">Document title</label>
+  <input id="title" name="title" value="{{ form.title or '' }}" required>
+
+  <label for="source_url">Official source URL</label>
+  <input id="source_url" name="source_url" type="url" value="{{ form.source_url or '' }}" required>
+
+  <label for="document_id">Publication/document ID</label>
+  <input id="document_id" name="document_id" value="{{ form.document_id or '' }}">
+
+  <label for="document_version">Document version</label>
+  <input id="document_version" name="document_version" value="{{ form.document_version or '' }}" required>
+
+  <label for="published_on">Published date</label>
+  <input id="published_on" name="published_on" type="date" value="{{ form.published_on or '' }}" required>
+
+  <label for="language">Language</label>
+  <input id="language" name="language" value="{{ form.language or 'en' }}" required>
+
+  <button type="submit">Store pending source</button>
+</form>
+{% endblock %}

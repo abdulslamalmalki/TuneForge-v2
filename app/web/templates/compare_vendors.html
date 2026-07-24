@@ -1,0 +1,61 @@
+{% extends "public_layout.html" %}
+
+{% block title %}Compare BIOS Settings Across Vendors — TuneForge{% endblock %}
+{% block main_class %}library-main{% endblock %}
+
+{% block content %}
+<section class="compare-hero">
+  <div>
+    <p class="eyebrow">Cross-vendor BIOS lookup</p>
+    <h1>What is this setting called on another motherboard?</h1>
+    <p>Search any canonical or manufacturer-specific name. TuneForge shows only equivalences confirmed by reviewers and supported by official manuals.</p>
+  </div>
+  <div class="compare-trust-card"><strong>Verified mappings only</strong><span>Similar wording never creates an automatic equivalence.</span></div>
+</section>
+
+<form class="compare-search" action="/compare" method="get">
+  <label for="compare-query">BIOS setting name</label>
+  <div><input id="compare-query" name="q" type="search" value="{{ q }}" placeholder="Try CPU Boost Scalar, PBO Scalar, or Above 4G Decoding" maxlength="300" required autofocus><button type="submit">Compare vendors</button></div>
+  <p>Searches canonical names and every reviewer-approved vendor alias.</p>
+</form>
+
+{% if q %}
+<section class="comparison-results" aria-labelledby="comparison-heading">
+  <header class="comparison-heading"><div><p class="eyebrow">Verified comparison</p><h2 id="comparison-heading">Results for “{{ q }}”</h2></div><span>{{ matches | length }} {{ 'match' if matches | length == 1 else 'matches' }}</span></header>
+  {% if matches %}
+    {% for detail in matches %}
+    <article class="comparison-card">
+      <header>
+        <div><span class="comparison-canonical-label">Canonical setting</span><h3><a href="/library/canonical/{{ detail.setting.canonical_id }}">{{ detail.setting.canonical_name }}</a></h3><p>{{ detail.setting.description or 'A vendor-neutral description has not yet been reviewed.' }}</p></div>
+        <div class="comparison-card-actions"><a href="/answer?setting={{ detail.setting.canonical_id | urlencode }}">Ask TuneForge</a><a href="/library/canonical/{{ detail.setting.canonical_id }}">Full setting record</a></div>
+      </header>
+      {% if detail.setting.equivalent_vendor_names %}
+      <div class="comparison-table-wrap">
+        <table class="comparison-table">
+          <thead><tr><th>Manufacturer</th><th>Vendor-specific setting name</th><th>BIOS menu location</th><th>Official citation</th></tr></thead>
+          <tbody>
+          {% for equivalent in detail.setting.equivalent_vendor_names %}
+          <tr>
+            <td><span class="comparison-vendor-mark">{{ equivalent.vendor_name[:1] }}</span><strong>{{ equivalent.vendor_name }}</strong></td>
+            <td>{{ equivalent.setting_name }}</td>
+            <td><span class="comparison-pending">Not yet captured in the reviewed record</span></td>
+            <td>{% for citation in equivalent.citations %}{% if citation.source_url %}<a href="{{ citation.source_url }}" target="_blank" rel="noreferrer">{{ citation.manual_title }}, page {{ citation.page_number }}</a>{% else %}{{ citation.manual_title }}, page {{ citation.page_number }}{% endif %}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}<div class="library-evidence-gap"><strong>No cross-vendor mapping has been approved.</strong><p>This canonical identity remains visible, but TuneForge will not infer manufacturer equivalents.</p></div>{% endif %}
+    </article>
+    {% endfor %}
+  {% else %}
+  <div class="library-empty"><span aria-hidden="true">?</span><h3>No verified setting matched this name.</h3><p>Try another manufacturer label or browse the complete Settings Library. TuneForge does not guess equivalences.</p><a class="secondary-button" href="/library">Browse BIOS Settings</a></div>
+  {% endif %}
+</section>
+{% else %}
+<section class="compare-start" aria-labelledby="compare-start-heading">
+  <div class="comparison-heading"><div><p class="eyebrow">Start with a setting</p><h2 id="compare-start-heading">Popular canonical settings</h2></div><a href="/library">Browse all BIOS settings</a></div>
+  <div class="compare-featured-grid">{% for item in featured %}<a href="/compare?q={{ item.canonical_name | urlencode }}"><span>{{ item.vendor_count }} vendors</span><strong>{{ item.canonical_name }}</strong><small>{{ item.category_name or 'Unclassified' }} · {{ (item.risk_level or 'unclassified') | capitalize }} risk</small></a>{% endfor %}</div>
+</section>
+{% endif %}
+{% endblock %}

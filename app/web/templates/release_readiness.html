@@ -1,0 +1,57 @@
+{% extends "admin_layout.html" %}
+
+{% block title %}Launch readiness — TuneForge Admin{% endblock %}
+{% block page_title %}Launch readiness{% endblock %}
+
+{% block content %}
+<section class="release-heading">
+  <div>
+    <p class="admin-eyebrow">Focused AM5 v1</p>
+    <h1>Release readiness</h1>
+    <p>Product completion and deployment safety are evaluated separately. A failed check never changes reviewed knowledge.</p>
+  </div>
+  <span class="release-version">TuneForge {{ report.app_version }}</span>
+</section>
+
+<section class="release-summary" aria-label="Release status summary">
+  <article class="release-summary-card status-{{ report.product_status }}">
+    <span>Product</span>
+    <strong>{{ report.product_status|title }}</strong>
+    <small>{{ report.product_passed_count }} / {{ report.product_required_count }} required product checks pass</small>
+  </article>
+  <article class="release-summary-card status-{{ report.deployment_status }}">
+    <span>Deployment</span>
+    <strong>{{ report.deployment_status|title }}</strong>
+    <small>{{ report.deployment_passed_count }} / {{ report.deployment_required_count }} total launch checks pass</small>
+  </article>
+</section>
+
+{% for group, title, description in [
+  ('product', 'Product checks', 'The focused public AM5 experience can answer or refuse exactly as reviewed.'),
+  ('deployment', 'Deployment checks', 'The selected installation is safe to expose and recover.')
+] %}
+<section class="release-check-section" aria-labelledby="release-{{ group }}">
+  <header>
+    <div><p class="admin-eyebrow">{{ group }}</p><h2 id="release-{{ group }}">{{ title }}</h2></div>
+    <p>{{ description }}</p>
+  </header>
+  <div class="release-check-list">
+    {% for check in report.checks if check.group == group %}
+    <article class="release-check {% if check.passed %}check-pass{% else %}check-hold{% endif %}">
+      <span class="release-check-mark" aria-hidden="true">{% if check.passed %}✓{% else %}!{% endif %}</span>
+      <div>
+        <h3>{{ check.label }}</h3>
+        <p>{{ check.detail }}</p>
+      </div>
+      {% if check.href %}<a href="{{ check.href }}">Inspect <span aria-hidden="true">→</span></a>{% endif %}
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endfor %}
+
+<section class="release-note">
+  <strong>What “ready” means</strong>
+  <p>This gate validates deterministic product behavior and this installation's launch controls. It does not claim complete BIOS knowledge, exact BIOS-version applicability, or individualized tuning recommendations.</p>
+</section>
+{% endblock %}

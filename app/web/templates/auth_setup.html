@@ -1,0 +1,28 @@
+{% extends "auth_layout.html" %}
+{% block title %}Set up TuneForge · TuneForge{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <span class="auth-eyebrow">First-run security</span>
+  <h1>Create the administrator</h1>
+  <p>This one-time step protects manuals, evidence, review decisions, and internal APIs.</p>
+  {% if error %}<div class="auth-error" role="alert">{{ error }}</div>{% endif %}
+  <form action="/setup" method="post" class="auth-form">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label>Display name
+      <input name="display_name" value="{{ values.get('display_name', '') }}" autocomplete="name" required maxlength="100">
+    </label>
+    <label>Username
+      <input name="username" value="{{ values.get('username', '') }}" autocomplete="username" required minlength="3" maxlength="32">
+      <small>3–32 lowercase letters, numbers, dots, underscores, or hyphens.</small>
+    </label>
+    <label>Password
+      <input type="password" name="password" autocomplete="new-password" required minlength="12" maxlength="128">
+      <small>Use at least 12 characters and store it in a password manager.</small>
+    </label>
+    <label>Confirm password
+      <input type="password" name="password_confirm" autocomplete="new-password" required minlength="12" maxlength="128">
+    </label>
+    <button type="submit" class="primary-button">Create administrator</button>
+  </form>
+</section>
+{% endblock %}

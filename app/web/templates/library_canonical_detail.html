@@ -1,0 +1,74 @@
+{% extends "public_layout.html" %}
+
+{% block title %}{{ detail.setting.canonical_name }} — BIOS Settings Library{% endblock %}
+{% block main_class %}library-main{% endblock %}
+
+{% block content %}
+<nav class="library-breadcrumb" aria-label="Breadcrumb"><a href="/library">Library</a><span aria-hidden="true">/</span><span>Canonical setting</span></nav>
+
+<article class="library-detail">
+  <header class="library-detail-hero">
+    <div>
+      <p class="eyebrow">Reviewed canonical setting</p>
+      <h1>{{ detail.setting.canonical_name }}</h1>
+      <p>{{ detail.setting.description or 'A vendor-neutral description has not yet been reviewed.' }}</p>
+      <div class="library-detail-badges">
+        <span>{{ detail.setting.category_name or 'Unclassified' }}</span>
+        <span class="risk-pill risk-{{ detail.setting.risk_level or 'unclassified' }}">{{ (detail.setting.risk_level or 'unclassified') | capitalize }} risk</span>
+        {% if detail.setting.guidance_available %}<span class="knowledge-badge available">Accepted guidance</span>{% else %}<span class="knowledge-badge limited">No accepted guidance yet</span>{% endif %}
+      </div>
+    </div>
+    <div class="library-detail-actions">
+      <a class="primary-link-button" href="/answer?setting={{ detail.setting.canonical_id | urlencode }}">Ask TuneForge</a>
+      <a class="secondary-button" href="/compare?q={{ detail.setting.canonical_name | urlencode }}">Compare vendors</a>
+    </div>
+  </header>
+
+  <section class="library-detail-section" aria-labelledby="vendor-names-heading">
+    <div class="subsection-heading"><div><p class="eyebrow">Same setting, different labels</p><h2 id="vendor-names-heading">Vendor names and citations</h2></div></div>
+    {% if detail.setting.equivalent_vendor_names %}
+    <div class="equivalence-grid library-equivalence-grid">
+      {% for equivalent in detail.setting.equivalent_vendor_names %}
+      <article class="equivalence-card">
+        <span>{{ equivalent.vendor_name }}</span>
+        <strong>{{ equivalent.setting_name }}</strong>
+        <small>{% for citation in equivalent.citations %}{% if citation.source_url %}<a href="{{ citation.source_url }}" target="_blank" rel="noreferrer">{{ citation.manual_title }}, p. {{ citation.page_number }}</a>{% else %}{{ citation.manual_title }}, p. {{ citation.page_number }}{% endif %}{% if not loop.last %}; {% endif %}{% endfor %}</small>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="public-empty">No approved vendor source settings are mapped to this identity yet.</p>
+    {% endif %}
+    {% if detail.setting.aliases %}
+    <details class="library-alias-details"><summary>All recognized aliases</summary><ul>{% for alias in detail.setting.aliases %}<li>{{ alias.display_alias }}{% if alias.vendor_id %} <span>{{ alias.vendor_id | upper }}</span>{% endif %}</li>{% endfor %}</ul></details>
+    {% endif %}
+  </section>
+
+  <section class="library-detail-section" aria-labelledby="applicability-heading">
+    <div class="subsection-heading"><div><p class="eyebrow">Observed source coverage</p><h2 id="applicability-heading">Hardware applicability</h2></div></div>
+    {% if detail.setting.applicability_targets %}
+    <div class="library-target-grid">{% for target in detail.setting.applicability_targets %}<div><span>{{ target.target_type | replace('_', ' ') }}</span><strong>{{ target.canonical_name }}</strong></div>{% endfor %}</div>
+    {% else %}<p class="public-empty">No normalized hardware targets are attached to approved source records.</p>{% endif %}
+    <p class="library-scope-note">Coverage means the setting appears in the cited source scope. It does not prove availability in every BIOS version.</p>
+  </section>
+
+  <section class="library-detail-section" aria-labelledby="facts-heading">
+    <div class="subsection-heading"><div><p class="eyebrow">Accepted evidence only</p><h2 id="facts-heading">Reviewed behavior and safety</h2></div></div>
+    {% if fact_groups %}
+      {% for claim_type, facts in fact_groups %}
+      <div class="library-fact-group"><h3>{{ claim_type | capitalize }}</h3>{% for fact in facts %}<article class="public-fact"><p>{{ fact.claim_text }}</p><div class="citation-list">{% for citation in fact.citations %}<a class="citation-card" href="{{ citation.source_url }}" target="_blank" rel="noreferrer"><span class="citation-number">{{ loop.index }}</span><span><strong>{{ citation.publisher_name }}</strong><small>{{ citation.source_title }} · Page {{ citation.page_number }}{% if citation.section_heading %} · {{ citation.section_heading }}{% endif %}</small></span><span aria-hidden="true">↗</span></a>{% endfor %}</div></article>{% endfor %}</div>
+      {% endfor %}
+    {% else %}
+    <div class="library-evidence-gap"><strong>Canonical identity available; accepted guidance is not.</strong><p>TuneForge can verify the mapped vendor names below, but it will not invent behavior, values, or recommendations without accepted evidence claims.</p></div>
+    {% endif %}
+    <details class="answer-limits"><summary>Applicability and recommendation limits</summary><p>{{ detail.scope_notice }}</p><p>{{ detail.recommendation_notice }}</p>{% if detail.classification %}<p><strong>Risk rationale:</strong> {{ detail.classification.risk_rationale }}</p>{% endif %}</details>
+  </section>
+
+  <section class="library-detail-section" aria-labelledby="source-records-heading">
+    <div class="subsection-heading"><div><p class="eyebrow">Official manual observations</p><h2 id="source-records-heading">Approved source records</h2></div><span>{{ detail.source_settings | length }}</span></div>
+    {% if detail.source_settings %}
+    <div class="library-source-list">{% for source in detail.source_settings %}<a href="/library/source/{{ source.setting_id }}"><span><strong>{{ source.vendor_name }}</strong><small>{{ source.effective_name }} · {{ source.manual_label }}</small></span><span>Page {{ source.citation.page_number }} →</span></a>{% endfor %}</div>
+    {% else %}<p class="public-empty">No approved source records are mapped.</p>{% endif %}
+  </section>
+</article>
+{% endblock %}

@@ -1,0 +1,119 @@
+{% extends "layout.html" %}
+
+{% block title %}AM5 Coverage — TuneForge{% endblock %}
+
+{% block content %}
+<h1>AM5 Coverage Validation</h1>
+<p>{{ report.scope_notice }}</p>
+<p><a href="/am5-question-acceptance">Evaluate the fixed AM5 product question set</a></p>
+
+<section class="system-context-card">
+  <h2>Pilot Summary</h2>
+  <dl class="coverage-summary">
+    <dt>Expansion status</dt><dd><span class="status status-{{ report.summary.expansion_status }}">{{ report.summary.expansion_status }}</span></dd>
+    <dt>Vendor manuals</dt><dd>{{ report.summary.vendors_with_manuals }} / {{ report.summary.major_vendor_count }}</dd>
+    <dt>Selectable-model vendors</dt><dd>{{ report.summary.vendors_with_selectable_models }} / {{ report.summary.major_vendor_count }}</dd>
+    <dt>AM5 manuals</dt><dd>{{ report.summary.manual_count }} ({{ report.summary.certified_manual_count }} acceptance-certified)</dd>
+    <dt>Approved settings</dt><dd>{{ report.summary.approved_setting_count }}</dd>
+    <dt>Draft settings</dt><dd>{{ report.summary.draft_setting_count }}</dd>
+    <dt>Mapped approved settings</dt><dd>{{ report.summary.mapped_setting_count }}</dd>
+    <dt>Observed canonical settings</dt><dd>{{ report.summary.observed_canonical_setting_count }} / {{ report.summary.total_canonical_catalog_count }} catalog identities</dd>
+    <dt>Observed settings with guidance</dt><dd>{{ report.summary.observed_canonical_with_guidance_count }} / {{ report.summary.observed_canonical_setting_count }}</dd>
+    <dt>Models with compatible evidence</dt><dd>{{ report.summary.models_with_compatible_evidence }} / {{ report.summary.selectable_model_count }}</dd>
+    <dt>Models with exact evidence</dt><dd>{{ report.summary.models_with_exact_evidence }} / {{ report.summary.selectable_model_count }}</dd>
+  </dl>
+</section>
+
+<h2>Expansion Gates</h2>
+<table>
+  <thead><tr><th>Gate</th><th>Status</th><th>Requirement</th></tr></thead>
+  <tbody>
+    {% for gate in report.gates %}
+    <tr>
+      <td>{{ gate.label }}</td>
+      <td><span class="status status-{{ 'passed' if gate.passed else 'blocked' }}">{{ 'passed' if gate.passed else 'blocked' }}</span></td>
+      <td>{{ gate.detail }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Next Actions</h2>
+<ol>
+  {% for action in report.next_actions %}<li>{{ action }}</li>{% endfor %}
+</ol>
+
+<h2>Vendor Coverage</h2>
+<table>
+  <thead>
+    <tr><th>Vendor</th><th>Models</th><th>Manuals</th><th>Certified</th><th>Approved</th><th>Mapped</th><th>Canonical</th></tr>
+  </thead>
+  <tbody>
+    {% for vendor in report.vendors %}
+    <tr>
+      <td>{{ vendor.vendor_name }}</td>
+      <td>{{ vendor.selectable_model_count }}</td>
+      <td>{{ vendor.manual_count }}</td>
+      <td>{{ vendor.certified_manual_count }}</td>
+      <td>{{ vendor.approved_setting_count }}</td>
+      <td>{{ vendor.mapped_setting_count }}</td>
+      <td>{{ vendor.canonical_setting_count }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Selectable Motherboards</h2>
+<table>
+  <thead>
+    <tr><th>Motherboard</th><th>Chipset</th><th>Evidence</th><th>Compatible manuals</th><th>Approved settings</th><th>Exact approved</th></tr>
+  </thead>
+  <tbody>
+    {% for model in report.models %}
+    <tr>
+      <td>{{ model.vendor_name }} {{ model.model_name }}</td>
+      <td>{{ model.chipset_name }}</td>
+      <td><span class="status status-{{ model.evidence_level }}">{{ model.evidence_level | replace('_', ' ') }}</span><span class="equivalence-citations">{{ model.evidence_note }}</span></td>
+      <td>{{ model.compatible_manual_count }}</td>
+      <td>{{ model.compatible_approved_setting_count }}</td>
+      <td>{{ model.exact_approved_setting_count }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>AM5 Manuals</h2>
+<table>
+  <thead>
+    <tr><th>Manual</th><th>Scope</th><th>Targets</th><th>Review</th><th>Approved / rejected / draft</th><th>Mapped</th></tr>
+  </thead>
+  <tbody>
+    {% for manual in report.manuals %}
+    <tr>
+      <td><a href="/manuals/{{ manual.manual_id }}">{{ manual.vendor_name }} — {{ manual.document_title }}</a></td>
+      <td>{{ manual.applicability_scope | replace('_', ' ') }}</td>
+      <td>{% for target in manual.applicability_target_ids %}<code>{{ target }}</code>{% if not loop.last %}, {% endif %}{% endfor %}</td>
+      <td><span class="status status-{{ 'passed' if manual.acceptance_certified else 'blocked' }}">{{ 'certified' if manual.acceptance_certified else 'not certified' }}</span></td>
+      <td>{{ manual.approved_setting_count }} / {{ manual.rejected_setting_count }} / {{ manual.draft_setting_count }}</td>
+      <td>{{ manual.mapped_setting_count }} across {{ manual.canonical_setting_count }} canonical settings</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Observed Canonical Coverage</h2>
+<p class="notice">Only identities observed in approved AM5-scoped settings appear here. Missing catalog identities are not presumed applicable.</p>
+<table>
+  <thead><tr><th>Canonical setting</th><th>Mapped vendors</th><th>Mapped settings</th><th>Accepted claims</th></tr></thead>
+  <tbody>
+    {% for canonical in report.canonical_settings %}
+    <tr>
+      <td><a href="/canonical-settings/{{ canonical.canonical_id }}">{{ canonical.canonical_name }}</a></td>
+      <td>{{ canonical.mapped_vendor_names | join(', ') }}</td>
+      <td>{{ canonical.mapped_setting_count }}</td>
+      <td><span class="status status-{{ 'passed' if canonical.approved_claim_count else 'warning' }}">{{ canonical.approved_claim_count }}</span></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

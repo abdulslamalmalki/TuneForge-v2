@@ -1,0 +1,198 @@
+{% extends "layout.html" %}
+
+{% block title %}Setting {{ setting.id }} — Knowledge Builder{% endblock %}
+
+{% block content %}
+<h1>{{ effective_name }}</h1>
+<p><span class="status status-{{ setting.status }}">{{ setting.status }}</span></p>
+{% if message %}
+<p class="notice">{{ message }}</p>
+{% endif %}
+{% if error %}
+<p class="error">{{ error }}</p>
+{% endif %}
+
+<dl>
+  <dt>Manual</dt>
+  <dd>
+    <a href="/manuals/{{ manual.id }}">
+      {{ (((manual.vendor or '') ~ ' ' ~ (manual.model_name or '')).strip()) or manual.original_filename }}
+    </a>
+  </dd>
+  <dt>Page</dt>
+  <dd>
+    {{ setting.edited_page_number or setting.page_number }} —
+    <a href="/manuals/{{ manual.id }}/file#page={{ setting.edited_page_number or setting.page_number }}" target="_blank" rel="noopener">
+      Open manual at page {{ setting.edited_page_number or setting.page_number }}
+    </a>
+  </dd>
+  <dt>Hardware applicability</dt>
+  <dd>
+    {% if applicability %}
+    {{ applicability.scope | replace('_', ' ') }}:
+    {% for target in applicability.targets %}
+    <code>{{ target.target_id }}</code> ({{ target.canonical_name }}){% if not loop.last %}, {% endif %}
+    {% endfor %}
+    {% else %}
+    &mdash;
+    {% endif %}
+  </dd>
+  <dt>Page review</dt>
+  <dd>
+    {{ setting.page_review_status }}
+    {% if setting.edited_page_number %}(corrected to page {{ setting.edited_page_number }}){% endif %}
+  </dd>
+  <dt>Canonical identity</dt>
+  <dd>
+    {% if canonical_mapping %}
+    <a href="/canonical-settings/{{ canonical_mapping.canonical_id }}">
+      {{ canonical_mapping.canonical_name }}
+    </a>
+    <code>{{ canonical_mapping.canonical_id }}</code>
+    {% else %}
+    &mdash;
+    {% endif %}
+  </dd>
+  {% if setting.review_note %}
+  <dt>Review note</dt>
+  <dd>{{ setting.review_note }}</dd>
+  {% endif %}
+  <dt>Created</dt>
+  <dd>{{ setting.created_at }}</dd>
+  <dt>Updated</dt>
+  <dd>{{ setting.updated_at }}</dd>
+</dl>
+
+<h2>Extracted vs. Current</h2>
+<table>
+  <thead>
+    <tr>
+      <th></th>
+      <th>Extracted (read-only)</th>
+      <th>Current</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>Name</th>
+      <td>{{ setting.extracted_name }}</td>
+      <td>{{ effective_name }}</td>
+    </tr>
+    <tr>
+      <th>Description</th>
+      <td>{{ setting.extracted_description or '—' }}</td>
+      <td>{{ effective_description or '—' }}</td>
+    </tr>
+  </tbody>
+</table>
+
+{% if setting.status == 'approved' %}
+<h2>Canonical mapping</h2>
+{% if canonical_suggestions %}
+<p class="notice">
+  Exact alias suggestion:
+  {% for suggestion in canonical_suggestions %}
+  <strong>{{ suggestion.canonical_name }}</strong>
+  (<code>{{ suggestion.canonical_id }}</code>){% if not loop.last %}, {% endif %}
+  {% endfor %}
+  — reviewer confirmation is still required.
+</p>
+{% endif %}
+<form action="/settings/{{ setting.id }}/canonical" method="post">
+  <label for="canonical_id">Canonical identity</label>
+  <select id="canonical_id" name="canonical_id" required>
+    <option value="">Select an identity</option>
+    {% for row in canonical_catalog %}
+    <option value="{{ row.canonical_id }}"{% if canonical_mapping and canonical_mapping.canonical_id == row.canonical_id %} selected{% endif %}>
+      {{ row.canonical_name }} ({{ row.canonical_id }})
+    </option>
+    {% endfor %}
+  </select>
+  <label for="canonical_note">Mapping note</label>
+  <input id="canonical_note" name="note" value="{{ canonical_mapping.note if canonical_mapping else '' }}">
+  <button type="submit">Save canonical mapping</button>
+</form>
+{% if canonical_mapping %}
+<form action="/settings/{{ setting.id }}/canonical/unmap" method="post">
+  <label for="unmap_reason">Unmapping reason</label>
+  <input id="unmap_reason" name="reason" required>
+  <button type="submit" class="danger">Remove mapping</button>
+</form>
+{% endif %}
+{% endif %}
+
+{% if setting.status == 'draft' %}
+<h2>Edit draft</h2>
+<form action="/settings/{{ setting.id }}/edit" method="post">
+  <label for="name">Name</label>
+  <input id="name" name="name" value="{{ effective_name }}">
+  <label for="description">Description</label>
+  <textarea id="description" name="description" rows="5">{{ effective_description }}</textarea>
+  <button type="submit">Save changes</button>
+</form>
+
+<h2>Review actions</h2>
+<form action="/settings/{{ setting.id }}/approve" method="post">
+  <label for="note">Approval note (optional)</label>
+  <input id="note" name="note">
+  <button type="submit">Approve</button>
+</form>
+<form action="/settings/{{ setting.id }}/reject" method="post">
+  <label for="reason">Rejection reason (required)</label>
+  <textarea id="reason" name="reason" rows="2"></textarea>
+  <button type="submit" class="danger">Reject</button>
+</form>
+{% else %}
+<h2>Review actions</h2>
+<form action="/settings/{{ setting.id }}/reopen" method="post">
+  <button type="submit">Reopen</button>
+</form>
+{% endif %}
+
+{% if canonical_events %}
+<h2>Canonical mapping history</h2>
+<table>
+  <thead>
+    <tr><th>When</th><th>Action</th><th>Actor</th><th>Detail</th></tr>
+  </thead>
+  <tbody>
+    {% for event in canonical_events %}
+    <tr>
+      <td>{{ event.created_at }}</td>
+      <td>{{ event.action }}</td>
+      <td>{{ event.actor }}</td>
+      <td><code>{{ event.detail }}</code></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<h2>Audit history</h2>
+{% if events %}
+<table>
+  <thead>
+    <tr>
+      <th>When</th>
+      <th>Action</th>
+      <th>Actor</th>
+      <th>Detail</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for event in events %}
+    <tr>
+      <td>{{ event.created_at }}</td>
+      <td>{{ event.action }}</td>
+      <td>{{ event.actor }}</td>
+      <td>{% if event.detail %}<code>{{ event.detail }}</code>{% else %}—{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty-state">No review actions yet.</p>
+{% endif %}
+
+<p><a href="/review">Back to the review queue</a></p>
+{% endblock %}

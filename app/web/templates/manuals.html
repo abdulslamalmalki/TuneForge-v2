@@ -1,0 +1,81 @@
+{% extends "layout.html" %}
+
+{% block title %}Manuals — Knowledge Builder{% endblock %}
+
+{% block content %}
+<h1>Manuals</h1>
+{% if manuals %}
+<table>
+  <thead>
+    <tr>
+      <th>Manual</th>
+      <th>Original file</th>
+      <th>Provenance</th>
+      <th>Eligibility</th>
+      <th>Applicability</th>
+      <th>Pages</th>
+      <th>Size</th>
+      <th>Uploaded</th>
+      <th>Run status</th>
+      <th>Settings (draft / approved / rejected)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in manuals %}
+    {% set manual = row.manual %}
+    <tr>
+      <td>
+        <a href="/manuals/{{ manual.id }}">
+          {{ (((manual.vendor or '') ~ ' ' ~ (manual.model_name or '')).strip()) or manual.original_filename }}
+        </a>
+      </td>
+      <td>
+        {{ manual.original_filename }}
+      </td>
+      <td>
+        {% if manual.source_url and manual.vendor and manual.document_title %}
+        <span class="status status-succeeded">complete</span>
+        {% else %}
+        <span class="status status-warning">incomplete</span>
+        {% endif %}
+      </td>
+      <td>
+        <span class="status status-{{ 'succeeded' if manual.eligibility_status in ('eligible', 'legacy') else 'warning' }}">
+          {{ manual.eligibility_status }}
+        </span>
+        {% if manual.document_type %}{{ manual.document_type | replace('_', ' ') }}{% endif %}
+      </td>
+      <td>
+        {% if row.applicability %}
+        {{ row.applicability.scope | replace('_', ' ') }}
+        {% for target in row.applicability.targets %}
+        <code>{{ target.target_id }}</code>{% if not loop.last %}, {% endif %}
+        {% endfor %}
+        {% else %}
+        <span class="status status-warning">missing</span>
+        {% endif %}
+      </td>
+      <td>{{ manual.page_count }}</td>
+      <td>{{ '{:,}'.format(manual.file_size_bytes) }} bytes</td>
+      <td>{{ manual.created_at }}</td>
+      <td>
+        {% if row.run_status %}
+        <span class="status status-{{ row.run_status }}">{{ row.run_status }}</span>
+        {% if row.run_status == 'succeeded'
+              and row.draft_count + row.approved_count + row.rejected_count == 0 %}
+        <span class="status status-warning">no settings</span>
+        {% endif %}
+        {% else %}
+        —
+        {% endif %}
+      </td>
+      <td>{{ row.draft_count }} / {{ row.approved_count }} / {{ row.rejected_count }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty-state">No manuals yet — upload one.</p>
+{% endif %}
+<p><a href="/manuals/upload">Upload a manual</a></p>
+{% endblock %}

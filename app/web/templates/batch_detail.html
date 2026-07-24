@@ -1,0 +1,36 @@
+{% extends "layout.html" %}
+{% block title %}Batch {{ overview.batch.id }} &mdash; Knowledge Builder{% endblock %}
+{% block content %}
+<h1>Batch {{ overview.batch.id }}</h1>
+<p>Status: <strong>{{ overview.batch.status | replace('_', ' ') }}</strong>.
+  {{ overview.batch.accepted_count }} accepted; {{ overview.batch.failed_count }} errors.</p>
+<p class="notice">Preflight tasks run independently. Refresh this page to see updated workflow states.</p>
+<table>
+  <thead><tr><th>File</th><th>Workflow state</th><th>Suggested type</th><th>Next action</th><th>Error</th></tr></thead>
+  <tbody>
+  {% for row in overview.items %}
+  <tr>
+    <td>
+      {% if row.manual %}<a href="/manuals/{{ row.manual.id }}">{{ row.item.original_filename }}</a>
+      {% else %}{{ row.item.original_filename }}{% endif %}
+    </td>
+    <td>{{ row.workflow_status | replace('_', ' ') }}</td>
+    <td>{{ (row.manual.document_type | replace('_', ' ')) if row.manual and row.manual.document_type else '—' }}</td>
+    <td>
+      {% if row.workflow_status == 'provenance_review' %}
+      <a href="/manuals/{{ row.manual.id }}/provenance/discovery">Review provenance</a>
+      {% elif row.workflow_status == 'eligibility_review' %}
+      <a href="/manuals/{{ row.manual.id }}/eligibility">Review eligibility</a>
+      {% elif row.workflow_status == 'draft_review' %}
+      <a href="/review?manual_id={{ row.manual.id }}">Review drafts ({{ row.draft_count }})</a>
+      {% elif row.workflow_status == 'duplicate' and row.manual %}
+      <a href="/manuals/{{ row.manual.id }}">Open existing manual</a>
+      {% else %}—{% endif %}
+    </td>
+    <td>{{ row.item.error_message or '—' }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p><a href="/batches">All batches</a> &middot; <a href="/batches/upload">Upload another batch</a></p>
+{% endblock %}

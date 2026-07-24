@@ -1,0 +1,17 @@
+services:
+  tuneforge:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      TUNEFORGE_ENVIRONMENT: development
+      TUNEFORGE_AUTH_MODE: required
+      TUNEFORGE_AUTH_COOKIE_SECURE: "0"
+      TUNEFORGE_TRUSTED_HOSTS: 127.0.0.1,localhost
+      KNOWLEDGE_BUILDER_DATA_DIR: /data
+    volumes:
+      - tuneforge-data:/data
+    restart: unless-stopped
+
+volumes:
+  tuneforge-data:

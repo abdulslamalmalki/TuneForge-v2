@@ -1,0 +1,180 @@
+{% extends "public_layout.html" %}
+
+{% block title %}BIOS Settings Library — TuneForge{% endblock %}
+{% block main_class %}library-main{% endblock %}
+
+{% block content %}
+<section class="library-hero">
+  <div class="library-hero-copy">
+    <p class="eyebrow"><span class="library-live-dot" aria-hidden="true"></span>Public, reviewer-approved knowledge</p>
+    <h1>BIOS Settings Library</h1>
+    <p>Find a BIOS option in seconds. Compare vendor names, understand reviewed behavior, and trace every fact to its official source.</p>
+    <div class="library-trust-note"><strong>No generated entries.</strong><span>Drafts and rejected settings never appear here.</span></div>
+  </div>
+  <dl class="library-stats" aria-label="Library coverage">
+    <div><dt>{{ approved_source_count }}</dt><dd>Approved source settings</dd></div>
+    <div><dt>{{ canonical_count }}</dt><dd>Canonical settings</dd></div>
+    <div><dt>{{ guidance_count }}</dt><dd>With accepted guidance</dd></div>
+  </dl>
+</section>
+
+<nav class="library-view-tabs" aria-label="Library views">
+  <a href="{{ canonical_view_url }}"{% if view == 'canonical' %} aria-current="page"{% endif %}>
+    <span class="library-tab-index" aria-hidden="true">01</span>
+    <span><strong>Canonical Settings</strong><small>Compare equivalent names across vendors</small></span>
+  </a>
+  <a href="{{ source_view_url }}"{% if view == 'source' %} aria-current="page"{% endif %}>
+    <span class="library-tab-index" aria-hidden="true">02</span>
+    <span><strong>Source Settings</strong><small>Browse every approved manual record</small></span>
+  </a>
+</nav>
+
+<form class="library-filters" action="/library" method="get">
+  <input type="hidden" name="view" value="{{ view }}">
+  <header class="library-filter-heading">
+    <div><p class="eyebrow">Search and refine</p><h2>Find the exact setting</h2></div>
+    {% if active_filter_count %}<span>{{ active_filter_count }} active {{ 'filter' if active_filter_count == 1 else 'filters' }}</span>{% endif %}
+  </header>
+  <div class="library-search-field">
+    <label for="library-query">Search the Library</label>
+    <div>
+      <input id="library-query" name="q" type="search" value="{{ q }}" placeholder="Try: PBO, Curve Optimizer, memory voltage" maxlength="300">
+      <button type="submit">Search Library</button>
+    </div>
+    <p class="library-search-suggestions">Popular: <a href="/library?view={{ view }}&amp;q=PBO">PBO</a><a href="/library?view={{ view }}&amp;q=Curve+Optimizer">Curve Optimizer</a><a href="/library?view={{ view }}&amp;q=EXPO">EXPO</a><a href="/library?view={{ view }}&amp;q=Secure+Boot">Secure Boot</a></p>
+  </div>
+  <div class="library-filter-grid">
+    <label for="library-vendor">Vendor
+      <select id="library-vendor" name="vendor_id">
+        <option value="">All vendors</option>
+        {% for vendor in vendors %}<option value="{{ vendor.vendor_id }}"{% if vendor_id == vendor.vendor_id %} selected{% endif %}>{{ vendor.canonical_name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label for="library-platform">Platform
+      <select id="library-platform" name="platform_id">
+        <option value="">All platforms</option>
+        {% for platform in platforms %}<option value="{{ platform.platform_id }}"{% if platform_id == platform.platform_id %} selected{% endif %}>{{ platform.canonical_name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label for="library-chipset">Chipset
+      <select id="library-chipset" name="chipset_id">
+        <option value="">All chipsets</option>
+        {% for chipset in chipsets %}<option value="{{ chipset.chipset_id }}"{% if chipset_id == chipset.chipset_id %} selected{% endif %}>{{ chipset.canonical_name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label for="library-category">Category
+      <select id="library-category" name="category_id">
+        <option value="">All categories</option>
+        {% for category in categories %}<option value="{{ category.category_id }}"{% if category_id == category.category_id %} selected{% endif %}>{{ category.canonical_name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label for="library-risk">Risk
+      <select id="library-risk" name="risk_level">
+        <option value="">All risk levels</option>
+        {% for risk in risk_levels %}<option value="{{ risk }}"{% if risk_level == risk %} selected{% endif %}>{{ risk | capitalize }}</option>{% endfor %}
+      </select>
+    </label>
+  </div>
+  <div class="library-filter-actions">
+    {% if has_search_or_filters %}<a href="{{ reset_url }}">Clear search and filters</a>{% endif %}
+    <button type="submit">Apply filters</button>
+  </div>
+</form>
+
+<section class="library-results" aria-labelledby="library-results-heading">
+  <header class="library-results-heading">
+    <div>
+      <p class="eyebrow">{{ 'Cross-vendor identities' if view == 'canonical' else 'Approved vendor records' }}</p>
+      <h2 id="library-results-heading">
+        {% if q %}Results for “{{ q }}”{% else %}Browse {{ 'canonical settings' if view == 'canonical' else 'source settings' }}{% endif %}
+      </h2>
+    </div>
+    <p>Showing <strong>{{ first_result }}–{{ last_result }}</strong> of <strong>{{ result.total }}</strong> reviewed {{ 'settings' if result.total != 1 else 'setting' }}</p>
+  </header>
+
+  {% if result.items %}
+  <div class="library-card-list">
+    {% for item in result.items %}
+      {% if view == 'canonical' %}
+      <article class="library-card canonical-card">
+        <div class="library-card-main">
+          <div class="library-card-title-row">
+            <span class="library-setting-mark" aria-hidden="true">C</span>
+            <div>
+              <div class="library-card-kicker">
+                <span>Canonical setting</span>
+                {% if item.guidance_available %}<span class="knowledge-badge available">Guidance available</span>{% else %}<span class="knowledge-badge limited">Identity only</span>{% endif %}
+              </div>
+              <h3><a href="/library/canonical/{{ item.canonical_id }}">{{ item.canonical_name }}</a></h3>
+            </div>
+          </div>
+          <p>{{ item.description or 'A vendor-neutral description has not yet been reviewed.' }}</p>
+          {% if item.equivalent_vendor_names %}
+          <p class="library-alias-label">Equivalent vendor names</p>
+          <div class="library-alias-row" aria-label="Vendor names">
+            {% for equivalent in item.equivalent_vendor_names %}
+            <span><strong>{{ equivalent.vendor_name }}</strong> {{ equivalent.setting_name }}</span>
+            {% endfor %}
+          </div>
+          {% elif item.aliases %}
+          <div class="library-alias-row" aria-label="Recognized aliases">
+            {% for alias in item.aliases[:4] %}<span>{{ alias.display_alias }}</span>{% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        <dl class="library-card-meta">
+          <div><dt>Category</dt><dd>{{ item.category_name or 'Unclassified' }}</dd></div>
+          <div><dt>Risk</dt><dd><span class="risk-pill risk-{{ item.risk_level or 'unclassified' }}">{{ (item.risk_level or 'unclassified') | capitalize }}</span></dd></div>
+          <div><dt>Coverage</dt><dd>{{ item.vendor_count }} vendors · {{ item.source_setting_count }} records</dd></div>
+        </dl>
+        <div class="library-card-actions"><a class="library-card-link" href="/library/canonical/{{ item.canonical_id }}">Open setting <span aria-hidden="true">→</span></a><a class="library-compare-link" href="/compare?q={{ item.canonical_name | urlencode }}">Compare vendors</a></div>
+      </article>
+      {% else %}
+      <article class="library-card source-card">
+        <div class="library-card-main">
+          <div class="library-card-title-row">
+            <span class="library-setting-mark source" aria-hidden="true">{{ item.vendor_name[:1] }}</span>
+            <div>
+              <div class="library-card-kicker">
+                <span>{{ item.vendor_name }} source setting</span>
+                {% if item.canonical_id %}<span class="knowledge-badge available">Canonically mapped</span>{% else %}<span class="knowledge-badge neutral">Reviewed source</span>{% endif %}
+              </div>
+              <h3><a href="/library/source/{{ item.setting_id }}">{{ item.effective_name }}</a></h3>
+            </div>
+          </div>
+          <p>{{ item.description_excerpt or 'The source contains no reviewed description for this setting.' }}</p>
+          <div class="source-citation-line">
+            {% if item.citation.source_url %}<a href="{{ item.citation.source_url }}" target="_blank" rel="noreferrer">{{ item.citation.source_title }}</a>{% else %}{{ item.citation.source_title }}{% endif %}
+            <span>Page {{ item.citation.page_number }}</span>
+          </div>
+        </div>
+        <dl class="library-card-meta">
+          <div><dt>Canonical identity</dt><dd>{% if item.canonical_id %}<a href="/library/canonical/{{ item.canonical_id }}">{{ item.canonical_name }}</a>{% else %}Not yet mapped{% endif %}</dd></div>
+          <div><dt>Applicability</dt><dd>{% if item.applicability_targets %}{{ item.applicability_targets | map(attribute='canonical_name') | join(', ') }}{% else %}Not normalized{% endif %}</dd></div>
+          <div><dt>Knowledge status</dt><dd>{{ item.acceptance_label }}</dd></div>
+        </dl>
+        <a class="library-card-link" href="/library/source/{{ item.setting_id }}">View cited source record <span aria-hidden="true">→</span></a>
+      </article>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  {% if result.total_pages > 1 %}
+  <nav class="library-pagination" aria-label="Library result pages">
+    {% if previous_url %}<a href="{{ previous_url }}" rel="prev">← Previous</a>{% else %}<span aria-disabled="true">← Previous</span>{% endif %}
+    <div>
+      {% for number, url in page_links %}<a href="{{ url }}"{% if number == result.page %} aria-current="page"{% endif %}>{{ number }}</a>{% endfor %}
+    </div>
+    {% if next_url %}<a href="{{ next_url }}" rel="next">Next →</a>{% else %}<span aria-disabled="true">Next →</span>{% endif %}
+  </nav>
+  {% endif %}
+  {% else %}
+  <div class="library-empty">
+    <span aria-hidden="true">?</span>
+    <h3>No approved knowledge matches these filters.</h3>
+    <p>TuneForge does not fill Library gaps with rejected candidates, unreviewed text, or model memory.</p>
+    <a class="secondary-button" href="{{ reset_url }}">Clear filters</a>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

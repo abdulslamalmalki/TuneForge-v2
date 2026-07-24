@@ -1,0 +1,80 @@
+{% extends "layout.html" %}
+
+{% block title %}Guidance Claim {{ detail.claim.id }} — Knowledge Builder{% endblock %}
+
+{% block content %}
+{% set claim = detail.claim %}
+<h1>Guidance Claim {{ claim.id }}</h1>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+<p>
+  <span class="status status-{{ claim.status }}">{{ claim.status }}</span>
+  <span class="status">{{ claim.claim_type }}</span>
+  <span class="status">{{ claim.applicability_scope }}</span>
+</p>
+<p><strong>{{ claim.claim_text }}</strong></p>
+
+<h2>Canonical settings</h2>
+<ul>
+  {% for setting in detail.settings %}
+  <li><a href="/canonical-settings/{{ setting.canonical_id }}">{{ setting.canonical_name }}</a></li>
+  {% endfor %}
+</ul>
+
+<h2>Supporting evidence</h2>
+{% for citation in detail.evidence %}
+<article class="evidence-passage">
+  <h3>
+    <a href="/evidence-sources/{{ citation.source.id }}">{{ citation.source.title }}</a>,
+    page {{ citation.passage.page_number }}
+  </h3>
+  <p>{{ citation.passage.section_heading or 'Untitled section' }}</p>
+  <pre>{{ citation.passage.passage_text }}</pre>
+  <small>Passage {{ citation.passage.id }} · SHA-256: <code>{{ citation.passage.text_sha256 }}</code></small>
+</article>
+{% endfor %}
+
+{% if claim.status == 'draft' %}
+<h2>Edit draft</h2>
+<form action="/guidance-claims/{{ claim.id }}/edit" method="post">
+  <label for="claim_text">Claim text</label>
+  <textarea id="claim_text" name="claim_text" rows="4" required>{{ claim.claim_text }}</textarea>
+  <label for="claim_type">Claim type</label>
+  <select id="claim_type" name="claim_type">
+    {% for value in claim_types %}
+    <option value="{{ value }}" {% if claim.claim_type == value %}selected{% endif %}>{{ value }}</option>
+    {% endfor %}
+  </select>
+  <label for="passage_ids">Evidence passage IDs</label>
+  <input id="passage_ids" name="passage_ids" value="{% for citation in detail.evidence %}{{ citation.passage.id }}{% if not loop.last %}, {% endif %}{% endfor %}" required>
+  <label for="canonical_ids">Canonical setting IDs, one per line</label>
+  <textarea id="canonical_ids" name="canonical_ids" rows="5" required>{% for setting in detail.settings %}{{ setting.canonical_id }}{% if not loop.last %}
+{% endif %}{% endfor %}</textarea>
+  <button type="submit">Save draft</button>
+</form>
+
+<h2>Reviewer decision</h2>
+<form action="/guidance-claims/{{ claim.id }}/review" method="post">
+  <label for="note">Reviewer note</label>
+  <textarea id="note" name="note" rows="3" required></textarea>
+  <button type="submit" name="decision" value="approved">Approve claim</button>
+  <button class="danger" type="submit" name="decision" value="rejected">Reject claim</button>
+</form>
+{% else %}
+<h2>Review decision</h2>
+<dl>
+  <dt>Reviewer</dt><dd>{{ claim.reviewer }}</dd>
+  <dt>Reviewed</dt><dd>{{ claim.reviewed_at }}</dd>
+  <dt>Note</dt><dd>{{ claim.review_note }}</dd>
+</dl>
+{% endif %}
+
+<h2>Audit history</h2>
+<table>
+  <thead><tr><th>Time</th><th>Action</th><th>Actor</th></tr></thead>
+  <tbody>
+    {% for event in detail.events %}
+    <tr><td>{{ event.created_at }}</td><td>{{ event.action }}</td><td>{{ event.actor }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "public_layout.html" %}
+
+{% block title %}My AM5 system — TuneForge{% endblock %}
+
+{% block content %}
+<section class="guided-intro system-intro">
+  <p class="eyebrow">Optional system context</p>
+  <h1>My AM5 system</h1>
+  <p>Select a reviewed motherboard and CPU. TuneForge will carry their identity into answers while clearly showing what has not been verified for your exact BIOS.</p>
+</section>
+
+<form class="system-form" action="/system-context" method="get">
+  <div>
+    <label for="motherboard_model_id">Motherboard</label>
+    <select id="motherboard_model_id" name="motherboard_model_id" required>
+      <option value="">Choose an AM5 motherboard</option>
+      {% for motherboard in motherboards %}
+      <option value="{{ motherboard.model_id }}"{% if motherboard_model_id == motherboard.model_id %} selected{% endif %}>{{ motherboard.canonical_name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label for="cpu_model_id">CPU</label>
+    <select id="cpu_model_id" name="cpu_model_id" required>
+      <option value="">Choose an AM5 CPU</option>
+      {% for cpu in cpus %}
+      <option value="{{ cpu.cpu_model_id }}"{% if cpu_model_id == cpu.cpu_model_id %} selected{% endif %}>{{ cpu.canonical_name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit">Use this system</button>
+</form>
+
+{% if error %}<p class="public-error" role="alert">{{ error }}</p>{% endif %}
+
+{% if system_context %}
+<section class="resolved-system" aria-labelledby="resolved-system">
+  <div class="resolved-heading"><span class="context-icon" aria-hidden="true">✓</span><div><p class="eyebrow">Identity resolved</p><h2 id="resolved-system">{{ system_context.vendor_name }} {{ system_context.motherboard_model_name }}</h2><p>{{ system_context.cpu_model_name }}</p></div></div>
+  <dl class="system-details">
+    <div><dt>Chipset</dt><dd>{{ system_context.chipset_name }}</dd></div>
+    <div><dt>Platform</dt><dd>{{ system_context.platform_name }}</dd></div>
+    <div><dt>Coverage</dt><dd>{{ system_context.coverage_status | replace('_', ' ') | capitalize }}</dd></div>
+    <div><dt>BIOS version</dt><dd>{{ system_context.bios_version_status | replace('_', ' ') | capitalize }}</dd></div>
+  </dl>
+  {% for warning in system_context.warnings %}<p class="public-warning">{{ warning }}</p>{% endfor %}
+  <div class="system-actions">
+    <a class="primary-link-button" href="/assistant?motherboard_model_id={{ system_context.motherboard_model_id }}&amp;cpu_model_id={{ system_context.cpu_model_id }}">Browse guided answers</a>
+    <a class="secondary-button" href="/answer?motherboard_model_id={{ system_context.motherboard_model_id }}&amp;cpu_model_id={{ system_context.cpu_model_id }}">Find a setting</a>
+  </div>
+</section>
+{% else %}
+<section class="privacy-note"><strong>Nothing is saved.</strong><p>System context stays in the current page links. TuneForge does not create a hardware profile or infer your BIOS version.</p></section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,117 @@
+{% extends "layout.html" %}
+
+{% block title %}Refusal Gaps &mdash; Knowledge Builder{% endblock %}
+
+{% block content %}
+<h1>Refusal Gaps</h1>
+<p>
+  This demand-ranked worklist is built only from citation-first lookups that failed closed.
+  Records are append-only and exclude network identifiers, request headers, and free-form
+  hardware details.
+</p>
+
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<h2>Demand worklist</h2>
+{% if worklist %}
+<table>
+  <thead>
+    <tr><th>Lookup</th><th>Reason</th><th>Demand</th><th>Nearest reviewed identities</th><th>Last seen</th></tr>
+  </thead>
+  <tbody>
+    {% for gap in worklist %}
+    <tr>
+      <td><strong>{{ gap.query_text }}</strong><br><span class="status">{{ gap.surface }}</span></td>
+      <td>{{ gap.reason | replace('_', ' ') }}</td>
+      <td>{{ gap.occurrence_count }}</td>
+      <td>
+        {% for match in gap.nearest_matches %}
+        <a href="/canonical-settings/{{ match.canonical_id }}">{{ match.canonical_name }}</a>
+        <span class="equivalence-citations">via {{ match.matched_name }} ({{ '%.3f' | format(match.score) }})</span>{% if not loop.last %}<br>{% endif %}
+        {% else %}&mdash;{% endfor %}
+      </td>
+      <td>{{ gap.last_seen_at }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty-state">No failed citation-first lookups have been recorded.</p>
+{% endif %}
+
+<h2>Official referral registry</h2>
+<p>
+  A pointer contains only reviewer-verified metadata and an official HTTPS link. It does not
+  admit the linked document or any claim into the knowledge base.
+</p>
+<form action="/referral-pointers" method="post">
+  <label for="publisher_id">Publisher</label>
+  <select id="publisher_id" name="publisher_id" required>
+    <option value="">Choose an official publisher</option>
+    {% for publisher_id, publisher_name in publishers %}
+    <option value="{{ publisher_id }}">{{ publisher_name }}</option>
+    {% endfor %}
+  </select>
+  <label for="title">Document title</label>
+  <input id="title" name="title" required maxlength="300">
+  <label for="source_url">Official HTTPS URL</label>
+  <input id="source_url" name="source_url" type="url" required maxlength="2048">
+  <label for="document_id">Document ID (optional)</label>
+  <input id="document_id" name="document_id" maxlength="100">
+  <label for="document_version">Document version (optional)</label>
+  <input id="document_version" name="document_version" maxlength="100">
+  <label for="canonical_ids">Canonical IDs (optional, comma-separated)</label>
+  <input id="canonical_ids" name="canonical_ids" list="canonical-referral-settings">
+  <datalist id="canonical-referral-settings">
+    {% for setting in canonical_settings %}<option value="{{ setting.canonical_id }}">{{ setting.canonical_name }}</option>{% endfor %}
+  </datalist>
+  <label for="review_note">Reviewer verification note</label>
+  <textarea id="review_note" name="review_note" required maxlength="5000"></textarea>
+  <button type="submit">Register official pointer</button>
+</form>
+
+{% if pointers %}
+<table>
+  <thead><tr><th>Reference</th><th>Canonical scope</th><th>Status</th><th>Audit action</th></tr></thead>
+  <tbody>
+    {% for pointer in pointers %}
+    <tr>
+      <td>
+        <a href="{{ pointer.source_url }}">{{ pointer.title }}</a><br>
+        {{ pointer.publisher_name }}
+        {% if pointer.document_id %} &middot; {{ pointer.document_id }}{% endif %}
+        {% if pointer.document_version %} &middot; {{ pointer.document_version }}{% endif %}
+      </td>
+      <td>{% for canonical_id in pointer.canonical_ids %}<code>{{ canonical_id }}</code>{% if not loop.last %}, {% endif %}{% else %}General{% endfor %}</td>
+      <td><span class="status status-{{ pointer.status }}">{{ pointer.status }}</span></td>
+      <td>
+        {% if pointer.status == 'active' %}
+        <form action="/referral-pointers/{{ pointer.id }}/retire" method="post">
+          <label for="retire-note-{{ pointer.id }}">Retirement note</label>
+          <input id="retire-note-{{ pointer.id }}" name="review_note" required maxlength="5000">
+          <button type="submit">Retire</button>
+        </form>
+        {% else %}Retained in audit history{% endif %}
+        <details>
+          <summary>Audit history ({{ pointer.events | length }})</summary>
+          <ol>
+            {% for event in pointer.events %}
+            <li>{{ event.created_at }} &mdash; {{ event.action }} by {{ event.actor }}</li>
+            {% endfor %}
+          </ol>
+        </details>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<details>
+  <summary>Recent immutable refusal events ({{ events | length }})</summary>
+  <ol>
+    {% for gap in events %}<li>{{ gap.created_at }} &mdash; {{ gap.surface }} &mdash; {{ gap.query_text }}</li>
+    {% else %}<li>No events.</li>{% endfor %}
+  </ol>
+</details>
+{% endblock %}

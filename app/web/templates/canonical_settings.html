@@ -1,0 +1,52 @@
+{% extends "layout.html" %}
+
+{% block title %}Canonical Settings — Knowledge Builder{% endblock %}
+
+{% block content %}
+<h1>Canonical Settings</h1>
+<p>
+  Canonical identities group equivalent approved BIOS settings across vendors.
+  Exact alias matches are suggestions only; mappings require reviewer confirmation.
+</p>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<h2>Trusted-guidance pilot scope</h2>
+<p>
+  The current tuning ontology is intentionally limited to
+  {% for cpu in cpu_models %}<strong>{{ cpu.canonical_name }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}.
+  This page defines setting identities only; TuneForge does not yet publish tuning recommendations.
+</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Canonical setting</th><th>Category</th><th>Risk</th>
+      <th>Mappings</th><th>Vendors</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in catalog %}
+    <tr>
+      <td><a href="/canonical-settings/{{ row.canonical_id }}">{{ row.canonical_name }}</a></td>
+      <td>{{ row.category_name or 'Unclassified' }}</td>
+      <td>{{ (row.risk_level or 'unclassified') | capitalize }}</td>
+      <td>{{ row.mapping_count }}</td>
+      <td>{{ row.vendor_count }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5">No canonical identities yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Create canonical identity</h2>
+<form action="/canonical-settings" method="post">
+  <label for="name">Canonical name</label>
+  <input id="name" name="name" value="{{ form.name or '' }}" required>
+  <label for="description">Vendor-neutral description</label>
+  <textarea id="description" name="description" rows="3">{{ form.description or '' }}</textarea>
+  <label for="aliases">Aliases, one per line</label>
+  <textarea id="aliases" name="aliases" rows="4">{{ form.aliases or '' }}</textarea>
+  <button type="submit">Create identity</button>
+</form>
+{% endblock %}

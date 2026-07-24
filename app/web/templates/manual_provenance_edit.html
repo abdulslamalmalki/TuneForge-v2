@@ -1,0 +1,64 @@
+{% extends "layout.html" %}
+
+{% block title %}Edit provenance &mdash; Knowledge Builder{% endblock %}
+
+{% block content %}
+<h1>Edit manual provenance</h1>
+<p>Immutable upload: <strong>{{ manual.original_filename }}</strong></p>
+{% if error %}
+<p class="error" role="alert">{{ error }}</p>
+{% endif %}
+<form action="/manuals/{{ manual.id }}/provenance" method="post">
+  <p>
+    <label for="vendor">Vendor</label>
+    <input type="text" id="vendor" name="vendor" maxlength="100"
+           value="{{ form.vendor or '' }}">
+  </p>
+  <p>
+    <label for="model_name">Model name</label>
+    <input type="text" id="model_name" name="model_name" maxlength="100"
+           value="{{ form.model_name or '' }}">
+  </p>
+  <p>
+    <label for="document_title">Document title</label>
+    <input type="text" id="document_title" name="document_title" maxlength="300"
+           value="{{ form.document_title or '' }}" required>
+  </p>
+  <p>
+    <label for="source_url">Official source URL</label>
+    <input type="url" id="source_url" name="source_url" maxlength="2048"
+           value="{{ form.source_url or '' }}">
+  </p>
+  <p>
+    <label for="document_version">Document version</label>
+    <input type="text" id="document_version" name="document_version" maxlength="100"
+           value="{{ form.document_version or '' }}">
+  </p>
+  <p>
+    <label for="published_on">Published date</label>
+    <input type="date" id="published_on" name="published_on"
+           value="{{ form.published_on or '' }}">
+  </p>
+  <p>
+    <label for="language">Language</label>
+    <input type="text" id="language" name="language" maxlength="35"
+           value="{{ form.language or 'en' }}" required>
+  </p>
+  <p>
+    <label for="board_revision">Board revision</label>
+    <input type="text" id="board_revision" name="board_revision" maxlength="100"
+           value="{{ form.board_revision or '' }}">
+  </p>
+  <p>
+    <label for="chipset">Chipset/platform</label>
+    <input type="text" id="chipset" name="chipset" maxlength="100"
+           value="{{ form.chipset or '' }}">
+  </p>
+  <p>
+    <button type="submit">Save provenance</button>
+    <a href="/manuals/{{ manual.id }}">Cancel</a>
+  </p>
+  <p class="notice">Saving model or chipset provenance automatically recomputes the
+    normalized hardware applicability and records the change in the immutable history.</p>
+</form>
+{% endblock %}

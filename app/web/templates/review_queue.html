@@ -1,0 +1,49 @@
+{% extends "layout.html" %}
+
+{% block title %}Review Queue — Knowledge Builder{% endblock %}
+
+{% block content %}
+<h1>Review Queue</h1>
+{% if manuals %}
+<form action="/review" method="get">
+  <label for="manual_id">Filter by manual</label>
+  <select id="manual_id" name="manual_id">
+    <option value="">All manuals</option>
+    {% for manual in manuals %}
+    <option value="{{ manual.id }}"{% if manual.id == selected_manual_id %} selected{% endif %}>
+      {{ (((manual.vendor or '') ~ ' ' ~ (manual.model_name or '')).strip()) or manual.original_filename }}
+    </option>
+    {% endfor %}
+  </select>
+  <button type="submit">Filter</button>
+</form>
+{% endif %}
+{% if rows %}
+<table>
+  <thead>
+    <tr>
+      <th>Setting</th>
+      <th>Description</th>
+      <th>Manual</th>
+      <th>Page</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td><a href="/settings/{{ row.setting.id }}">{{ row.effective_name }}</a></td>
+      <td>{{ row.effective_description | truncate(120) or '—' }}</td>
+      <td>
+        <a href="/manuals/{{ row.manual.id }}">
+          {{ (((row.manual.vendor or '') ~ ' ' ~ (row.manual.model_name or '')).strip()) or row.manual.original_filename }}
+        </a>
+      </td>
+      <td>{{ row.setting.page_number }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty-state">No drafts to review — <a href="/manuals/upload">upload a manual</a>.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,108 @@
+{% extends "layout.html" %}
+
+{% block title %}Citation-First Guidance — Knowledge Builder{% endblock %}
+
+{% block content %}
+<h1>Citation-First Guidance</h1>
+<p>
+  Look up a canonical setting by exact ID, canonical name, or reviewed alias.
+  TuneForge returns accepted facts and their source passages without generating advice.
+</p>
+
+<form action="/guidance" method="get">
+  {% if motherboard_model_id %}<input type="hidden" name="motherboard_model_id" value="{{ motherboard_model_id }}">{% endif %}
+  {% if cpu_model_id %}<input type="hidden" name="cpu_model_id" value="{{ cpu_model_id }}">{% endif %}
+  <label for="setting">Setting</label>
+  <input id="setting" name="setting" value="{{ setting }}" list="covered-settings" required>
+  <datalist id="covered-settings">
+    {% for row in coverage %}
+    <option value="{{ row.canonical_name }}">{{ row.approved_claim_count }} accepted claims</option>
+    {% endfor %}
+  </datalist>
+  <button type="submit">Show accepted guidance</button>
+</form>
+
+{% if system_context %}
+<section class="system-context-card">
+  <strong>System context:</strong>
+  {{ system_context.vendor_name }} {{ system_context.motherboard_model_name }} ·
+  {{ system_context.cpu_model_name }}
+  <span class="equivalence-citations">Identity resolved; exact BIOS applicability is not yet modeled.</span>
+</section>
+{% else %}
+<p class="notice"><a href="/system-context">Set My System</a> to evaluate reviewed hardware context.</p>
+{% endif %}
+
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+{% if error %}{% include "_referral_pointers.html" %}{% endif %}
+
+{% if explanation %}
+<h2>{{ explanation.canonical_name }}</h2>
+<p>{{ explanation.canonical_description or 'No canonical description recorded.' }}</p>
+<dl>
+  <dt>Resolved by</dt><dd>{{ explanation.resolved_by }}</dd>
+  <dt>Canonical ID</dt><dd><code>{{ explanation.canonical_id }}</code></dd>
+  {% if explanation.classification %}
+  <dt>Category</dt><dd>{{ explanation.classification.category_name }}</dd>
+  <dt>Risk</dt><dd>{{ explanation.classification.risk_level }}</dd>
+  {% endif %}
+</dl>
+
+{% if explanation.context_notice %}<p class="warning">{{ explanation.context_notice }}</p>{% endif %}
+
+{% if explanation.equivalent_vendor_names %}
+<section class="vendor-equivalence" aria-labelledby="equivalent-vendor-names">
+  <h2 id="equivalent-vendor-names">Equivalent Vendor Names</h2>
+  <p class="notice">
+    These names come only from approved source settings with reviewed canonical mappings.
+  </p>
+  <ul>
+    {% for equivalent in explanation.equivalent_vendor_names %}
+    <li>
+      <strong>{{ equivalent.vendor_name }}</strong> &mdash; {{ equivalent.setting_name }}
+      <span class="equivalence-citations">
+        {% for citation in equivalent.citations %}
+        <a href="/settings/{{ citation.setting_id }}">{{ citation.manual_label }}, page {{ citation.page_number }}</a>{% if citation.source_url %}
+        (<a href="{{ citation.source_url }}">source URL</a>){% endif %}{% if not loop.last %}; {% endif %}
+        {% endfor %}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  <p><a href="/canonical-settings/{{ explanation.canonical_id }}">Open detailed canonical mapping</a></p>
+</section>
+{% endif %}
+
+<p class="warning">{{ explanation.scope_notice }}</p>
+<p class="warning">{{ explanation.recommendation_notice }}</p>
+
+{% for claim_type, facts in groups %}
+<h2>{{ claim_type | capitalize }}</h2>
+{% for fact in facts %}
+<article class="guidance-fact">
+  <p><strong>{{ fact.claim_text }}</strong></p>
+  <p><span class="status">{{ fact.applicability_scope }}</span></p>
+  {% for citation in fact.citations %}
+  <details class="evidence-passage">
+    <summary>
+      {{ citation.publisher_name }} — {{ citation.source_title }}, page {{ citation.page_number }}
+    </summary>
+    <p>{{ citation.section_heading or 'Untitled section' }}</p>
+    <pre>{{ citation.passage_text }}</pre>
+    <p>
+      <a href="{{ citation.source_url }}">Official source</a> ·
+      <a href="/evidence-sources/{{ citation.source_id }}">TuneForge source record</a> ·
+      passage {{ citation.passage_id }}
+    </p>
+  </details>
+  {% endfor %}
+</article>
+{% endfor %}
+{% else %}
+<p class="empty-state">
+  This canonical setting has no accepted guidance claims. TuneForge will not fill the gap from model memory.
+</p>
+{% include "_referral_pointers.html" %}
+{% endfor %}
+{% endif %}
+{% endblock %}

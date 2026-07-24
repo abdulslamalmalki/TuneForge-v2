@@ -1,0 +1,103 @@
+{% extends "admin_layout.html" %}
+
+{% block title %}Dashboard — TuneForge Admin{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<section class="admin-welcome">
+  <div>
+    <p class="admin-eyebrow">Knowledge operations</p>
+    <h1>Good to see you.</h1>
+    <p>Here is the current state of TuneForge's reviewed knowledge pipeline.</p>
+  </div>
+  <div class="admin-quick-actions">
+    <a class="admin-button secondary" href="/evidence-sources/upload">Add evidence</a>
+    <a class="admin-button primary" href="/manuals/upload">Upload manual</a>
+  </div>
+</section>
+
+<section class="admin-health admin-health-{{ dashboard.health.status }}" aria-labelledby="system-health">
+  <span class="health-indicator" aria-hidden="true"></span>
+  <div>
+    <strong id="system-health">{{ dashboard.health.label }}</strong>
+    <span>{{ dashboard.health.detail }}</span>
+  </div>
+  <a href="/admin/release-readiness">View launch gate</a>
+</section>
+
+<section class="dashboard-release-strip" aria-label="Launch readiness">
+  <div><span>Product</span><strong class="status-{{ release.product_status }}">{{ release.product_status|title }}</strong><small>{{ release.product_passed_count }} / {{ release.product_required_count }} checks</small></div>
+  <div><span>Deployment</span><strong class="status-{{ release.deployment_status }}">{{ release.deployment_status|title }}</strong><small>{{ release.deployment_passed_count }} / {{ release.deployment_required_count }} checks</small></div>
+  <a href="/admin/release-readiness">Open release checklist <span aria-hidden="true">→</span></a>
+</section>
+
+<section class="admin-metrics" aria-label="Knowledge base summary">
+  {% for metric in dashboard.metrics %}
+  <a class="admin-metric metric-{{ metric.tone }}" href="{{ metric.href }}">
+    <span class="metric-icon" aria-hidden="true">{{ metric.label[0] }}</span>
+    <span class="metric-value">{{ '{:,}'.format(metric.value) }}</span>
+    <strong>{{ metric.label }}</strong>
+    <small>{{ metric.detail }}</small>
+  </a>
+  {% endfor %}
+</section>
+
+<div class="admin-dashboard-grid">
+  <section class="admin-panel work-panel" aria-labelledby="work-queue-title">
+    <header class="admin-panel-heading">
+      <div>
+        <p class="admin-eyebrow">Reviewer attention</p>
+        <h2 id="work-queue-title">Work queue</h2>
+      </div>
+      <span class="queue-count">{{ dashboard.active_task_count }} active queues</span>
+    </header>
+    <div class="admin-task-list">
+      {% for task in dashboard.tasks %}
+      <a class="admin-task task-{{ task.severity }}" href="{{ task.href }}">
+        <span class="task-state" aria-hidden="true">{% if task.count %}{{ task.count }}{% else %}✓{% endif %}</span>
+        <span class="task-copy"><strong>{{ task.label }}</strong><small>{{ task.detail }}</small></span>
+        <span class="task-action">{{ task.action }} <span aria-hidden="true">→</span></span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  <aside class="admin-side-column">
+    <section class="admin-panel am5-status" aria-labelledby="am5-status-title">
+      <header class="admin-panel-heading">
+        <div><p class="admin-eyebrow">Pilot readiness</p><h2 id="am5-status-title">AM5 validation</h2></div>
+        <span class="admin-status status-{{ dashboard.am5_expansion_status }}">{{ dashboard.am5_expansion_status }}</span>
+      </header>
+      <progress class="gate-progress" value="{{ dashboard.am5_passed_gate_count }}" max="{{ dashboard.am5_gate_count or 1 }}" aria-label="{{ dashboard.am5_passed_gate_count }} of {{ dashboard.am5_gate_count }} AM5 gates passed"></progress>
+      <div class="gate-copy"><strong>{{ dashboard.am5_passed_gate_count }} / {{ dashboard.am5_gate_count }}</strong><span>reviewed expansion gates passed</span></div>
+      <a class="panel-link" href="/am5-coverage">Open coverage report <span aria-hidden="true">→</span></a>
+      <a class="panel-link" href="/am5-question-acceptance">Open question acceptance <span aria-hidden="true">→</span></a>
+    </section>
+
+    <section class="admin-panel activity-panel" aria-labelledby="recent-activity-title">
+      <header class="admin-panel-heading">
+        <div><p class="admin-eyebrow">Append-only audit</p><h2 id="recent-activity-title">Recent activity</h2></div>
+      </header>
+      <div class="activity-list">
+        {% for event in dashboard.activities %}
+        <a href="{{ event.href }}">
+          <span class="activity-marker activity-{{ event.kind }}" aria-hidden="true"></span>
+          <span><strong>{{ event.subject }}</strong><small>{{ event.action }} · {{ event.actor }}</small><time>{{ event.created_at }}</time></span>
+        </a>
+        {% else %}
+        <p class="admin-empty">No reviewer activity has been recorded yet.</p>
+        {% endfor %}
+      </div>
+    </section>
+  </aside>
+</div>
+
+<section class="admin-security-note">
+  {% if authentication_enabled and current_user %}
+  <div><strong>Authenticated curator workspace</strong><span>Signed in as {{ current_user.username }}. Reviewer actions use this account in the append-only audit trail.</span></div>
+  {% else %}
+  <div><strong>Local development bypass</strong><span>Authentication bypass is active. Do not expose this process to another network.</span></div>
+  {% endif %}
+  <a href="/api/v1/ready">Service readiness</a>
+</section>
+{% endblock %}

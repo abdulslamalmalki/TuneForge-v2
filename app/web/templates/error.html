@@ -1,0 +1,9 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ status_code }} — Knowledge Builder{% endblock %}
+
+{% block content %}
+<h1>{{ status_code }}</h1>
+<p>{{ message }}</p>
+<p><a href="/manuals">Back to Manuals</a></p>
+{% endblock %}

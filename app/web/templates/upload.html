@@ -1,0 +1,74 @@
+{% extends "layout.html" %}
+
+{% block title %}Upload a manual — Knowledge Builder{% endblock %}
+
+{% block content %}
+<h1>Upload a manual</h1>
+{% if error %}
+<p class="error" role="alert">
+  {{ error }}
+  {% if existing_manual_id %}
+  <a href="/manuals/{{ existing_manual_id }}">View the existing manual.</a>
+  {% endif %}
+</p>
+{% endif %}
+<form action="/manuals" method="post" enctype="multipart/form-data">
+  <input type="hidden" name="provenance_workflow" value="discover">
+  <input type="hidden" name="eligibility_workflow" value="review">
+  <p>
+    <label for="file">Manual PDF</label>
+    <input type="file" id="file" name="file" accept="application/pdf" required>
+  </p>
+  <p>
+    <label for="vendor">Vendor (optional)</label>
+    <input type="text" id="vendor" name="vendor" maxlength="100"
+           value="{{ form.vendor or '' }}">
+  </p>
+  <p>
+    <label for="model_name">Model name (optional)</label>
+    <input type="text" id="model_name" name="model_name" maxlength="100"
+           value="{{ form.model_name or '' }}">
+  </p>
+  <p>
+    <label for="document_title">Document title (optional; filename used if blank)</label>
+    <input type="text" id="document_title" name="document_title" maxlength="300"
+           value="{{ form.document_title or '' }}">
+  </p>
+  <p>
+    <label for="source_url">Official source URL (recommended)</label>
+    <input type="url" id="source_url" name="source_url" maxlength="2048"
+           placeholder="https://www.vendor.example/support/manual.pdf"
+           value="{{ form.source_url or '' }}">
+  </p>
+  <p>
+    <label for="document_version">Document version (optional)</label>
+    <input type="text" id="document_version" name="document_version" maxlength="100"
+           value="{{ form.document_version or '' }}">
+  </p>
+  <p>
+    <label for="published_on">Published date (optional)</label>
+    <input type="date" id="published_on" name="published_on"
+           value="{{ form.published_on or '' }}">
+  </p>
+  <p>
+    <label for="language">Language</label>
+    <input type="text" id="language" name="language" maxlength="35"
+           value="{{ form.language or 'en' }}" required>
+  </p>
+  <p>
+    <label for="board_revision">Board revision (optional)</label>
+    <input type="text" id="board_revision" name="board_revision" maxlength="100"
+           value="{{ form.board_revision or '' }}">
+  </p>
+  <p>
+    <label for="chipset">Chipset/platform (optional)</label>
+    <input type="text" id="chipset" name="chipset" maxlength="100"
+           value="{{ form.chipset or '' }}">
+  </p>
+  <p class="notice">TuneForge will classify the document and, when provenance is incomplete,
+    suggest metadata from official vendor domains. Extraction waits for both reviewer
+    confirmations. Hardware applicability is normalized from the confirmed model,
+    chipset, filename, and document type; broad guides remain broad.</p>
+  <p><button type="submit">Upload and run preflight</button></p>
+</form>
+{% endblock %}

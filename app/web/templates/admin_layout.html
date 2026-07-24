@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="TuneForge knowledge operations and review dashboard.">
+  <title>{% block title %}TuneForge Admin{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body class="admin-site">
+  <a class="skip-link" href="#admin-content">Skip to content</a>
+  <div class="admin-shell">
+    <aside class="admin-sidebar">
+      <a class="admin-brand" href="/admin">
+        <span class="admin-brand-mark" aria-hidden="true">T</span>
+        <span><strong>TuneForge</strong><small>Knowledge operations</small></span>
+      </a>
+
+      <nav class="admin-primary-nav" aria-label="Admin navigation">
+        <div class="admin-nav-group">
+          <span>Overview</span>
+          <a{% if request.url.path == '/admin' %} class="active" aria-current="page"{% endif %} href="/admin"><span aria-hidden="true">01</span>Dashboard</a>
+          <a{% if request.url.path == '/admin/release-readiness' %} class="active" aria-current="page"{% endif %} href="/admin/release-readiness"><span aria-hidden="true">V</span>Launch readiness</a>
+          {% if current_user and current_user.is_administrator %}<a{% if request.url.path == '/admin/users' %} class="active" aria-current="page"{% endif %} href="/admin/users"><span aria-hidden="true">U</span>Accounts</a>{% endif %}
+        </div>
+        <div class="admin-nav-group">
+          <span>Ingestion</span>
+          <a{% if request.url.path.startswith('/manuals') and request.url.path != '/manuals/upload' %} class="active" aria-current="page"{% endif %} href="/manuals"><span aria-hidden="true">M</span>Manuals</a>
+          <a{% if request.url.path == '/manuals/upload' %} class="active" aria-current="page"{% endif %} href="/manuals/upload"><span aria-hidden="true">+</span>Upload manual</a>
+          <a{% if request.url.path.startswith('/batches') %} class="active" aria-current="page"{% endif %} href="/batches"><span aria-hidden="true">B</span>Batches</a>
+        </div>
+        <div class="admin-nav-group">
+          <span>Review</span>
+          <a{% if request.url.path == '/review' or request.url.path.startswith('/settings/') %} class="active" aria-current="page"{% endif %} href="/review"><span aria-hidden="true">R</span>Setting drafts</a>
+          <a{% if request.url.path.startswith('/canonical-suggestions') %} class="active" aria-current="page"{% endif %} href="/canonical-suggestions"><span aria-hidden="true">S</span>Mapping suggestions</a>
+          <a{% if request.url.path.startswith('/canonicalization') %} class="active" aria-current="page"{% endif %} href="/canonicalization"><span aria-hidden="true">B</span>Canonical backlog</a>
+          <a{% if request.url.path.startswith('/canonical-settings') %} class="active" aria-current="page"{% endif %} href="/canonical-settings"><span aria-hidden="true">C</span>Canonical settings</a>
+        </div>
+        <div class="admin-nav-group">
+          <span>Knowledge</span>
+          <a{% if request.url.path.startswith('/evidence-sources') %} class="active" aria-current="page"{% endif %} href="/evidence-sources"><span aria-hidden="true">E</span>Evidence sources</a>
+          <a{% if request.url.path.startswith('/guidance-claims') %} class="active" aria-current="page"{% endif %} href="/guidance-claims"><span aria-hidden="true">K</span>Guidance claims</a>
+          <a{% if request.url.path.startswith('/refusal-gaps') %} class="active" aria-current="page"{% endif %} href="/refusal-gaps"><span aria-hidden="true">G</span>Refusal gaps</a>
+        </div>
+        <div class="admin-nav-group">
+          <span>Validation</span>
+          <a{% if request.url.path == '/am5-coverage' %} class="active" aria-current="page"{% endif %} href="/am5-coverage"><span aria-hidden="true">A</span>AM5 coverage</a>
+          <a{% if request.url.path == '/am5-question-acceptance' %} class="active" aria-current="page"{% endif %} href="/am5-question-acceptance"><span aria-hidden="true">Q</span>AM5 questions</a>
+          <a{% if request.url.path == '/search' %} class="active" aria-current="page"{% endif %} href="/search"><span aria-hidden="true">F</span>Approved search</a>
+        </div>
+      </nav>
+
+      <div class="admin-sidebar-footer">
+        <span>Protected curator workspace</span>
+        <a href="/">Open public site <span aria-hidden="true">↗</span></a>
+      </div>
+    </aside>
+
+    <div class="admin-workspace">
+      <header class="admin-topbar">
+        <div>
+          <p>Admin workspace</p>
+          <strong>{% block page_title %}Dashboard{% endblock %}</strong>
+        </div>
+        <div class="admin-identity">
+          <span class="admin-live-dot" aria-hidden="true"></span>
+          <span><strong>{{ current_user.display_name if current_user else 'Reviewer' }}</strong><small>{{ current_user.role|title if current_user else 'Curator access' }}</small></span>
+          <span class="admin-avatar" aria-hidden="true">{{ current_user.initials if current_user else 'R' }}</span>
+          {% if authentication_enabled and current_user %}<form action="/logout" method="post" class="admin-signout"><button type="submit">Sign out</button></form>{% endif %}
+        </div>
+      </header>
+      <main id="admin-content" class="admin-content">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+</body>
+</html>

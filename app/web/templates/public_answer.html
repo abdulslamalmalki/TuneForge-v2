@@ -1,0 +1,146 @@
+{% extends "public_layout.html" %}
+
+{% block title %}{% if presentation and presentation.canonical_name %}{{ presentation.canonical_name }} — TuneForge{% else %}Ask TuneForge{% endif %}{% endblock %}
+
+{% block content %}
+<section class="answer-search-panel">
+  <div>
+    <p class="eyebrow">Verified BIOS assistant</p>
+    <h1>Ask TuneForge</h1>
+    <p>Ask about a BIOS setting or manufacturer-specific name. Answers use only approved TuneForge knowledge and cite the original official sources.</p>
+  </div>
+  <form class="public-search compact-search" action="/answer" method="get">
+    {% if motherboard_model_id %}<input type="hidden" name="motherboard_model_id" value="{{ motherboard_model_id }}">{% endif %}
+    {% if cpu_model_id %}<input type="hidden" name="cpu_model_id" value="{{ cpu_model_id }}">{% endif %}
+    <label class="sr-only" for="answer-setting">BIOS setting or question</label>
+    <div class="search-row">
+      <input id="answer-setting" name="setting" type="search" value="{{ setting }}" list="answer-covered-settings" placeholder="What does PBO Scalar do?" autocomplete="off" required maxlength="300">
+      <button type="submit">Ask verified sources</button>
+    </div>
+    <datalist id="answer-covered-settings">
+      {% for row in covered_settings %}<option value="{{ row.canonical_name }}"></option>{% endfor %}
+      {% for question in guided_questions %}<option value="{{ question.question }}"></option>{% endfor %}
+    </datalist>
+  </form>
+</section>
+
+{% if system_context %}
+<section class="public-context-bar">
+  <span class="context-icon" aria-hidden="true">✓</span>
+  <div><strong>{{ system_context.vendor_name }} {{ system_context.motherboard_model_name }}</strong><span>{{ system_context.cpu_model_name }} · Identity context only</span></div>
+  <a href="/system-context">Change</a>
+</section>
+{% endif %}
+
+{% if error %}<p class="public-error" role="alert">{{ error }}</p>{% endif %}
+
+{% if routing and routing.rule == 'exact_reviewed_question' %}
+<p class="public-routing-note">Matched a reviewed TuneForge question. The answer is limited to its accepted claim type.</p>
+{% elif routing and routing.transformed %}
+<p class="public-routing-note">Interpreted as the setting <strong>{{ routing.routed_value }}</strong> using a visible wording rule—not fuzzy matching or AI.</p>
+{% endif %}
+
+{% if presentation %}
+  {% if presentation.outcome == 'supported' %}
+  <article class="answer-result">
+    <header class="answer-heading">
+      <div>
+        <p class="eyebrow">Reviewed canonical setting</p>
+        <h2>{{ presentation.canonical_name }}</h2>
+        {% if presentation.canonical_description %}<p>{{ presentation.canonical_description }}</p>{% endif %}
+        {% if presentation.classification %}
+        <div class="answer-meta">
+          <span>{{ presentation.classification.category_name }}</span>
+          <span class="risk-{{ presentation.classification.risk_level }}">{{ presentation.classification.risk_level | capitalize }} risk</span>
+        </div>
+        {% endif %}
+      </div>
+      <span class="answer-status supported"><span aria-hidden="true">✓</span> Evidence available</span>
+    </header>
+
+    {% if presentation.matched_alias %}
+    <p class="resolution-note">Matched from the reviewed alias “{{ presentation.matched_alias }}”.</p>
+    {% endif %}
+
+    {% if presentation.equivalent_vendor_names %}
+    <section class="public-equivalence" aria-labelledby="public-equivalent-names">
+      <div class="subsection-heading">
+        <div><p class="eyebrow">Same setting, different labels</p><h3 id="public-equivalent-names">Equivalent vendor names</h3></div>
+      </div>
+      <div class="equivalence-grid">
+        {% for equivalent in presentation.equivalent_vendor_names %}
+        <div class="equivalence-card">
+          <span>{{ equivalent.vendor_name }}</span>
+          <strong>{{ equivalent.setting_name }}</strong>
+          {% if equivalent.citations %}
+          <small>
+            {% for citation in equivalent.citations %}
+              {% if citation.source_url %}<a href="{{ citation.source_url }}" target="_blank" rel="noreferrer">{{ citation.manual_label }}, p. {{ citation.page_number }}</a>{% else %}{{ citation.manual_label }}, p. {{ citation.page_number }}{% endif %}{% if not loop.last %}; {% endif %}
+            {% endfor %}
+          </small>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="fact-list" aria-labelledby="reviewed-facts">
+      <div class="subsection-heading"><div><p class="eyebrow">What the sources say</p><h3 id="reviewed-facts">Reviewed facts</h3></div></div>
+      {% for statement in presentation.statements %}
+      <article class="public-fact">
+        <span class="fact-type">{{ statement.claim_type | capitalize }}</span>
+        <p>{{ statement.text }}</p>
+        <div class="citation-list">
+          {% for citation in statement.citations %}
+          <a class="citation-card" href="{{ citation.source_url }}" target="_blank" rel="noreferrer">
+            <span class="citation-number">{{ loop.index }}</span>
+            <span><strong>{{ citation.publisher_name }}</strong><small>{{ citation.source_title }} · Page {{ citation.page_number }}{% if citation.section_heading %} · {{ citation.section_heading }}{% endif %}</small></span>
+            <span aria-hidden="true">↗</span>
+          </a>
+          {% endfor %}
+        </div>
+      </article>
+      {% endfor %}
+    </section>
+
+    <details class="answer-limits">
+      <summary>What this answer does not claim</summary>
+      {% if presentation.classification %}<p><strong>Risk classification:</strong> {{ presentation.classification.risk_rationale }}</p>{% endif %}
+      {% if presentation.context_notice %}<p>{{ presentation.context_notice }}</p>{% endif %}
+      <p>{{ presentation.scope_notice }}</p>
+      <p>{{ presentation.recommendation_notice }}</p>
+    </details>
+  </article>
+  {% else %}
+  <article class="refusal-result">
+    <span class="refusal-icon" aria-hidden="true">?</span>
+    <p class="eyebrow">Evidence unavailable</p>
+    <h2>TuneForge cannot verify this answer yet.</h2>
+    <p>{{ presentation.refusal_message }}</p>
+    <p class="refusal-explanation">TuneForge will not guess from model memory or unreviewed sources.</p>
+    {% if presentation.referral_pointers %}
+    <section class="public-referrals">
+      <h3>Official places to continue</h3>
+      <p>Navigation links only—not evidence for an answer.</p>
+      {% for pointer in presentation.referral_pointers %}
+      <a href="{{ pointer.source_url }}" target="_blank" rel="noreferrer"><span><strong>{{ pointer.title }}</strong><small>{{ pointer.publisher_name }}</small></span><span aria-hidden="true">↗</span></a>
+      {% endfor %}
+    </section>
+    {% endif %}
+  </article>
+  {% endif %}
+{% elif not error %}
+<section class="answer-welcome">
+  <div class="answer-welcome-mark" aria-hidden="true">T</div>
+  <h2>Ask a BIOS settings question.</h2>
+  <p>TuneForge retrieves only accepted facts, cites the exact official pages behind them, and refuses questions its verified knowledge cannot support.</p>
+  <div class="example-links">
+    <span>Try:</span>
+    <a href="/answer?setting=Precision%20Boost%20Overdrive">Precision Boost Overdrive</a>
+    <a href="/answer?setting=PBO%20Scalar">PBO Scalar</a>
+    <a href="/answer?setting=Curve%20Optimizer">Curve Optimizer</a>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,78 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ detail.identity.canonical_name }} — Knowledge Builder{% endblock %}
+
+{% block content %}
+<h1>{{ detail.identity.canonical_name }}</h1>
+<p><a href="/guidance?setting={{ detail.identity.canonical_id }}">View accepted citation-first guidance</a></p>
+<p><code>{{ detail.identity.canonical_id }}</code></p>
+<p>{{ detail.identity.description or 'No vendor-neutral description recorded.' }}</p>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<h2>Classification</h2>
+{% if detail.classification %}
+<p>
+  <strong>{{ detail.classification.category_name }}</strong>
+  &middot; {{ detail.classification.risk_level | capitalize }} risk
+</p>
+<p>{{ detail.classification.risk_rationale }}</p>
+{% else %}
+<p class="empty-state">This identity has not been classified.</p>
+{% endif %}
+<form action="/canonical-settings/{{ detail.identity.canonical_id }}/classification" method="post">
+  <label for="category_id">Category</label>
+  <select id="category_id" name="category_id" required>
+    {% for category in categories %}
+    <option value="{{ category.category_id }}"{% if detail.classification and detail.classification.category_id == category.category_id %} selected{% endif %}>
+      {{ category.canonical_name }}
+    </option>
+    {% endfor %}
+  </select>
+  <label for="risk_level">Risk level</label>
+  <select id="risk_level" name="risk_level" required>
+    {% for risk in risk_levels %}
+    <option value="{{ risk }}"{% if detail.classification and detail.classification.risk_level == risk %} selected{% endif %}>
+      {{ risk | capitalize }}
+    </option>
+    {% endfor %}
+  </select>
+  <label for="risk_rationale">Risk rationale</label>
+  <textarea id="risk_rationale" name="risk_rationale" rows="3" required>{{ detail.classification.risk_rationale if detail.classification else '' }}</textarea>
+  <button type="submit">Save classification</button>
+</form>
+
+<h2>Recognized aliases</h2>
+<ul>
+  {% for alias in detail.aliases %}
+  <li>{{ alias.display_alias }}{% if alias.vendor_id %} ({{ alias.vendor_id }}){% endif %}</li>
+  {% endfor %}
+</ul>
+
+<h2>Mapped source settings</h2>
+<table>
+  <thead>
+    <tr><th>Source setting</th><th>Manual</th><th>Vendor</th><th>Page</th></tr>
+  </thead>
+  <tbody>
+    {% for row in detail.mappings %}
+    <tr>
+      <td><a href="/settings/{{ row.setting_id }}">{{ row.effective_name }}</a></td>
+      <td><a href="/manuals/{{ row.manual_id }}">{{ row.manual_label }}</a></td>
+      <td>{{ row.vendor_id or '—' }}</td>
+      <td>{{ row.page_number }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4">No source settings are mapped yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Classification audit history</h2>
+<ul>
+  {% for event in detail.classification_events %}
+  <li>{{ event.created_at }} &mdash; {{ event.action }} by {{ event.actor }}</li>
+  {% else %}
+  <li>No classification events recorded.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

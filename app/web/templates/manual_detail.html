@@ -1,0 +1,155 @@
+{% extends "layout.html" %}
+
+{% block title %}Manual {{ manual.id }} &mdash; Knowledge Builder{% endblock %}
+
+{% block content %}
+<h1>{{ (((manual.vendor or '') ~ ' ' ~ (manual.model_name or '')).strip()) or manual.original_filename }}</h1>
+<dl>
+  <dt>Provenance</dt>
+  <dd>
+    {% if missing %}
+    <span class="status status-warning">incomplete</span>
+    Missing: {{ missing | join(', ') }}
+    {% else %}
+    <span class="status status-succeeded">complete</span>
+    {% endif %}
+  </dd>
+  <dt>Document eligibility</dt>
+  <dd>
+    <span class="status status-{{ 'succeeded' if manual.eligibility_status in ('eligible', 'legacy') else 'warning' }}">
+      {{ manual.eligibility_status }}
+    </span>
+    {% if manual.document_type %}
+    {{ manual.document_type | replace('_', ' ') }}
+    {% endif %}
+  </dd>
+  <dt>Document title</dt>
+  <dd>{{ manual.document_title }}</dd>
+  <dt>Original file</dt>
+  <dd>{{ manual.original_filename }}</dd>
+  <dt>Vendor</dt>
+  <dd>{{ manual.vendor or '&mdash;' | safe }}</dd>
+  <dt>Vendor ID</dt>
+  <dd><code>{{ manual.vendor_id or '&mdash;' | safe }}</code></dd>
+  <dt>Model name</dt>
+  <dd>{{ manual.model_name or '&mdash;' | safe }}</dd>
+  <dt>Board revision</dt>
+  <dd>{{ manual.board_revision or '&mdash;' | safe }}</dd>
+  <dt>Chipset/platform</dt>
+  <dd>{{ manual.chipset or '&mdash;' | safe }}</dd>
+  <dt>Normalized applicability</dt>
+  <dd>
+    {% if applicability %}
+    <strong>{{ applicability.scope | replace('_', ' ') }}</strong>:
+    {% if applicability.targets %}
+      {% for target in applicability.targets %}
+      <code>{{ target.target_id }}</code> ({{ target.canonical_name }}){% if not loop.last %}, {% endif %}
+      {% endfor %}
+    {% else %}
+      unresolved
+    {% endif %}
+    {% if applicability.warnings %}
+    <span class="status status-warning">review required</span>
+    {{ applicability.warnings | join(' ') }}
+    {% endif %}
+    {% else %}
+    <span class="status status-warning">not normalized</span>
+    {% endif %}
+  </dd>
+  <dt>Document version</dt>
+  <dd>{{ manual.document_version or '&mdash;' | safe }}</dd>
+  <dt>Published date</dt>
+  <dd>{{ manual.published_on or '&mdash;' | safe }}</dd>
+  <dt>Retrieved</dt>
+  <dd>{{ manual.retrieved_at }}</dd>
+  <dt>Language</dt>
+  <dd>{{ manual.language }}</dd>
+  <dt>Official source</dt>
+  <dd>
+    {% if manual.source_url %}
+    <a href="{{ manual.source_url }}" target="_blank" rel="noopener noreferrer">
+      {{ manual.source_url }}
+    </a>
+    {% else %}
+    &mdash;
+    {% endif %}
+  </dd>
+  <dt>SHA-256</dt>
+  <dd><code>{{ manual.sha256 }}</code></dd>
+  <dt>Pages</dt>
+  <dd>{{ manual.page_count }}</dd>
+  <dt>Size</dt>
+  <dd>{{ '{:,}'.format(manual.file_size_bytes) }} bytes</dd>
+  <dt>Uploaded</dt>
+  <dd>{{ manual.created_at }}</dd>
+</dl>
+<p>
+  <a href="/manuals/{{ manual.id }}/file" target="_blank" rel="noopener">Open PDF</a>
+  &middot;
+  <a href="/review?manual_id={{ manual.id }}">Review this manual's drafts</a>
+  &middot;
+  <a href="/manuals/{{ manual.id }}/provenance/edit">Edit provenance</a>
+  &middot;
+  <a href="/manuals/{{ manual.id }}/eligibility">Review eligibility</a>
+  &middot;
+  <a href="/manuals/{{ manual.id }}/acceptance">Acceptance report</a>
+</p>
+{% if run and run.status == 'pending' and missing %}
+<p class="notice">Setting extraction is waiting for confirmed provenance.</p>
+<p>
+  <a href="/manuals/{{ manual.id }}/provenance/discovery">Review discovered provenance</a>
+  or <a href="/manuals/{{ manual.id }}/provenance/edit">enter it manually</a>.
+</p>
+{% endif %}
+{% if run and run.status == 'pending' and manual.eligibility_status == 'pending' %}
+<p class="notice">Setting extraction is waiting for a reviewer eligibility decision.</p>
+<p><a href="/manuals/{{ manual.id }}/eligibility">Review document eligibility</a>.</p>
+{% elif run and run.status == 'pending' and manual.eligibility_status == 'ineligible' %}
+<p class="notice">Extraction is blocked because this document was marked ineligible.</p>
+{% endif %}
+
+<h2>Provenance history</h2>
+{% if events %}
+<ol>
+  {% for event in events %}
+  <li><strong>{{ event.action }}</strong> by {{ event.actor }} at {{ event.created_at }}</li>
+  {% endfor %}
+</ol>
+{% else %}
+<p class="empty-state">No provenance events recorded.</p>
+{% endif %}
+
+<h2>Extraction run</h2>
+{% if run %}
+<dl>
+  <dt>Status</dt>
+  <dd><span class="status status-{{ run.status }}">{{ run.status }}</span></dd>
+  <dt>Started</dt>
+  <dd>{{ run.started_at or '&mdash;' | safe }}</dd>
+  <dt>Finished</dt>
+  <dd>{{ run.finished_at or '&mdash;' | safe }}</dd>
+  <dt>Pages processed</dt>
+  <dd>{{ run.pages_processed }}</dd>
+  <dt>Settings found</dt>
+  <dd>{{ run.settings_found }}</dd>
+  {% if run.status == 'failed' %}
+  <dt>Error</dt>
+  <dd class="error">{{ run.error_message }}</dd>
+  {% endif %}
+</dl>
+{% if run.status == 'succeeded' and run.settings_found == 0 %}
+<p class="warning">The run succeeded but found no settings &mdash; the parser did not recognize
+any setting headings in this manual. To retry after parser improvements, delete the manual
+and upload it again.</p>
+{% endif %}
+{% if run.status == 'running'
+      or (run.status == 'pending' and manual.eligibility_status == 'legacy') %}
+<p class="notice">Extraction is in progress &mdash; refresh this page to update.</p>
+{% endif %}
+{% else %}
+<p class="empty-state">No extraction run recorded for this manual.</p>
+{% endif %}
+<form action="/manuals/{{ manual.id }}/delete" method="post">
+  <button type="submit" class="danger">Delete manual</button>
+</form>
+{% endblock %}

@@ -1,0 +1,76 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ detail.source.title }} — Knowledge Builder{% endblock %}
+
+{% block content %}
+{% set source = detail.source %}
+<h1>{{ source.title }}</h1>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+<p>
+  <span class="status status-{{ source.status }}">{{ source.status }}</span>
+  <span class="status">{{ source.trust_tier }}</span>
+</p>
+
+<h2>Immutable source and provenance</h2>
+<dl>
+  <dt>Publisher</dt><dd>{{ source.publisher_name }} ({{ source.publisher_id }})</dd>
+  <dt>Official URL</dt><dd><a href="{{ source.source_url }}">{{ source.source_url }}</a></dd>
+  <dt>Document</dt><dd>{{ source.document_id or 'No publication ID' }}, version {{ source.document_version }}</dd>
+  <dt>Published</dt><dd>{{ source.published_on }}</dd>
+  <dt>Retrieved</dt><dd>{{ source.retrieved_at }}</dd>
+  <dt>Language</dt><dd>{{ source.language }}</dd>
+  <dt>Artifact</dt>
+  <dd><a href="/evidence-sources/{{ source.id }}/artifact">{{ source.original_filename }}</a>, {{ source.page_count }} pages</dd>
+  <dt>SHA-256</dt><dd><code>{{ source.sha256 }}</code></dd>
+</dl>
+
+{% if source.status == 'pending' %}
+<h2>Reviewer decision</h2>
+<p>Confirm both the official provenance and that the PDF matches this exact version.</p>
+<form action="/evidence-sources/{{ source.id }}/review" method="post">
+  <label for="note">Reviewer note</label>
+  <textarea id="note" name="note" rows="3" required></textarea>
+  <button type="submit" name="decision" value="approved">Approve and extract evidence</button>
+  <button class="danger" type="submit" name="decision" value="rejected">Reject source</button>
+</form>
+{% else %}
+<h2>Review decision</h2>
+<dl>
+  <dt>Reviewer</dt><dd>{{ source.reviewer }}</dd>
+  <dt>Reviewed</dt><dd>{{ source.reviewed_at }}</dd>
+  <dt>Note</dt><dd>{{ source.review_note }}</dd>
+</dl>
+{% endif %}
+
+<h2>Extraction</h2>
+<dl>
+  <dt>Status</dt><dd>{{ detail.extraction_run.status }}</dd>
+  <dt>Extractor</dt><dd>{{ detail.extraction_run.extractor_version or 'Not run' }}</dd>
+  <dt>Coverage</dt>
+  <dd>{{ detail.extraction_run.pages_processed }} pages, {{ detail.extraction_run.passages_found }} passages</dd>
+  {% if detail.extraction_run.error_message %}
+  <dt>Error</dt><dd>{{ detail.extraction_run.error_message }}</dd>
+  {% endif %}
+</dl>
+
+{% if detail.passages %}
+<h2>Immutable evidence passages</h2>
+{% for passage in detail.passages %}
+<details class="evidence-passage">
+  <summary>Page {{ passage.page_number }} · passage {{ passage.ordinal }} · {{ passage.section_heading or 'Untitled section' }}</summary>
+  <pre>{{ passage.passage_text }}</pre>
+  <small>SHA-256: <code>{{ passage.text_sha256 }}</code></small>
+</details>
+{% endfor %}
+{% endif %}
+
+<h2>Audit history</h2>
+<table>
+  <thead><tr><th>Time</th><th>Action</th><th>Actor</th></tr></thead>
+  <tbody>
+    {% for event in detail.events %}
+    <tr><td>{{ event.created_at }}</td><td>{{ event.action }}</td><td>{{ event.actor }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

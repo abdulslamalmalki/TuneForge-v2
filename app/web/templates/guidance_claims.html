@@ -1,0 +1,37 @@
+{% extends "layout.html" %}
+
+{% block title %}Guidance Claims — Knowledge Builder{% endblock %}
+
+{% block content %}
+<h1>Guidance Claim Review</h1>
+<p>
+  Claims are concise factual summaries linked to approved evidence and canonical settings.
+  This workflow does not generate recommendations or tuning answers.
+</p>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<p>
+  <a href="/guidance-claims?status=draft">Drafts ({{ counts.draft }})</a> ·
+  <a href="/guidance-claims?status=approved">Approved ({{ counts.approved }})</a> ·
+  <a href="/guidance-claims?status=rejected">Rejected ({{ counts.rejected }})</a>
+</p>
+
+<table>
+  <thead>
+    <tr><th>Claim</th><th>Type</th><th>Scope</th><th>Evidence</th><th>Settings</th></tr>
+  </thead>
+  <tbody>
+    {% for row in claims %}
+    <tr>
+      <td><a href="/guidance-claims/{{ row.claim.id }}">{{ row.claim.claim_text }}</a></td>
+      <td>{{ row.claim.claim_type }}</td>
+      <td>{{ row.claim.applicability_scope }}</td>
+      <td>{{ row.evidence_count }}</td>
+      <td>{{ row.setting_count }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5">No {{ status_filter }} guidance claims.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

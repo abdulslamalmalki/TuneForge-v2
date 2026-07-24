@@ -1,0 +1,32 @@
+{% extends "public_layout.html" %}
+
+{% block title %}Upload an Official BIOS Manual — TuneForge{% endblock %}
+{% block main_class %}submission-main{% endblock %}
+
+{% block content %}
+<section class="submission-hero">
+  <div><p class="eyebrow">Help expand verified coverage</p><h1>Submit an official motherboard manual</h1><p>TuneForge checks the document, extracts candidate BIOS settings, and sends every result through private human review. Nothing from an upload is published automatically.</p></div>
+  <ol class="submission-steps"><li><span>1</span><div><strong>Verify</strong><small>Official vendor and support page</small></div></li><li><span>2</span><div><strong>Extract</strong><small>Settings become private candidates</small></div></li><li><span>3</span><div><strong>Review</strong><small>A human approves every public fact</small></div></li></ol>
+</section>
+
+<section class="submission-layout">
+  <form class="submission-form" action="/upload-manual" method="post" enctype="multipart/form-data">
+    <header><p class="eyebrow">Manual details</p><h2>Official source submission</h2><p>Currently supported: ASUS, MSI, GIGABYTE, and ASRock.</p></header>
+    {% if error %}<p class="public-error" role="alert">{{ error }}</p>{% endif %}
+    <div class="submission-field full"><label for="submission-file">Official manual PDF <span>Required</span></label><input type="file" id="submission-file" name="file" accept="application/pdf" required><small>PDF only, up to 100 MB.</small></div>
+    <div class="submission-grid">
+      <div class="submission-field"><label for="submission-vendor">Manufacturer <span>Required</span></label><select id="submission-vendor" name="vendor" required><option value="">Choose manufacturer</option>{% for vendor in vendors %}<option value="{{ vendor.canonical_name }}"{% if form.vendor == vendor.canonical_name %} selected{% endif %}>{{ vendor.canonical_name }}</option>{% endfor %}</select></div>
+      <div class="submission-field"><label for="submission-model">Motherboard model <span>Required</span></label><input id="submission-model" name="model_name" type="text" maxlength="100" value="{{ form.model_name or '' }}" placeholder="Example: ROG Crosshair X870E Hero" required></div>
+      <div class="submission-field full"><label for="submission-url">Official support-page URL <span>Required</span></label><input id="submission-url" name="source_url" type="url" maxlength="2048" value="{{ form.source_url or '' }}" placeholder="https://www.vendor.com/.../support#manual" required><small>The URL must use the selected manufacturer’s official domain and recognized support-page format.</small></div>
+      <div class="submission-field full"><label for="submission-title">Document title</label><input id="submission-title" name="document_title" type="text" maxlength="300" value="{{ form.document_title or '' }}" placeholder="Filename is used when left blank"></div>
+      <div class="submission-field"><label for="submission-version">Document version</label><input id="submission-version" name="document_version" type="text" maxlength="100" value="{{ form.document_version or '' }}"></div>
+      <div class="submission-field"><label for="submission-language">Language</label><input id="submission-language" name="language" type="text" maxlength="35" value="{{ form.language or 'en' }}" required></div>
+      <div class="submission-field"><label for="submission-revision">Board revision</label><input id="submission-revision" name="board_revision" type="text" maxlength="100" value="{{ form.board_revision or '' }}"></div>
+      <div class="submission-field"><label for="submission-chipset">Chipset or platform</label><input id="submission-chipset" name="chipset" type="text" maxlength="100" value="{{ form.chipset or '' }}" placeholder="Example: AMD X870E"></div>
+    </div>
+    <div class="submission-consent"><strong>Human-review guarantee</strong><p>Submitting a document creates a private intake record. Extracted settings, aliases, descriptions, and mappings remain invisible to users until approved.</p></div>
+    <button type="submit">Submit manual for verification</button>
+  </form>
+  <aside class="submission-aside"><div><span>Accepted</span><strong>Official motherboard manuals</strong><p>BIOS guides, UEFI setup manuals, and official vendor documentation tied to a specific board or product family.</p></div><div><span>Not accepted</span><strong>Community files or modified PDFs</strong><p>Forum attachments, screenshots, unofficial mirrors, tuning profiles, and documents without an official support page.</p></div><a href="/library">Explore current BIOS coverage →</a></aside>
+</section>
+{% endblock %}

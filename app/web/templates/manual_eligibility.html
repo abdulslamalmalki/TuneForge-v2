@@ -1,0 +1,71 @@
+{% extends "layout.html" %}
+
+{% block title %}Review eligibility &mdash; Knowledge Builder{% endblock %}
+
+{% block content %}
+<h1>Review extraction eligibility</h1>
+<p><a href="/manuals/{{ manual.id }}">&larr; Back to manual</a></p>
+
+{% if error %}
+<p class="error" role="alert">{{ error }}</p>
+{% endif %}
+
+{% if eligibility.eligibility_confidence is none %}
+<p class="notice">Automatic preflight is still running. Refresh this page in a moment.</p>
+{% else %}
+<dl>
+  <dt>Suggested type</dt>
+  <dd>{{ eligibility.document_type or 'unknown' }}</dd>
+  <dt>Classifier confidence</dt>
+  <dd>{{ eligibility.eligibility_confidence }}%</dd>
+  <dt>Current decision</dt>
+  <dd>{{ eligibility.eligibility_status }}</dd>
+</dl>
+{% if eligibility.eligibility_reasons %}
+<h2>Why TuneForge suggested this</h2>
+<ul>
+  {% for reason in eligibility.eligibility_reasons %}
+  <li>{{ reason }}</li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endif %}
+
+{% if missing %}
+<p class="notice">Provenance is still incomplete ({{ missing | join(', ') }}). You may review
+  eligibility now, but extraction will remain held until provenance is confirmed.</p>
+{% endif %}
+
+<form action="/manuals/{{ manual.id }}/eligibility" method="post">
+  <p>
+    <label for="document_type">Document type</label>
+    <select id="document_type" name="document_type" required>
+      {% for value in document_types %}
+      <option value="{{ value }}"
+              {% if eligibility.document_type == value %}selected{% endif %}>
+        {{ value | replace('_', ' ') }}
+      </option>
+      {% endfor %}
+    </select>
+  </p>
+  <fieldset>
+    <legend>Extraction decision</legend>
+    <label>
+      <input type="radio" name="decision" value="eligible" required
+             {% if eligibility.eligibility_status == 'eligible' %}checked{% endif %}>
+      Eligible &mdash; extract BIOS settings
+    </label>
+    <label>
+      <input type="radio" name="decision" value="ineligible" required
+             {% if eligibility.eligibility_status == 'ineligible' %}checked{% endif %}>
+      Ineligible &mdash; keep the PDF but do not extract
+    </label>
+  </fieldset>
+  <p>
+    <label for="note">Reviewer note (required when allowing a non-BIOS guide)</label>
+    <textarea id="note" name="note" maxlength="2000"
+              rows="4">{{ eligibility.eligibility_note or '' }}</textarea>
+  </p>
+  <p><button type="submit">Save eligibility decision</button></p>
+</form>
+{% endblock %}

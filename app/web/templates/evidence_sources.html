@@ -1,0 +1,35 @@
+{% extends "layout.html" %}
+
+{% block title %}Evidence Sources — Knowledge Builder{% endblock %}
+
+{% block content %}
+<h1>Trusted Evidence Sources</h1>
+<p>
+  Official tuning documents enter here as immutable artifacts. A reviewer must approve
+  provenance before TuneForge creates page-scoped evidence passages.
+</p>
+<p><a href="/evidence-sources/upload">Upload official evidence source</a></p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Source</th><th>Publisher</th><th>Version</th><th>Status</th>
+      <th>Extraction</th><th>Passages</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in sources %}
+    <tr>
+      <td><a href="/evidence-sources/{{ row.source.id }}">{{ row.source.title }}</a></td>
+      <td>{{ row.source.publisher_name }}</td>
+      <td>{{ row.source.document_version }}</td>
+      <td><span class="status status-{{ row.source.status }}">{{ row.source.status }}</span></td>
+      <td>{{ row.extraction_status }}</td>
+      <td>{{ row.passage_count }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6">No trusted evidence sources have been uploaded.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
