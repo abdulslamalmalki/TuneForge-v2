@@ -61,7 +61,7 @@ def compare_vendors(
 def library_index(
     request: Request,
     session: SessionDep,
-    view: Literal["canonical", "source"] = "canonical",
+    view: Literal["canonical", "source"] = "source",
     q: str = Query(default="", max_length=300),
     vendor_id: str = "",
     platform_id: str = "",
@@ -70,6 +70,8 @@ def library_index(
     risk_level: str = "",
     page: int = Query(default=1, ge=1),
 ) -> HTMLResponse:
+    approved_source_count = library.approved_source_count(session)
+    mapped_source_count = library.mapped_source_count(session)
     filters = {
         "view": view,
         "q": q,
@@ -111,9 +113,10 @@ def library_index(
             ),
             "categories": canonical_settings.list_categories(session),
             "risk_levels": RISK_LEVELS,
-            "approved_source_count": library.approved_source_count(session),
+            "approved_source_count": approved_source_count,
+            "mapped_source_count": mapped_source_count,
+            "unmapped_source_count": approved_source_count - mapped_source_count,
             "canonical_count": library.canonical_count(session),
-            "guidance_count": library.guidance_count(session),
             "active_filter_count": active_filter_count,
             "has_search_or_filters": bool(q) or active_filter_count > 0,
             "first_result": first_result,

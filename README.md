@@ -603,6 +603,13 @@ Library, search, guidance, and referral projections. The first visually
 verified pilot approved four identities and eight mappings across ASUS,
 ASRock, GIGABYTE, and MSI while leaving all uncertain records unmapped.
 
+The v1.4.1 Library experience makes the complete approved Source Setting
+corpus the default `/library` view. Users can page through mapped and unmapped
+manual records directly, while the separate Canonical Comparisons view keeps
+reviewed cross-vendor equivalence easy to find. Coverage metrics distinguish
+all approved records, active canonical mappings, records awaiting mapping, and
+canonical identities; approval and citation boundaries are unchanged.
+
 Hardware Applicability Phases 1 and 2 define and persist stable identities for
 five CPU/socket platforms, nine chipset families, 29 chipsets, and 15 known
 motherboard models. Migration 0009 backfilled the original eight production

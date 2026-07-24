@@ -8,24 +8,25 @@
   <div class="library-hero-copy">
     <p class="eyebrow"><span class="library-live-dot" aria-hidden="true"></span>Public, reviewer-approved knowledge</p>
     <h1>BIOS Settings Library</h1>
-    <p>Find a BIOS option in seconds. Compare vendor names, understand reviewed behavior, and trace every fact to its official source.</p>
+    <p>Browse every approved BIOS setting extracted from official manuals. Search vendor names, compare reviewed equivalents, and trace each record to its source.</p>
     <div class="library-trust-note"><strong>No generated entries.</strong><span>Drafts and rejected settings never appear here.</span></div>
   </div>
   <dl class="library-stats" aria-label="Library coverage">
-    <div><dt>{{ approved_source_count }}</dt><dd>Approved source settings</dd></div>
-    <div><dt>{{ canonical_count }}</dt><dd>Canonical settings</dd></div>
-    <div><dt>{{ guidance_count }}</dt><dd>With accepted guidance</dd></div>
+    <div><dt>{{ approved_source_count }}</dt><dd>All approved settings</dd></div>
+    <div><dt>{{ mapped_source_count }}</dt><dd>Cross-vendor mapped</dd></div>
+    <div><dt>{{ unmapped_source_count }}</dt><dd>Awaiting canonical mapping</dd></div>
+    <div><dt>{{ canonical_count }}</dt><dd>Canonical identities</dd></div>
   </dl>
 </section>
 
 <nav class="library-view-tabs" aria-label="Library views">
-  <a href="{{ canonical_view_url }}"{% if view == 'canonical' %} aria-current="page"{% endif %}>
-    <span class="library-tab-index" aria-hidden="true">01</span>
-    <span><strong>Canonical Settings</strong><small>Compare equivalent names across vendors</small></span>
-  </a>
   <a href="{{ source_view_url }}"{% if view == 'source' %} aria-current="page"{% endif %}>
+    <span class="library-tab-index" aria-hidden="true">01</span>
+    <span><strong>All BIOS Settings</strong><small>Browse every approved manual record</small></span>
+  </a>
+  <a href="{{ canonical_view_url }}"{% if view == 'canonical' %} aria-current="page"{% endif %}>
     <span class="library-tab-index" aria-hidden="true">02</span>
-    <span><strong>Source Settings</strong><small>Browse every approved manual record</small></span>
+    <span><strong>Canonical Comparisons</strong><small>Compare equivalent names across vendors</small></span>
   </a>
 </nav>
 
@@ -84,9 +85,9 @@
 <section class="library-results" aria-labelledby="library-results-heading">
   <header class="library-results-heading">
     <div>
-      <p class="eyebrow">{{ 'Cross-vendor identities' if view == 'canonical' else 'Approved vendor records' }}</p>
+      <p class="eyebrow">{{ 'Cross-vendor identities' if view == 'canonical' else 'Complete approved corpus' }}</p>
       <h2 id="library-results-heading">
-        {% if q %}Results for “{{ q }}”{% else %}Browse {{ 'canonical settings' if view == 'canonical' else 'source settings' }}{% endif %}
+        {% if q %}Results for “{{ q }}”{% else %}Browse {{ 'canonical comparisons' if view == 'canonical' else 'all BIOS settings' }}{% endif %}
       </h2>
     </div>
     <p>Showing <strong>{{ first_result }}–{{ last_result }}</strong> of <strong>{{ result.total }}</strong> reviewed {{ 'settings' if result.total != 1 else 'setting' }}</p>
@@ -137,7 +138,7 @@
             <div>
               <div class="library-card-kicker">
                 <span>{{ item.vendor_name }} source setting</span>
-                {% if item.canonical_id %}<span class="knowledge-badge available">Canonically mapped</span>{% else %}<span class="knowledge-badge neutral">Reviewed source</span>{% endif %}
+                {% if item.canonical_id %}<span class="knowledge-badge available">Cross-vendor mapped</span>{% else %}<span class="knowledge-badge neutral">Approved · awaiting mapping</span>{% endif %}
               </div>
               <h3><a href="/library/source/{{ item.setting_id }}">{{ item.effective_name }}</a></h3>
             </div>

@@ -191,7 +191,20 @@ def test_library_browses_only_approved_settings_with_filters_and_pagination(
         client, pdf_bytes_factory
     )
 
-    canonical = client.get("/library", params={"q": "PBO"})
+    default_library = client.get("/library")
+    assert default_library.status_code == 200
+    assert "All BIOS Settings" in default_library.text
+    assert "Browse all BIOS settings" in default_library.text
+    assert f"/library/source/{asus_id}" in default_library.text
+    assert f"/library/source/{msi_id}" in default_library.text
+    assert f"/library/source/{unmapped_id}" in default_library.text
+    assert "3</dt><dd>All approved settings" in default_library.text
+    assert "2</dt><dd>Cross-vendor mapped" in default_library.text
+    assert "1</dt><dd>Awaiting canonical mapping" in default_library.text
+    assert "Internal Draft Setting" not in default_library.text
+    assert "Rejected Parser Heading" not in default_library.text
+
+    canonical = client.get("/library", params={"view": "canonical", "q": "PBO"})
     assert canonical.status_code == 200
     assert "BIOS Settings Library" in canonical.text
     assert f"style.css?v={config.APP_VERSION}" in canonical.text

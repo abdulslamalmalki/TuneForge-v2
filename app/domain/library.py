@@ -257,6 +257,26 @@ def approved_source_count(session: Session) -> int:
     )
 
 
+def mapped_source_count(session: Session) -> int:
+    """Count approved source settings attached to an active canonical identity."""
+    return (
+        session.scalar(
+            select(func.count())
+            .select_from(Setting)
+            .join(SettingCanonicalMapping, SettingCanonicalMapping.setting_id == Setting.id)
+            .join(
+                CanonicalSetting,
+                CanonicalSetting.canonical_id == SettingCanonicalMapping.canonical_id,
+            )
+            .where(
+                Setting.status == "approved",
+                CanonicalSetting.status == canonical_settings.IDENTITY_ACTIVE,
+            )
+        )
+        or 0
+    )
+
+
 def canonical_count(session: Session) -> int:
     return (
         session.scalar(
