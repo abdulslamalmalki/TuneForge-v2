@@ -167,19 +167,28 @@ def search_approved(
         "open": _MARK_OPEN,
         "close": _MARK_CLOSE,
     }
+    resolved_id = _resolve_exact_canonical_id(session, query)
+    requested_id = parameters["canonical_id"]
+    if resolved_id and requested_id and requested_id != resolved_id:
+        return []
+    if resolved_id:
+        # Bind an exact reviewed name to its canonical identity before FTS.
+        # FTS intentionally ignores punctuation, so this prevents opposite
+        # labels such as Override(+) and Override(-) from crossing identities
+        # while preserving the normal one-hit behavior for a vendor label.
+        parameters["canonical_id"] = resolved_id
     rows = session.execute(_SEARCH_SQL, parameters).all()
-    if not rows:
-        resolved_id = _resolve_exact_canonical_id(session, query)
-        requested_id = parameters["canonical_id"]
-        if resolved_id and (not requested_id or requested_id == resolved_id):
-            projected = canonical_settings.list_vendor_equivalences(session, (resolved_id,))[
-                resolved_id
-            ]
-            alias_match = _mapped_names_match(projected)
-            if alias_match:
-                parameters["match"] = alias_match
-                parameters["canonical_id"] = resolved_id
-                rows = session.execute(_SEARCH_SQL, parameters).all()
+    if not rows and resolved_id and parameters["canonical_id"] == resolved_id:
+        projected = canonical_settings.list_vendor_equivalences(session, (resolved_id,))[
+            resolved_id
+        ]
+        alias_match = _mapped_names_match(projected)
+        if alias_match:
+            # A canonical name or reviewer alias may not occur in any source
+            # record. In that case expand to the mapped vendor names, keeping
+            # the same canonical filter and cited equivalence projection.
+            parameters["match"] = alias_match
+            rows = session.execute(_SEARCH_SQL, parameters).all()
     equivalences = canonical_settings.list_vendor_equivalences(
         session,
         {row.canonical_id for row in rows if row.canonical_id},

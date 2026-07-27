@@ -233,3 +233,69 @@ def test_vendor_specific_names_resolve_to_the_same_cited_equivalence_view(
     alias_results = search_query.search_approved(db_session, "Precision Boost Scalar Control")
     assert {result.setting_id for result in alias_results} == {asus.id, msi.id}
     assert {result.canonical_id for result in alias_results} == {"pbo-scalar"}
+
+
+def test_exact_signed_vendor_names_do_not_cross_opposite_canonical_identities(
+    db_session,
+    pdf_bytes_factory,
+):
+    positive = canonical_settings.create_identity(
+        db_session,
+        name="Maximum CPU Boost Clock Override Positive",
+    )
+    negative = canonical_settings.create_identity(
+        db_session,
+        name="Maximum CPU Boost Clock Override Negative",
+    )
+    positive_setting = _approved_setting(
+        db_session,
+        pdf_bytes_factory(texts=["Official positive boost override documentation. " * 20]),
+        name="Max CPU Boost Clock Override(+)",
+        vendor="MSI",
+        model_name="X870",
+    )
+    negative_setting = _approved_setting(
+        db_session,
+        pdf_bytes_factory(texts=["Official negative boost override documentation. " * 20]),
+        name="Max CPU Boost Clock Override(-)",
+        vendor="MSI",
+        model_name="X870",
+    )
+    canonical_settings.map_setting(
+        db_session,
+        positive_setting,
+        canonical_id=positive.canonical_id,
+        note="The official manual identifies the positive override control.",
+    )
+    canonical_settings.map_setting(
+        db_session,
+        negative_setting,
+        canonical_id=negative.canonical_id,
+        note="The official manual identifies the negative override control.",
+    )
+
+    positive_results = search_query.search_approved(
+        db_session,
+        "Max CPU Boost Clock Override(+)",
+    )
+    negative_results = search_query.search_approved(
+        db_session,
+        "Max CPU Boost Clock Override(-)",
+    )
+
+    assert {result.setting_id for result in positive_results} == {positive_setting.id}
+    assert {result.canonical_id for result in positive_results} == {
+        positive.canonical_id
+    }
+    assert {result.setting_id for result in negative_results} == {negative_setting.id}
+    assert {result.canonical_id for result in negative_results} == {
+        negative.canonical_id
+    }
+    assert (
+        search_query.search_approved(
+            db_session,
+            "Max CPU Boost Clock Override(+)",
+            canonical_id=negative.canonical_id,
+        )
+        == []
+    )

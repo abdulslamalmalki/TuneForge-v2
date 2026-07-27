@@ -44,6 +44,15 @@ def _setting(
 def test_alias_normalization_is_conservative_and_slug_is_stable():
     assert normalize_alias("  Re-Size   BAR Support ") == "re size bar support"
     assert normalize_alias("Re_Size BAR Support") == "re_size bar support"
+    assert normalize_alias("Max CPU Boost Clock Override(+)") == (
+        "max cpu boost clock override positive"
+    )
+    assert normalize_alias("Max CPU Boost Clock Override(-)") == (
+        "max cpu boost clock override negative"
+    )
+    assert normalize_alias("Max CPU Boost Clock Override(\u2212)") == (
+        "max cpu boost clock override negative"
+    )
     assert canonical_slug("Resizable BAR Support") == "resizable-bar-support"
 
 

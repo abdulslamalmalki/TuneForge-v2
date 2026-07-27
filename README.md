@@ -620,6 +620,16 @@ hierarchy is ambiguous. Every decision is append-only, reversible, and covered
 by the report in `docs/v1.5-canonicalization-report.md`; 3,778 records remain in
 the human-review backlog rather than being guessed.
 
+The v1.5.1 Trust and Public Visibility Audit verifies the complete approved
+corpus against the stored official PDFs and public Library read model. It
+corrects three descriptions, rejects two parser headings and one duplicate
+manual occurrence, preserves one documented ASUS label conflict without
+mapping it, and prevents signed positive/negative Boost Override labels from
+cross-resolving in search. All 4,018 approved Source Settings and all 56 active
+Canonical Settings are publicly discoverable; 3,775 Source Settings remain
+visible but intentionally unmapped. See
+`docs/v1.5.1-trust-and-visibility-audit.md`.
+
 Hardware Applicability Phases 1 and 2 define and persist stable identities for
 five CPU/socket platforms, nine chipset families, 29 chipsets, and 15 known
 motherboard models. Migration 0009 backfilled the original eight production

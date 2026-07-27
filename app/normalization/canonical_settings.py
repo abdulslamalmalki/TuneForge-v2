@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 _NON_ALNUM = re.compile(r"[^\w]+", re.UNICODE)
 _DASHES = re.compile(r"-+")
+_PARENTHESIZED_SIGN = re.compile(r"\(\s*([+\-\u2212])\s*\)")
 
 RISK_UNCLASSIFIED = "unclassified"
 RISK_LOW = "low"
@@ -103,6 +104,13 @@ def normalize_alias(value: str) -> str:
     must be explicitly attached to a canonical identity by a reviewer.
     """
     normalized = unicodedata.normalize("NFKC", value).casefold()
+    # A parenthesized sign is semantic in firmware labels such as
+    # "Max CPU Boost Clock Override(+)" and "...(-)". Treating both signs
+    # as disposable punctuation made two opposite controls collide.
+    normalized = _PARENTHESIZED_SIGN.sub(
+        lambda match: " positive " if match.group(1) == "+" else " negative ",
+        normalized,
+    )
     return " ".join(_NON_ALNUM.sub(" ", normalized).split())
 
 
