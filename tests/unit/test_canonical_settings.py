@@ -227,6 +227,40 @@ def test_classification_is_validated_and_append_only_audited(db_session):
         )
 
 
+def test_non_committing_identity_can_be_reclassified_in_same_transaction(db_session):
+    identity = canonical_settings.create_identity(
+        db_session,
+        name="Transactional Memory Control",
+        commit=False,
+    )
+
+    changed = canonical_settings.classify_identity(
+        db_session,
+        identity,
+        category_id="memory",
+        risk_level="moderate",
+        risk_rationale="Memory controls can affect stability.",
+        commit=False,
+    )
+    db_session.flush()
+
+    classification = canonical_settings.get_classification(
+        db_session,
+        identity.canonical_id,
+    )
+    assert changed is True
+    assert classification is not None
+    assert classification.category_id == "memory"
+    assert classification.risk_level == "moderate"
+    assert [
+        event.action
+        for event in canonical_settings.list_classification_events(
+            db_session,
+            identity.canonical_id,
+        )
+    ] == ["classified", "reclassified"]
+
+
 def test_persistent_exact_alias_queue_accepts_and_dismisses_with_audit(
     db_session,
     pdf_bytes_factory,

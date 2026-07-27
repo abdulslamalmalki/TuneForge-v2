@@ -1,9 +1,9 @@
 """Public BIOS Settings Library trust, discovery, citation, and UI contracts."""
 
 from app import config
-from app.db.models import CanonicalSetting, ExtractionRun, Setting
+from app.db.models import CanonicalSetting, ExtractionRun, Manual, Setting
 from app.db.session import SessionLocal
-from app.domain import canonical_settings, review
+from app.domain import canonical_identity_review, canonical_settings, review
 
 
 def _source_setting(
@@ -49,6 +49,7 @@ def _source_setting(
             extracted_name=name,
             extracted_description=description,
             page_number=12,
+            page_review_status="correct",
             status="draft",
             created_at="2026-01-01T00:00:00+00:00",
             updated_at="2026-01-01T00:00:00+00:00",
@@ -58,6 +59,19 @@ def _source_setting(
         setting_id = setting.id
         if status == "approved":
             review.approve_setting(session, setting, note="Public Library fixture approval.")
+            manual = session.get(Manual, manual_id)
+            manual.vendor_id = vendor.casefold()
+            manual.acceptance_reviewed_at = "2026-01-01T00:00:00+00:00"
+            manual.acceptance_reviewer = "test-reviewer"
+            session.commit()
+            canonical_identity_review.review_menu_context(
+                session,
+                setting.id,
+                menu_path=f"Advanced > {name}",
+                source_page_number=1,
+                evidence_excerpt=f"The official {vendor} manual lists {name} in Advanced.",
+                note="Public Library reviewed menu-location fixture.",
+            )
             if canonical_id:
                 canonical_settings.map_setting(
                     session,
@@ -288,6 +302,8 @@ def test_library_details_combine_manual_and_evidence_citations_without_internal_
     assert source_page.status_code == 200
     assert "Official citation" in source_page.text
     assert "Page 12" in source_page.text
+    assert "BIOS menu location" in source_page.text
+    assert "Advanced &gt; Precision Boost Overdrive" in source_page.text
     assert f"/library/canonical/{canonical_id}" in source_page.text
     assert "Evidence-backed guidance" in source_page.text
 
@@ -298,6 +314,13 @@ def test_library_details_combine_manual_and_evidence_citations_without_internal_
 
     body = client.get(f"/api/v1/library/canonical/{canonical_id}").json()
     assert body["setting"]["guidance_available"] is True
+    assert body["source_settings"][0]["menu_path"].startswith("Advanced >")
+    assert body["source_settings"][0]["menu_path_page_number"] == 1
+    assert all(
+        citation["menu_path"]
+        for equivalent in body["setting"]["equivalent_vendor_names"]
+        for citation in equivalent["citations"]
+    )
     assert len(body["facts"]) == 1
     assert body["facts"][0]["citations"][0]["source_title"] == "Ryzen Master User Guide"
     forbidden = {

@@ -21,6 +21,7 @@ from app.db.models import (
     Manual,
     Setting,
     SettingCanonicalMapping,
+    SettingMenuContext,
     Vendor,
 )
 from app.domain.errors import CanonicalSettingError
@@ -111,6 +112,8 @@ class EquivalentNameCitation:
     manual_label: str
     source_url: str | None
     page_number: int
+    menu_path: str | None
+    menu_path_page_number: int | None
 
 
 @dataclass(frozen=True)
@@ -249,10 +252,21 @@ def list_vendor_equivalences(
     if not requested:
         return {}
     rows = session.execute(
-        select(SettingCanonicalMapping.canonical_id, Setting, Manual, Vendor)
+        select(
+            SettingCanonicalMapping.canonical_id,
+            Setting,
+            Manual,
+            Vendor,
+            SettingMenuContext,
+        )
         .join(Setting, Setting.id == SettingCanonicalMapping.setting_id)
         .join(Manual, Manual.id == Setting.manual_id)
         .outerjoin(Vendor, Vendor.vendor_id == Manual.vendor_id)
+        .outerjoin(
+            SettingMenuContext,
+            (SettingMenuContext.setting_id == Setting.id)
+            & (SettingMenuContext.status == "active"),
+        )
         .where(
             SettingCanonicalMapping.canonical_id.in_(requested),
             Setting.status == "approved",
@@ -268,7 +282,7 @@ def list_vendor_equivalences(
         str,
         dict[tuple[str | None, str, str], tuple[str, str, list[EquivalentNameCitation]]],
     ] = {canonical_id: {} for canonical_id in requested}
-    for canonical_id, setting, manual, vendor in rows:
+    for canonical_id, setting, manual, vendor, menu_context in rows:
         setting_name = effective_name(setting)
         vendor_name = (
             vendor.canonical_name if vendor is not None else (manual.vendor or "Unknown vendor")
@@ -286,6 +300,10 @@ def list_vendor_equivalences(
                 or manual.original_filename,
                 source_url=manual.source_url,
                 page_number=setting.edited_page_number or setting.page_number,
+                menu_path=menu_context.menu_path if menu_context is not None else None,
+                menu_path_page_number=(
+                    menu_context.source_page_number if menu_context is not None else None
+                ),
             )
         )
     return {
@@ -411,6 +429,11 @@ def create_identity(
     )
     if commit:
         session.commit()
+    else:
+        # Make the initial classification visible to subsequent domain actions
+        # composed in the same transaction. Without this flush, a second
+        # classify_identity() call can stage a duplicate primary-key insert.
+        session.flush()
     return identity
 
 

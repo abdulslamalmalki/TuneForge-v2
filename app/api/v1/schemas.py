@@ -641,6 +641,8 @@ class EquivalentNameCitationOut(BaseModel):
     manual_label: str
     source_url: str | None
     page_number: int
+    menu_path: str | None
+    menu_path_page_number: int | None
 
 
 class VendorEquivalentNameOut(BaseModel):

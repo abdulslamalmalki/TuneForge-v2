@@ -36,6 +36,8 @@ class LibraryEquivalentCitationOut(BaseModel):
     manual_label: str
     source_url: str | None
     page_number: int
+    menu_path: str | None
+    menu_path_page_number: int | None
 
 
 class LibraryVendorEquivalentOut(BaseModel):
@@ -106,6 +108,8 @@ class LibrarySourceSummaryOut(BaseModel):
     vendor_name: str
     manual_label: str
     citation: LibraryManualCitationOut
+    menu_path: str | None
+    menu_path_page_number: int | None
     eligibility_label: str
     acceptance_label: str
     applicability_scope: str | None
@@ -127,6 +131,8 @@ class LibrarySourceSummaryOut(BaseModel):
             vendor_name=value.vendor_name,
             manual_label=value.manual_label,
             citation=LibraryManualCitationOut.model_validate(value.citation, from_attributes=True),
+            menu_path=value.menu_path,
+            menu_path_page_number=value.menu_path_page_number,
             eligibility_label=value.eligibility_label,
             acceptance_label=value.acceptance_label,
             applicability_scope=value.applicability_scope,

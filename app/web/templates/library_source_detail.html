@@ -31,6 +31,7 @@
       <div><strong>{{ detail.setting.citation.source_title }}</strong><span>{{ detail.setting.citation.manual_label }}{% if detail.setting.citation.document_version %} · Version {{ detail.setting.citation.document_version }}{% endif %} · Page {{ detail.setting.citation.page_number }}</span></div>
       {% if detail.setting.citation.source_url %}<a href="{{ detail.setting.citation.source_url }}" target="_blank" rel="noreferrer">Open official source ↗</a>{% endif %}
     </div>
+    <div class="library-source-menu"><strong>BIOS menu location</strong><span>{{ detail.setting.menu_path or 'Not yet captured in the reviewed record' }}{% if detail.setting.menu_path_page_number %} · Reviewed on page {{ detail.setting.menu_path_page_number }}{% endif %}</span></div>
   </section>
 
   <section class="library-detail-section" aria-labelledby="hardware-heading">
@@ -43,7 +44,7 @@
     <div class="subsection-heading"><div><p class="eyebrow">Cross-vendor identity</p><h2 id="canonical-heading">Canonical mapping</h2></div></div>
     {% if detail.setting.canonical_id %}
     <div class="library-canonical-callout"><div><strong>{{ detail.setting.canonical_name }}</strong><p>{{ detail.canonical_description or 'No vendor-neutral description has been reviewed.' }}</p></div><a href="/library/canonical/{{ detail.setting.canonical_id }}">Open canonical setting →</a></div>
-    {% if detail.equivalent_vendor_names %}<div class="equivalence-grid library-equivalence-grid">{% for equivalent in detail.equivalent_vendor_names %}<article class="equivalence-card"><span>{{ equivalent.vendor_name }}</span><strong>{{ equivalent.setting_name }}</strong><small>{% for citation in equivalent.citations %}{% if citation.source_url %}<a href="{{ citation.source_url }}" target="_blank" rel="noreferrer">{{ citation.manual_title }}, p. {{ citation.page_number }}</a>{% else %}{{ citation.manual_title }}, p. {{ citation.page_number }}{% endif %}{% if not loop.last %}; {% endif %}{% endfor %}</small></article>{% endfor %}</div>{% endif %}
+    {% if detail.equivalent_vendor_names %}<div class="equivalence-grid library-equivalence-grid">{% for equivalent in detail.equivalent_vendor_names %}<article class="equivalence-card"><span>{{ equivalent.vendor_name }}</span><strong>{{ equivalent.setting_name }}</strong><small>{% for citation in equivalent.citations %}{% if citation.menu_path %}<span>{{ citation.menu_path }}{% if citation.menu_path_page_number %} (p. {{ citation.menu_path_page_number }}){% endif %}</span> · {% endif %}{% if citation.source_url %}<a href="{{ citation.source_url }}" target="_blank" rel="noreferrer">{{ citation.manual_title }}, p. {{ citation.page_number }}</a>{% else %}{{ citation.manual_title }}, p. {{ citation.page_number }}{% endif %}{% if not loop.last %}; {% endif %}{% endfor %}</small></article>{% endfor %}</div>{% endif %}
     {% else %}
     <div class="library-evidence-gap"><strong>Reviewed source setting; no canonical identity yet.</strong><p>TuneForge does not infer equivalence from similar names. A reviewer must confirm the mapping before cross-vendor names or guidance can appear.</p></div>
     {% endif %}

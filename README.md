@@ -630,6 +630,16 @@ Canonical Settings are publicly discoverable; 3,775 Source Settings remain
 visible but intentionally unmapped. See
 `docs/v1.5.1-trust-and-visibility-audit.md`.
 
+The v1.6 AM5 Cross-Vendor Coverage Expansion adds 12 visually verified
+canonical identities and 42 reviewer-approved mappings from the official ASUS,
+MSI, GIGABYTE, and ASRock AM5 manuals. It also records 43 audited BIOS menu
+paths and exposes those reviewed locations in the public Library API, setting
+details, and vendor-comparison page. One exact-name ASUS `PSS Support` record
+remains intentionally unmapped because its documented ACPI objects conflict
+with the existing identity evidence. The remaining 3,733 approved Source
+Settings stay publicly visible and conservatively queued for human review. See
+`docs/v1.6-am5-coverage.md`.
+
 Hardware Applicability Phases 1 and 2 define and persist stable identities for
 five CPU/socket platforms, nine chipset families, 29 chipsets, and 15 known
 motherboard models. Migration 0009 backfilled the original eight production

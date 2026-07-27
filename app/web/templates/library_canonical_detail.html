@@ -32,7 +32,7 @@
       <article class="equivalence-card">
         <span>{{ equivalent.vendor_name }}</span>
         <strong>{{ equivalent.setting_name }}</strong>
-        <small>{% for citation in equivalent.citations %}{% if citation.source_url %}<a href="{{ citation.source_url }}" target="_blank" rel="noreferrer">{{ citation.manual_title }}, p. {{ citation.page_number }}</a>{% else %}{{ citation.manual_title }}, p. {{ citation.page_number }}{% endif %}{% if not loop.last %}; {% endif %}{% endfor %}</small>
+        <small>{% for citation in equivalent.citations %}{% if citation.menu_path %}<span>{{ citation.menu_path }}{% if citation.menu_path_page_number %} (p. {{ citation.menu_path_page_number }}){% endif %}</span> · {% endif %}{% if citation.source_url %}<a href="{{ citation.source_url }}" target="_blank" rel="noreferrer">{{ citation.manual_title }}, p. {{ citation.page_number }}</a>{% else %}{{ citation.manual_title }}, p. {{ citation.page_number }}{% endif %}{% if not loop.last %}; {% endif %}{% endfor %}</small>
       </article>
       {% endfor %}
     </div>
@@ -67,7 +67,7 @@
   <section class="library-detail-section" aria-labelledby="source-records-heading">
     <div class="subsection-heading"><div><p class="eyebrow">Official manual observations</p><h2 id="source-records-heading">Approved source records</h2></div><span>{{ detail.source_settings | length }}</span></div>
     {% if detail.source_settings %}
-    <div class="library-source-list">{% for source in detail.source_settings %}<a href="/library/source/{{ source.setting_id }}"><span><strong>{{ source.vendor_name }}</strong><small>{{ source.effective_name }} · {{ source.manual_label }}</small></span><span>Page {{ source.citation.page_number }} →</span></a>{% endfor %}</div>
+    <div class="library-source-list">{% for source in detail.source_settings %}<a href="/library/source/{{ source.setting_id }}"><span><strong>{{ source.vendor_name }}</strong><small>{{ source.effective_name }} · {{ source.manual_label }}{% if source.menu_path %} · {{ source.menu_path }}{% endif %}</small></span><span>Page {{ source.citation.page_number }} →</span></a>{% endfor %}</div>
     {% else %}<p class="public-empty">No approved source records are mapped.</p>{% endif %}
   </section>
 </article>

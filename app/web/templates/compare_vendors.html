@@ -38,7 +38,7 @@
           <tr>
             <td><span class="comparison-vendor-mark">{{ equivalent.vendor_name[:1] }}</span><strong>{{ equivalent.vendor_name }}</strong></td>
             <td>{{ equivalent.setting_name }}</td>
-            <td><span class="comparison-pending">Not yet captured in the reviewed record</span></td>
+            <td>{% set menu_citations = equivalent.citations | selectattr('menu_path') | list %}{% if menu_citations %}{% for citation in menu_citations %}<span>{{ citation.menu_path }}{% if citation.menu_path_page_number %} <small>(p. {{ citation.menu_path_page_number }})</small>{% endif %}</span>{% if not loop.last %}<br>{% endif %}{% endfor %}{% else %}<span class="comparison-pending">Not yet captured in the reviewed record</span>{% endif %}</td>
             <td>{% for citation in equivalent.citations %}{% if citation.source_url %}<a href="{{ citation.source_url }}" target="_blank" rel="noreferrer">{{ citation.manual_title }}, page {{ citation.page_number }}</a>{% else %}{{ citation.manual_title }}, page {{ citation.page_number }}{% endif %}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
           </tr>
           {% endfor %}

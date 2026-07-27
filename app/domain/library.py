@@ -20,6 +20,7 @@ from app.db.models import (
     Manual,
     Setting,
     SettingCanonicalMapping,
+    SettingMenuContext,
 )
 from app.domain import canonical_settings, guidance_read, hardware
 from app.domain.canonical_settings import (
@@ -75,6 +76,8 @@ class LibrarySourceSetting:
     vendor_name: str
     manual_label: str
     citation: LibraryManualCitation
+    menu_path: str | None
+    menu_path_page_number: int | None
     eligibility_label: str
     acceptance_label: str
     applicability_scope: str | None
@@ -437,6 +440,7 @@ def _load_source_settings(
             CanonicalSetting,
             CanonicalSettingClassification,
             CanonicalSettingCategory,
+            SettingMenuContext,
         )
         .join(Manual, Manual.id == Setting.manual_id)
         .outerjoin(SettingCanonicalMapping, SettingCanonicalMapping.setting_id == Setting.id)
@@ -452,6 +456,11 @@ def _load_source_settings(
             CanonicalSettingCategory,
             CanonicalSettingCategory.category_id == CanonicalSettingClassification.category_id,
         )
+        .outerjoin(
+            SettingMenuContext,
+            (SettingMenuContext.setting_id == Setting.id)
+            & (SettingMenuContext.status == "active"),
+        )
         .where(Setting.status == "approved")
     )
     if setting_ids is not None:
@@ -459,13 +468,13 @@ def _load_source_settings(
             return ()
         statement = statement.where(Setting.id.in_(setting_ids))
     rows = session.execute(statement).all()
-    manual_ids = {manual.id for _, manual, _, _, _ in rows}
+    manual_ids = {manual.id for _, manual, _, _, _, _ in rows}
     applicability = {
         manual_id: hardware.get_manual_applicability(session, manual_id) for manual_id in manual_ids
     }
     covered = {row.canonical_id for row in guidance_read.list_coverage(session, approved_only=True)}
     values = []
-    for setting, manual, canonical, classification, category in rows:
+    for setting, manual, canonical, classification, category, menu_context in rows:
         if canonical is not None and canonical.status != canonical_settings.IDENTITY_ACTIVE:
             canonical = None
             classification = None
@@ -501,6 +510,10 @@ def _load_source_settings(
                     source_url=manual.source_url,
                     document_version=manual.document_version,
                     page_number=page_number,
+                ),
+                menu_path=menu_context.menu_path if menu_context is not None else None,
+                menu_path_page_number=(
+                    menu_context.source_page_number if menu_context is not None else None
                 ),
                 eligibility_label=_eligibility_label(manual.eligibility_status),
                 acceptance_label=(
