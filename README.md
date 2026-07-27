@@ -86,11 +86,11 @@ The current release includes:
   transparent setting-name wrappers, with no fuzzy matching or generated text
 - A read-only v1 launch gate that separates product completion from deployment
   safety, appears in the admin dashboard, and has a protected JSON endpoint
-- Evidence-reviewed cross-vendor expansion with 104 canonical identities and
-  472 approved mappings, including 51 decisions pinned to official manual
-  pages from at least three vendors in the v1.8 Wave 3 acceptance batch
+- Evidence-reviewed cross-vendor expansion with 114 canonical identities and
+  524 approved mappings, including 52 DRAM turnaround-timing decisions pinned
+  to official ASRock, ASUS, and MSI pages in the v1.9 Wave 4 batch
 
-This tree is the **TuneForge 1.8 focused BIOS settings platform release**. The
+This tree is the **TuneForge 1.9 focused BIOS settings platform release**. The
 public product is limited to BIOS Settings, Compare Vendors, Ask TuneForge, and
 Upload Manual. Guided question acceptance, exact-system validation, ingestion,
 provenance, and review operations remain protected administrator tools. See
