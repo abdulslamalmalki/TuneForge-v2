@@ -19,7 +19,7 @@ def test_canonicalization_reviewer_api_returns_a_complete_report(client):
 
     assert response.status_code == 200
     body = response.json()
-    assert body["engine_version"] == "canonicalization-1.0"
+    assert body["engine_version"] == "canonicalization-1.1"
     assert body["confidence_threshold_basis_points"] == 9950
     assert body["evaluated_count"] == 0
     assert body["auto_approved_mappings"] == []

@@ -39,10 +39,11 @@ from app.domain.extraction_runs import utc_now_iso
 from app.domain.review import effective_description, effective_name
 from app.normalization.canonical_settings import canonical_slug, normalize_alias
 
-ENGINE_VERSION = "canonicalization-1.0"
+ENGINE_VERSION = "canonicalization-1.1"
 AUTOMATIC_ACTOR = "automatic-canonicalization-reviewer"
 CONFIDENCE_THRESHOLD_BP = 9950
 SUGGESTION_THRESHOLD_BP = 8000
+NEW_IDENTITY_DESCRIPTION_SIMILARITY = 0.90
 MATCH_CONTEXTUAL = "contextual_evidence"
 
 OUTCOME_AUTO_MAPPED = "auto_mapped"
@@ -193,13 +194,8 @@ def evaluate_backlog(session: Session) -> CanonicalizationEvaluation:
     profiles = _profiles(session)
     _apply_reviewed_menu_contexts(session, rows, profiles)
     profile_index = _index_profiles(profiles)
-    manual_ids = {
-        manual.id
-        for _, manual in rows
-    } | {
-        manual.id
-        for profile in profiles
-        for _, manual in profile.mapped_rows
+    manual_ids = {manual.id for _, manual in rows} | {
+        manual.id for profile in profiles for _, manual in profile.mapped_rows
     }
     platform_ids = _manual_platform_ids(session, manual_ids)
 
@@ -214,9 +210,7 @@ def evaluate_backlog(session: Session) -> CanonicalizationEvaluation:
         for setting, manual in rows
     )
     groups = _attach_proposal_state(session, _proposed_groups(entries))
-    group_by_setting = {
-        setting_id: group for group in groups for setting_id in group.setting_ids
-    }
+    group_by_setting = {setting_id: group for group in groups for setting_id in group.setting_ids}
     entries = tuple(
         replace(
             entry,
@@ -285,8 +279,17 @@ def backlog_page(
     )
 
 
-def run_reviewer(session: Session) -> CanonicalizationRunReport:
-    """Persist suggestions and apply only decisions at or above 99.5%."""
+def run_reviewer(
+    session: Session,
+    *,
+    commit: bool = True,
+) -> CanonicalizationRunReport:
+    """Persist suggestions and apply only decisions at or above 99.5%.
+
+    ``commit=False`` lets a pinned maintenance operation include this work in
+    one larger transaction. Interactive and API callers retain the existing
+    commit-on-success behavior.
+    """
     run_id = uuid4().hex
     now = utc_now_iso()
     evaluation = evaluate_backlog(session)
@@ -362,7 +365,10 @@ def run_reviewer(session: Session) -> CanonicalizationRunReport:
             evaluation.proposed_groups,
             created_at=now,
         )
-        session.commit()
+        if commit:
+            session.commit()
+        else:
+            session.flush()
     except Exception:
         session.rollback()
         raise
@@ -420,16 +426,9 @@ def _apply_reviewed_menu_contexts(
     backlog_rows: list[object],
     profiles: list[_CanonicalProfile],
 ) -> None:
-    settings = {
-        setting.id: setting
-        for setting, _ in backlog_rows
-    }
+    settings = {setting.id: setting for setting, _ in backlog_rows}
     settings.update(
-        {
-            setting.id: setting
-            for profile in profiles
-            for setting, _ in profile.mapped_rows
-        }
+        {setting.id: setting for profile in profiles for setting, _ in profile.mapped_rows}
     )
     if not settings:
         return
@@ -455,9 +454,7 @@ def _attach_proposal_state(
         proposal.canonical_id: proposal
         for proposal in session.scalars(
             select(CanonicalIdentityProposal).where(
-                CanonicalIdentityProposal.canonical_id.in_(
-                    group.canonical_id for group in groups
-                )
+                CanonicalIdentityProposal.canonical_id.in_(group.canonical_id for group in groups)
             )
         )
     }
@@ -631,9 +628,7 @@ def _profiles(session: Session) -> list[_CanonicalProfile]:
 
 
 def _index_profiles(profiles: list[_CanonicalProfile]) -> _ProfileIndex:
-    profiles_by_id = {
-        profile.identity.canonical_id: profile for profile in profiles
-    }
+    profiles_by_id = {profile.identity.canonical_id: profile for profile in profiles}
     names: dict[str, set[str]] = defaultdict(set)
     tokens: dict[str, set[str]] = defaultdict(set)
     descriptions: dict[str, set[str]] = defaultdict(set)
@@ -668,8 +663,7 @@ def _evaluate_setting(
     for token in {token for token in name.split() if len(token) >= 3}:
         possible_ids.update(profile_index.tokens.get(token, ()))
     possible_profiles = [
-        profile_index.profiles_by_id[canonical_id]
-        for canonical_id in possible_ids
+        profile_index.profiles_by_id[canonical_id] for canonical_id in possible_ids
     ]
     ranked_profiles = sorted(
         (
@@ -699,9 +693,7 @@ def _evaluate_setting(
         if description and description in profile.trusted_descriptions
     )
     shortlisted_profiles = [
-        profile
-        for profile in profiles
-        if profile.identity.canonical_id in shortlisted_ids
+        profile for profile in profiles if profile.identity.canonical_id in shortlisted_ids
     ]
     scored = sorted(
         (
@@ -737,9 +729,7 @@ def _evaluate_setting(
             f"Confidence {confidence / 100:.2f}% is below the 99.50% automatic threshold."
         )
     automatic_eligible = (
-        hard_gates
-        and confidence >= CONFIDENCE_THRESHOLD_BP
-        and not _trust_reasons(setting, manual)
+        hard_gates and confidence >= CONFIDENCE_THRESHOLD_BP and not _trust_reasons(setting, manual)
     )
     if automatic_eligible:
         reasons.append("All mandatory signals independently support the same canonical identity.")
@@ -827,9 +817,7 @@ def _score_profile(
     )
     menu_context = _menu_context(setting)
     support_menu_contexts = {
-        value
-        for row, _ in profile.mapped_rows
-        if (value := _menu_context(row)) is not None
+        value for row, _ in profile.mapped_rows if (value := _menu_context(row)) is not None
     }
     menu_match = menu_context is not None and menu_context in support_menu_contexts
 
@@ -972,7 +960,7 @@ def _entry(
 def _proposed_groups(
     entries: tuple[CanonicalizationEntry, ...],
 ) -> tuple[ProposedCanonicalGroup, ...]:
-    grouped: dict[tuple[str, str], list[CanonicalizationEntry]] = defaultdict(list)
+    grouped: dict[str, list[CanonicalizationEntry]] = defaultdict(list)
     for entry in entries:
         if (
             entry.candidate_canonical_id is not None
@@ -980,38 +968,58 @@ def _proposed_groups(
         ):
             continue
         name = normalize_alias(entry.effective_name)
-        description = _normalize_description(entry.effective_description)
-        if name and description:
-            grouped[(name, description)].append(entry)
+        if name:
+            grouped[name].append(entry)
 
     groups = []
-    for _, values in grouped.items():
+    for values in grouped.values():
         manual_ids = tuple(sorted({entry.manual_id for entry in values}))
         vendor_ids = tuple(
             sorted({entry.vendor_id for entry in values if entry.vendor_id is not None})
         )
         if len(manual_ids) < 2 or len(vendor_ids) < 2:
             continue
+        descriptions = tuple(
+            _normalize_description(entry.effective_description) for entry in values
+        )
+        if any(not description for description in descriptions):
+            continue
+        description_similarities = tuple(
+            _description_similarity(left, right)
+            for index, left in enumerate(descriptions)
+            for right in descriptions[index + 1 :]
+        )
+        minimum_description_similarity = min(description_similarities, default=1.0)
+        if minimum_description_similarity < NEW_IDENTITY_DESCRIPTION_SIMILARITY:
+            continue
         trusted_sources = all(entry.source_trusted for entry in values)
         canonical_id = canonical_slug(values[0].effective_name)
         reviewed_menu_paths = tuple(
             sorted(
-                {
-                    entry.reviewed_menu_path.strip()
-                    for entry in values
-                    if entry.reviewed_menu_path
-                },
+                {entry.reviewed_menu_path.strip() for entry in values if entry.reviewed_menu_path},
                 key=str.casefold,
             )
         )
-        normalized_menu_paths = {
-            normalize_alias(path) for path in reviewed_menu_paths
-        }
+        normalized_menu_paths = {normalize_alias(path) for path in reviewed_menu_paths}
         menu_complete = all(entry.reviewed_menu_path for entry in values)
         menu_exact = menu_complete and len(normalized_menu_paths) == 1
-        confidence = 10000 if menu_exact else (9950 if menu_complete else 9000)
+        descriptions_exact = minimum_description_similarity == 1.0
+        confidence = (
+            (10000 if descriptions_exact else 9975)
+            if menu_exact
+            else (9950 if menu_complete else 9000)
+        )
         reasons = (
-            "Exact normalized name and description agree across multiple official manuals.",
+            "Exact normalized name agrees across multiple official manuals.",
+            (
+                "Reviewed descriptions are identical after deterministic normalization."
+                if descriptions_exact
+                else (
+                    "Every reviewed description independently expresses the same function "
+                    f"(minimum deterministic similarity "
+                    f"{minimum_description_similarity:.3f})."
+                )
+            ),
             f"Evidence spans {len(manual_ids)} manuals and {len(vendor_ids)} vendors.",
             (
                 "Reviewed BIOS menu context is recorded for every source."
@@ -1044,9 +1052,7 @@ def _proposed_groups(
                 vendor_ids=vendor_ids,
                 confidence_basis_points=confidence,
                 automatic_eligible=(
-                    trusted_sources
-                    and menu_complete
-                    and confidence >= CONFIDENCE_THRESHOLD_BP
+                    trusted_sources and menu_complete and confidence >= CONFIDENCE_THRESHOLD_BP
                 ),
                 reasons=reasons,
                 reviewed_menu_paths=reviewed_menu_paths,
@@ -1173,13 +1179,9 @@ def _manual_platform_ids(
 ) -> dict[int, set[str]]:
     if not manual_ids:
         return {}
-    families = {
-        row.family_id: row.platform_id for row in session.scalars(select(ChipsetFamily))
-    }
+    families = {row.family_id: row.platform_id for row in session.scalars(select(ChipsetFamily))}
     chipsets = {row.chipset_id: row.platform_id for row in session.scalars(select(Chipset))}
-    models = {
-        row.model_id: row.platform_id for row in session.scalars(select(MotherboardModel))
-    }
+    models = {row.model_id: row.platform_id for row in session.scalars(select(MotherboardModel))}
     values: dict[int, set[str]] = {}
     for manual_id in manual_ids:
         view = hardware.get_manual_applicability(session, manual_id)

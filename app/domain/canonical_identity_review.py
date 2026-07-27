@@ -219,6 +219,8 @@ def review_menu_context(
         row.updated_at = now
     if commit:
         session.commit()
+    else:
+        session.flush()
     return row
 
 
@@ -307,11 +309,16 @@ def approve_identity_proposal(
     *,
     note: str,
     actor: str | None = None,
+    canonical_description: str | None = None,
+    commit: bool = True,
 ) -> CanonicalSetting:
     """Publish a proposal only while every evidence gate still passes."""
     actor = actor or current_actor()
     note = _required_review_note(note, "An identity approval note is required.")
     proposal = _pending_proposal(session, proposal_id)
+    approved_description = (
+        proposal.description if canonical_description is None else canonical_description.strip()
+    )
     evaluation = canonicalization.evaluate_backlog(session)
     group = next(
         (
@@ -346,7 +353,7 @@ def approve_identity_proposal(
         identity = canonical_settings.create_identity(
             session,
             name=proposal.canonical_name,
-            description=proposal.description,
+            description=approved_description,
             canonical_id=proposal.canonical_id,
             actor=actor,
             commit=False,
@@ -376,6 +383,21 @@ def approve_identity_proposal(
                 commit=False,
             )
         proposal.status = PROPOSAL_APPROVED
+        proposal.confidence_basis_points = group.confidence_basis_points
+        proposal.evidence_json = json.dumps(
+            {
+                "engine_version": canonicalization.ENGINE_VERSION,
+                "confidence_basis_points": group.confidence_basis_points,
+                "automatic_eligible": group.automatic_eligible,
+                "setting_ids": list(group.setting_ids),
+                "manual_ids": list(group.manual_ids),
+                "vendor_ids": list(group.vendor_ids),
+                "reviewed_menu_paths": list(group.reviewed_menu_paths),
+                "reasons": list(group.reasons),
+            },
+            sort_keys=True,
+        )
+        proposal.engine_version = canonicalization.ENGINE_VERSION
         proposal.review_note = note
         proposal.actor = actor
         proposal.approved_canonical_id = identity.canonical_id
@@ -389,6 +411,7 @@ def approve_identity_proposal(
                 detail=json.dumps(
                     {
                         "canonical_id": identity.canonical_id,
+                        "canonical_description": approved_description,
                         "note": note,
                         "setting_ids": list(group.setting_ids),
                         "confidence_basis_points": group.confidence_basis_points,
@@ -399,7 +422,10 @@ def approve_identity_proposal(
                 created_at=now,
             )
         )
-        session.commit()
+        if commit:
+            session.commit()
+        else:
+            session.flush()
     except Exception:
         session.rollback()
         raise
@@ -412,6 +438,7 @@ def reject_identity_proposal(
     *,
     reason: str,
     actor: str | None = None,
+    commit: bool = True,
 ) -> CanonicalIdentityProposal:
     actor = actor or current_actor()
     reason = _required_review_note(reason, "An identity rejection reason is required.")
@@ -431,7 +458,10 @@ def reject_identity_proposal(
             created_at=now,
         )
     )
-    session.commit()
+    if commit:
+        session.commit()
+    else:
+        session.flush()
     return proposal
 
 
@@ -623,9 +653,7 @@ def _proposal_view(
             vendor_name=manual.vendor or "Unknown vendor",
             page_number=setting.edited_page_number or setting.page_number,
             menu_context=(
-                _menu_context_view(session, context, manual)
-                if context is not None
-                else None
+                _menu_context_view(session, context, manual) if context is not None else None
             ),
         )
         for setting, manual, context in rows
@@ -633,8 +661,7 @@ def _proposal_view(
     active_contexts = tuple(
         source.menu_context
         for source in sources
-        if source.menu_context is not None
-        and source.menu_context.status == MENU_CONTEXT_ACTIVE
+        if source.menu_context is not None and source.menu_context.status == MENU_CONTEXT_ACTIVE
     )
     readiness_reasons = []
     if len(sources) < 2:

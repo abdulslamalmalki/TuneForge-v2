@@ -308,10 +308,13 @@ def test_canonical_identity_deprecation_is_audited_reversible_and_blocks_mapping
             setting,
             canonical_id=identity.canonical_id,
         )
-    assert canonical_settings.list_catalog(
-        db_session,
-        include_deprecated=False,
-    ) == []
+    assert (
+        canonical_settings.list_catalog(
+            db_session,
+            include_deprecated=False,
+        )
+        == []
+    )
 
     assert canonical_settings.set_identity_status(
         db_session,
@@ -331,3 +334,41 @@ def test_canonical_identity_deprecation_is_audited_reversible_and_blocks_mapping
             identity.canonical_id,
         )
     ] == ["created", "deprecated", "reactivated"]
+
+
+def test_canonical_identity_description_revision_is_audited_and_transactional(
+    db_session,
+):
+    identity = canonical_settings.create_identity(
+        db_session,
+        name="Core Ratio Extension Mode",
+        description="Extracted text with OCR noise.",
+    )
+
+    assert canonical_settings.revise_identity_description(
+        db_session,
+        identity,
+        description="Extends the documented maximum CPU core ratio when enabled.",
+        reason="Reviewer replaced OCR text with a cited canonical summary.",
+        commit=False,
+    )
+    assert identity.description == ("Extends the documented maximum CPU core ratio when enabled.")
+    assert [
+        event.action
+        for event in canonical_settings.list_identity_events(
+            db_session,
+            identity.canonical_id,
+        )
+    ] == ["created", "description_revised"]
+
+    db_session.rollback()
+
+    identity = db_session.get(type(identity), identity.canonical_id)
+    assert identity.description == "Extracted text with OCR noise."
+    assert [
+        event.action
+        for event in canonical_settings.list_identity_events(
+            db_session,
+            identity.canonical_id,
+        )
+    ] == ["created"]

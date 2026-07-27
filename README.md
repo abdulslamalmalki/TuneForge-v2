@@ -610,6 +610,16 @@ reviewed cross-vendor equivalence easy to find. Coverage metrics distinguish
 all approved records, active canonical mappings, records awaiting mapping, and
 canonical identities; approval and citation boundaries are unchanged.
 
+The v1.5 Evidence-Backed Canonicalization Batch evaluates all 3,809 approved,
+unmapped Source Settings with the conservative reviewer and adds deterministic
+description agreement to new-identity proposals. A pinned, dry-run-first batch
+records cited official-manual menu paths and atomically approves 15 identities
+with 31 mappings across ASRock, ASUS, and GIGABYTE evidence. Four `Clear Secure
+Boot Keys` records remain intentionally unmapped because the official ASRock
+hierarchy is ambiguous. Every decision is append-only, reversible, and covered
+by the report in `docs/v1.5-canonicalization-report.md`; 3,778 records remain in
+the human-review backlog rather than being guessed.
+
 Hardware Applicability Phases 1 and 2 define and persist stable identities for
 five CPU/socket platforms, nine chipset families, 29 chipsets, and 15 known
 motherboard models. Migration 0009 backfilled the original eight production

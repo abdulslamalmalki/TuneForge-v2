@@ -55,9 +55,7 @@ def _trusted_setting(
     )
     manual.acceptance_reviewed_at = "2026-07-23T00:00:00+00:00"
     manual.acceptance_reviewer = "test-reviewer"
-    run = db_session.scalar(
-        select(ExtractionRun).where(ExtractionRun.manual_id == manual.id)
-    )
+    run = db_session.scalar(select(ExtractionRun).where(ExtractionRun.manual_id == manual.id))
     setting = Setting(
         manual_id=manual.id,
         extraction_run_id=run.id,
@@ -178,9 +176,10 @@ def test_missing_menu_context_stays_pending_with_audited_evidence(
     evidence = json.loads(suggestion.evidence_json)
     assert evidence["automatic_eligible"] is False
     assert evidence["support_setting_ids"] == [support.id]
-    assert next(
-        signal for signal in evidence["signals"] if signal["key"] == "menu_context"
-    )["state"] == "unavailable"
+    assert (
+        next(signal for signal in evidence["signals"] if signal["key"] == "menu_context")["state"]
+        == "unavailable"
+    )
     assert [
         event.action
         for event in db_session.scalars(
@@ -201,9 +200,7 @@ def test_all_mandatory_signals_can_auto_map_and_reversal_is_audited(
         canonicalization,
         "_menu_context",
         lambda setting: (
-            "advanced amd overclocking"
-            if setting.id in {support.id, candidate.id}
-            else None
+            "advanced amd overclocking" if setting.id in {support.id, candidate.id} else None
         ),
     )
 
@@ -222,8 +219,7 @@ def test_all_mandatory_signals_can_auto_map_and_reversal_is_audited(
     )
     assert db_session.get(SettingCanonicalMapping, candidate.id) is None
     assert [
-        event.action
-        for event in canonical_settings.list_mapping_events(db_session, candidate.id)
+        event.action for event in canonical_settings.list_mapping_events(db_session, candidate.id)
     ] == ["mapped", "unmapped"]
 
 
@@ -277,6 +273,69 @@ def test_cross_vendor_new_identity_group_remains_human_reviewed_without_menu_pat
     report = canonicalization.run_reviewer(db_session)
     assert report.new_canonical_settings == ()
     assert db_session.get(CanonicalSetting, group.canonical_id) is None
+
+
+def test_new_identity_group_accepts_near_identical_reviewed_descriptions(
+    db_session,
+    pdf_bytes_factory,
+):
+    first = _trusted_setting(
+        db_session,
+        pdf_bytes_factory,
+        vendor="ASUS",
+        name="L1 Region Prefetcher",
+        description=(
+            "Uses memory access history to fetch additional lines when data access "
+            "for an instruction tends to be followed by other data accesses."
+        ),
+        marker="similar-asus",
+    )
+    second = _trusted_setting(
+        db_session,
+        pdf_bytes_factory,
+        vendor="ASRock",
+        name="L1 Region Prefetcher",
+        description=(
+            "Uses memory access history to fetch additional lines when the data access "
+            "for a given instruction tends to be followed by other data accesses."
+        ),
+        marker="similar-asrock",
+    )
+
+    evaluation = canonicalization.evaluate_backlog(db_session)
+
+    assert len(evaluation.proposed_groups) == 1
+    group = evaluation.proposed_groups[0]
+    assert group.setting_ids == (first.id, second.id)
+    assert group.confidence_basis_points == 9000
+    assert any("minimum deterministic similarity" in reason for reason in group.reasons)
+    assert group.automatic_eligible is False
+
+
+def test_new_identity_group_rejects_same_name_with_conflicting_descriptions(
+    db_session,
+    pdf_bytes_factory,
+):
+    _trusted_setting(
+        db_session,
+        pdf_bytes_factory,
+        vendor="ASUS",
+        name="Shared Control",
+        description="Enables the CPU prefetcher.",
+        marker="conflicting-asus",
+    )
+    _trusted_setting(
+        db_session,
+        pdf_bytes_factory,
+        vendor="MSI",
+        name="Shared Control",
+        description="Deletes all enrolled Secure Boot keys.",
+        marker="conflicting-msi",
+    )
+
+    evaluation = canonicalization.evaluate_backlog(db_session)
+
+    assert evaluation.proposed_groups == ()
 
 
 def test_reviewed_menu_context_is_cited_audited_and_revocable(
@@ -387,8 +446,10 @@ def test_canonical_identity_proposal_requires_menu_evidence_then_approves_atomic
         db_session,
         proposal.proposal_id,
         note="Exact behavior and menu hierarchy agree in both official manuals.",
+        canonical_description="Controls the reviewed training pattern length.",
     )
     assert identity.canonical_id == "pattern-length"
+    assert identity.description == "Controls the reviewed training pattern length."
     assert identity.status == canonical_settings.IDENTITY_ACTIVE
     assert {
         db_session.get(SettingCanonicalMapping, setting.id).canonical_id
@@ -435,10 +496,13 @@ def test_identity_proposal_rejection_can_be_reopened_without_losing_history(
         reason="New official menu evidence is now available.",
     )
 
-    assert canonical_identity_review.get_identity_proposal(
-        db_session,
-        proposal.proposal_id,
-    ).status == canonical_identity_review.PROPOSAL_PENDING
+    assert (
+        canonical_identity_review.get_identity_proposal(
+            db_session,
+            proposal.proposal_id,
+        ).status
+        == canonical_identity_review.PROPOSAL_PENDING
+    )
     assert [
         event.action
         for event in canonical_identity_review.list_identity_proposal_events(
@@ -446,3 +510,119 @@ def test_identity_proposal_rejection_can_be_reopened_without_losing_history(
             proposal.proposal_id,
         )
     ] == ["generated", "rejected", "reopened"]
+
+
+def test_batch_commit_controls_keep_proposal_decisions_in_callers_transaction(
+    db_session,
+    pdf_bytes_factory,
+):
+    description = "Controls a reviewed cross-vendor feature."
+    settings = tuple(
+        _trusted_setting(
+            db_session,
+            pdf_bytes_factory,
+            vendor=vendor,
+            name="Transactional Review Control",
+            description=description,
+            marker=f"transaction-{vendor.casefold()}",
+        )
+        for vendor in ("ASUS", "MSI")
+    )
+    for setting in settings:
+        canonical_identity_review.review_menu_context(
+            db_session,
+            setting.id,
+            menu_path="Advanced > Shared Feature > Transactional Review Control",
+            source_page_number=1,
+            evidence_excerpt="Transactional Review Control.",
+        )
+
+    canonicalization.run_reviewer(db_session, commit=False)
+    (proposal,) = canonical_identity_review.list_identity_proposals(db_session)
+    canonical_identity_review.approve_identity_proposal(
+        db_session,
+        proposal.proposal_id,
+        note="Official behavior and reviewed menu paths agree.",
+        commit=False,
+    )
+    assert db_session.get(CanonicalSetting, "transactional-review-control") is not None
+    assert all(db_session.get(SettingCanonicalMapping, setting.id) for setting in settings)
+
+    db_session.rollback()
+
+    assert db_session.get(CanonicalSetting, "transactional-review-control") is None
+    assert canonical_identity_review.list_identity_proposals(db_session) == ()
+    assert all(db_session.get(SettingCanonicalMapping, setting.id) is None for setting in settings)
+
+    canonicalization.run_reviewer(db_session, commit=False)
+    (proposal,) = canonical_identity_review.list_identity_proposals(db_session)
+    canonical_identity_review.reject_identity_proposal(
+        db_session,
+        proposal.proposal_id,
+        reason="Evidence remains ambiguous.",
+        commit=False,
+    )
+    assert (
+        canonical_identity_review.get_identity_proposal(
+            db_session,
+            proposal.proposal_id,
+        ).status
+        == canonical_identity_review.PROPOSAL_REJECTED
+    )
+
+    db_session.rollback()
+
+    assert canonical_identity_review.list_identity_proposals(db_session) == ()
+
+
+def test_uncommitted_menu_contexts_refresh_stale_proposal_at_approval(
+    db_session,
+    pdf_bytes_factory,
+):
+    description = "Controls the reviewed transactional feature."
+    settings = tuple(
+        _trusted_setting(
+            db_session,
+            pdf_bytes_factory,
+            vendor=vendor,
+            name="Flush Review Control",
+            description=description,
+            marker=f"flush-{vendor.casefold()}",
+        )
+        for vendor in ("ASUS", "MSI")
+    )
+    canonicalization.run_reviewer(db_session)
+    (proposal,) = canonical_identity_review.list_identity_proposals(db_session)
+    assert proposal.confidence_basis_points == 9000
+
+    for setting in settings:
+        canonical_identity_review.review_menu_context(
+            db_session,
+            setting.id,
+            menu_path="Advanced > Shared Feature > Flush Review Control",
+            source_page_number=1,
+            evidence_excerpt="Flush Review Control.",
+            commit=False,
+        )
+    canonical_identity_review.approve_identity_proposal(
+        db_session,
+        proposal.proposal_id,
+        note="Both uncommitted menu contexts are complete and equivalent.",
+        commit=False,
+    )
+
+    refreshed = db_session.get(CanonicalIdentityProposal, proposal.proposal_id)
+    assert refreshed.confidence_basis_points == 10000
+    assert json.loads(refreshed.evidence_json)["automatic_eligible"] is True
+    assert all(db_session.get(SettingCanonicalMapping, setting.id) for setting in settings)
+
+    db_session.rollback()
+
+    restored = db_session.get(CanonicalIdentityProposal, proposal.proposal_id)
+    assert restored.status == canonical_identity_review.PROPOSAL_PENDING
+    assert restored.confidence_basis_points == 9000
+    assert all(
+        canonical_identity_review.get_menu_context(db_session, setting.id) is None
+        for setting in settings
+    )
+    assert all(db_session.get(SettingCanonicalMapping, setting.id) is None for setting in settings)

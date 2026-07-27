@@ -46,6 +46,7 @@ IDENTITY_DEPRECATED = "deprecated"
 ACTION_IDENTITY_CREATED = "created"
 ACTION_IDENTITY_DEPRECATED = "deprecated"
 ACTION_IDENTITY_REACTIVATED = "reactivated"
+ACTION_IDENTITY_DESCRIPTION_REVISED = "description_revised"
 
 
 @dataclass(frozen=True)
@@ -482,6 +483,56 @@ def list_identity_events(
             .order_by(CanonicalIdentityEvent.id)
         )
     )
+
+
+def revise_identity_description(
+    session: Session,
+    identity: CanonicalSetting,
+    *,
+    description: str,
+    reason: str,
+    actor: str | None = None,
+    commit: bool = True,
+) -> bool:
+    """Revise the public identity description without changing source evidence."""
+    actor = actor or current_actor()
+    description = " ".join(description.split())
+    reason = reason.strip()
+    _check_identity_values(identity.canonical_name, description, identity.canonical_id)
+    if not description:
+        raise CanonicalSettingError("A canonical setting description is required.")
+    if not reason:
+        raise CanonicalSettingError("A description revision reason is required.")
+    if len(reason) > config.MAX_CANONICAL_MAPPING_NOTE_LENGTH:
+        raise CanonicalSettingError("Canonical identity revision reason is too long.")
+    if identity.description == description:
+        return False
+
+    before = identity.description
+    now = utc_now_iso()
+    identity.description = description
+    identity.updated_at = now
+    session.add(
+        CanonicalIdentityEvent(
+            canonical_id=identity.canonical_id,
+            action=ACTION_IDENTITY_DESCRIPTION_REVISED,
+            actor=actor,
+            detail=json.dumps(
+                {
+                    "before": {"description": before},
+                    "after": {"description": description},
+                    "reason": reason,
+                },
+                sort_keys=True,
+            ),
+            created_at=now,
+        )
+    )
+    if commit:
+        session.commit()
+    else:
+        session.flush()
+    return True
 
 
 def get_classification(
