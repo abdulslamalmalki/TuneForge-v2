@@ -6,7 +6,7 @@ from pathlib import Path
 COMPONENT_ROOT = Path(__file__).resolve().parent.parent
 
 # Single source for the version shown in OpenAPI and /api/v1/health.
-APP_VERSION = "1.6.0"
+APP_VERSION = "1.7.0"
 
 # Authentication is required by default. Tests explicitly opt into the legacy
 # local-only bypass so existing domain and HTTP regression tests stay focused
