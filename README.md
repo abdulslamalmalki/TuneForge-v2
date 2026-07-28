@@ -86,11 +86,11 @@ The current release includes:
   transparent setting-name wrappers, with no fuzzy matching or generated text
 - A read-only v1 launch gate that separates product completion from deployment
   safety, appears in the admin dashboard, and has a protected JSON endpoint
-- Evidence-reviewed cross-vendor expansion with 174 canonical identities and
-  789 approved mappings, including eight Intel platform-control identities
-  pinned to official ASUS, GIGABYTE, and MSI pages in the v1.16 Wave 11 batch
+- Evidence-reviewed cross-vendor expansion with 199 canonical identities and
+  839 approved mappings, including 25 scope-preserving DRAM ODT and drive-
+  strength identities pinned to official ASRock, ASUS, and MSI pages in v1.17
 
-This tree is the **TuneForge 1.16 focused BIOS settings platform release**. The
+This tree is the **TuneForge 1.17 focused BIOS settings platform release**. The
 public product is limited to BIOS Settings, Compare Vendors, Ask TuneForge, and
 Upload Manual. Guided question acceptance, exact-system validation, ingestion,
 provenance, and review operations remain protected administrator tools. See
