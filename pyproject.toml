@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "knowledge-builder"
-version = "1.13.0"
+version = "1.14.0"
 description = "TuneForge Knowledge Builder: internal web tool that turns motherboard manuals into reviewable BIOS-setting records."
 readme = "README.md"
 requires-python = ">=3.12"
