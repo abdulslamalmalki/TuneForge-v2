@@ -86,11 +86,11 @@ The current release includes:
   transparent setting-name wrappers, with no fuzzy matching or generated text
 - A read-only v1 launch gate that separates product completion from deployment
   safety, appears in the admin dashboard, and has a protected JSON endpoint
-- Evidence-reviewed cross-vendor expansion with 209 canonical identities and
-  873 approved mappings, including ten exact platform-control identities pinned
-  to official ASRock, ASUS, GIGABYTE, and MSI pages in the v1.18 Wave 13 batch
+- Evidence-reviewed cross-vendor expansion with 217 canonical identities and
+  896 approved mappings, including eight discrete-Thunderbolt resource identities
+  pinned to official ASUS and MSI pages in the v1.19 Wave 14 batch
 
-This tree is the **TuneForge 1.18 focused BIOS settings platform release**. The
+This tree is the **TuneForge 1.19 focused BIOS settings platform release**. The
 public product is limited to BIOS Settings, Compare Vendors, Ask TuneForge, and
 Upload Manual. Guided question acceptance, exact-system validation, ingestion,
 provenance, and review operations remain protected administrator tools. See
