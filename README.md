@@ -86,11 +86,11 @@ The current release includes:
   transparent setting-name wrappers, with no fuzzy matching or generated text
 - A read-only v1 launch gate that separates product completion from deployment
   safety, appears in the admin dashboard, and has a protected JSON endpoint
-- Evidence-reviewed cross-vendor expansion with 275 canonical identities and
-  1,022 approved mappings, including 11 AMD power/current/thermal identities
-  pinned to official ASRock, ASUS, and MSI pages in the v1.22 Wave 17 batch
+- Evidence-reviewed cross-vendor expansion with 284 canonical identities and
+  1,041 approved mappings, including nine AMD voltage-control identities pinned
+  to official ASRock, ASUS, and MSI pages in the v1.23 Wave 18 batch
 
-This tree is the **TuneForge 1.22 focused BIOS settings platform release**. The
+This tree is the **TuneForge 1.23 focused BIOS settings platform release**. The
 public product is limited to BIOS Settings, Compare Vendors, Ask TuneForge, and
 Upload Manual. Guided question acceptance, exact-system validation, ingestion,
 provenance, and review operations remain protected administrator tools. See
