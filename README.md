@@ -87,7 +87,7 @@ The current release includes:
 - A read-only v1 launch gate that separates product completion from deployment
   safety, appears in the admin dashboard, and has a protected JSON endpoint
 - Evidence-reviewed cross-vendor expansion with 331 canonical identities and
-  1,178 approved mappings, including AMD ECO Mode and additional official
+  1,206 approved mappings, including AMD ECO Mode and additional official
   power-recovery, graphics-power, UMA, Intel performance, and rail-specific
   DRAM PMIC switching-frequency records in the v1.30 Wave 25 batch
 
