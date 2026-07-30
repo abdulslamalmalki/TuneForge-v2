@@ -86,10 +86,10 @@ The current release includes:
   transparent setting-name wrappers, with no fuzzy matching or generated text
 - A read-only v1 launch gate that separates product completion from deployment
   safety, appears in the admin dashboard, and has a protected JSON endpoint
-- Evidence-reviewed cross-vendor expansion with 293 canonical identities and
-  1,059 approved mappings, including nine Intel 800-series CPU, voltage,
-  thermal-framework, Thunderbolt, and USB4 identities pinned to official ASUS
-  and GIGABYTE pages in the v1.24 Wave 19 batch
+- Evidence-reviewed cross-vendor expansion with 301 canonical identities and
+  1,077 approved mappings, including eight Intel ratio, voltage, core-control,
+  memory-frequency, PLL, and thermal identities pinned to official ASUS,
+  GIGABYTE, and MSI pages in the v1.25 Wave 20 batch
 
 This tree is the **TuneForge 1.23 focused BIOS settings platform release**. The
 public product is limited to BIOS Settings, Compare Vendors, Ask TuneForge, and
