@@ -86,12 +86,12 @@ The current release includes:
   transparent setting-name wrappers, with no fuzzy matching or generated text
 - A read-only v1 launch gate that separates product completion from deployment
   safety, appears in the admin dashboard, and has a protected JSON endpoint
-- Evidence-reviewed cross-vendor expansion with 311 canonical identities and
-  1,100 approved mappings, including Thunderbolt host-router, M.2 link-speed,
-  and PCH voltage identities pinned to official ASUS, ASRock, and MSI pages in
-  the v1.27 Wave 22 batch
+- Evidence-reviewed cross-vendor expansion with 320 canonical identities and
+  1,129 approved mappings, including DDR ODT groups, TX Burst Length, IA CEP,
+  and GT CEP identities pinned to official ASUS, ASRock, GIGABYTE, and MSI
+  pages in the v1.28 Wave 23 batch
 
-This tree is the **TuneForge 1.27 focused BIOS settings platform release**. The
+This tree is the **TuneForge 1.28 focused BIOS settings platform release**. The
 public product is limited to BIOS Settings, Compare Vendors, Ask TuneForge, and
 Upload Manual. Guided question acceptance, exact-system validation, ingestion,
 provenance, and review operations remain protected administrator tools. See
