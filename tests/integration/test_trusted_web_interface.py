@@ -1,5 +1,6 @@
 """Public/API boundaries for explicitly unreviewed trusted-web research."""
 
+from app import config
 from app.research import trusted_web
 
 
@@ -83,3 +84,25 @@ def test_research_endpoint_schema_is_published(client):
     response_schema = operation["responses"]["200"]["content"]["application/json"]["schema"]
     assert response_schema["$ref"].endswith("/TrustedWebResearchOut")
     assert client.get("/api/v1/interface/trusted-web-research").status_code == 405
+
+
+def test_research_api_has_an_independent_json_rate_limit(client, monkeypatch):
+    monkeypatch.setattr(config, "RATE_LIMIT_ENABLED", True)
+    monkeypatch.setattr(config, "RATE_LIMIT_RESEARCH", "1/60")
+    monkeypatch.setattr(trusted_web, "research", lambda _session, _question: _view())
+
+    first = client.post(
+        "/api/v1/interface/trusted-web-research",
+        params={"question": "What does PBO do in BIOS?"},
+        headers={"X-TuneForge-Request": "1"},
+    )
+    blocked = client.post(
+        "/api/v1/interface/trusted-web-research",
+        params={"question": "What does PBO do in BIOS?"},
+        headers={"X-TuneForge-Request": "1"},
+    )
+
+    assert first.status_code == 200
+    assert blocked.status_code == 429
+    assert blocked.json() == {"detail": "Too many requests. Try again later."}
+    assert blocked.headers["ratelimit-limit"] == "1"

@@ -227,6 +227,7 @@ def test_production_responses_enable_transport_and_sensitive_cache_protection(mo
     monkeypatch.setattr(config, "AUTH_MODE", "required")
     monkeypatch.setattr(config, "AUTH_COOKIE_SECURE", True)
     monkeypatch.setattr(config, "TRUSTED_HOSTS", ("testserver",))
+    monkeypatch.setattr(config, "RATE_LIMIT_ENABLED", True)
 
     with TestClient(create_app()) as client:
         health = client.get("/api/v1/health")
@@ -237,3 +238,55 @@ def test_production_responses_enable_transport_and_sensitive_cache_protection(mo
     )
     assert health.headers["cross-origin-opener-policy"] == "same-origin"
     assert answer.headers["cache-control"] == "no-store"
+
+
+def test_login_rate_limit_is_generic_and_returns_retry_headers(monkeypatch):
+    app = create_app()
+    monkeypatch.setattr(config, "AUTH_MODE", "required")
+    monkeypatch.setattr(config, "RATE_LIMIT_ENABLED", False)
+    with TestClient(app) as owner:
+        _setup(owner)
+
+    monkeypatch.setattr(config, "RATE_LIMIT_ENABLED", True)
+    monkeypatch.setattr(config, "RATE_LIMIT_LOGIN", "2/60")
+    with TestClient(app) as anonymous:
+        responses = [
+            anonymous.post(
+                "/login",
+                data={"username": "owner", "password": "incorrect password"},
+                headers=ORIGIN,
+            )
+            for _ in range(3)
+        ]
+
+    assert [response.status_code for response in responses] == [400, 400, 429]
+    assert responses[2].text == "Too many requests. Try again later."
+    assert responses[2].headers["ratelimit-limit"] == "2"
+    assert responses[2].headers["ratelimit-remaining"] == "0"
+    assert int(responses[2].headers["retry-after"]) >= 1
+
+
+def test_only_expensive_library_search_is_rate_limited(monkeypatch):
+    monkeypatch.setattr(config, "RATE_LIMIT_ENABLED", True)
+    monkeypatch.setattr(config, "RATE_LIMIT_SEARCH", "1/60")
+    with TestClient(create_app()) as client:
+        ordinary = client.get("/library")
+        first = client.get("/library", params={"q": "PBO"})
+        blocked = client.get("/library", params={"q": "PBO"})
+
+    assert ordinary.status_code == 200
+    assert "ratelimit-limit" not in ordinary.headers
+    assert first.status_code == 200
+    assert first.headers["ratelimit-remaining"] == "0"
+    assert blocked.status_code == 429
+
+
+def test_public_upload_limit_runs_before_pdf_processing(monkeypatch):
+    monkeypatch.setattr(config, "RATE_LIMIT_ENABLED", True)
+    monkeypatch.setattr(config, "RATE_LIMIT_PUBLIC_UPLOAD", "1/3600")
+    with TestClient(create_app()) as client:
+        first = client.post("/upload-manual", data={})
+        blocked = client.post("/upload-manual", data={})
+
+    assert first.status_code == 400
+    assert blocked.status_code == 429

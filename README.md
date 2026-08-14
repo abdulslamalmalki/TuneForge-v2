@@ -670,6 +670,13 @@ return-path parsing, bounds PDF page counts, and adds production HSTS and
 sensitive-page cache controls. The focused adversarial tests and dependency
 audit are documented in `docs/v1.33-security-audit.md`.
 
+Production Rate Limiting in v1.33 adds bounded sliding-window controls for
+authentication, Ask/provider work, trusted-web research, uploads, expensive
+search, and protected mutations. Limits are per authenticated user or anonymous
+client, emit retry metadata, avoid storing user content or secrets, and are
+mandatory in production while remaining disabled for local development by
+default. See `docs/v1.33-rate-limiting.md`.
+
 The Conservative Canonicalization Backlog in v1.3 evaluates every approved,
 unmapped Source Setting against reviewed canonical identities using normalized
 names, descriptions, vendor aliases, mapped precedents, official provenance,

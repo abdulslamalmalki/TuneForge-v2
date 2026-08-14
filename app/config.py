@@ -25,6 +25,16 @@ TRUSTED_HOSTS = tuple(
     )
     if host.strip()
 )
+RATE_LIMIT_ENABLED = os.environ.get(
+    "TUNEFORGE_RATE_LIMIT_ENABLED", "1" if ENVIRONMENT == "production" else "0"
+) == "1"
+RATE_LIMIT_LOGIN = os.environ.get("TUNEFORGE_RATE_LIMIT_LOGIN", "10/300")
+RATE_LIMIT_ASK = os.environ.get("TUNEFORGE_RATE_LIMIT_ASK", "30/60")
+RATE_LIMIT_RESEARCH = os.environ.get("TUNEFORGE_RATE_LIMIT_RESEARCH", "10/60")
+RATE_LIMIT_PUBLIC_UPLOAD = os.environ.get("TUNEFORGE_RATE_LIMIT_PUBLIC_UPLOAD", "5/3600")
+RATE_LIMIT_CURATOR_UPLOAD = os.environ.get("TUNEFORGE_RATE_LIMIT_CURATOR_UPLOAD", "60/3600")
+RATE_LIMIT_SEARCH = os.environ.get("TUNEFORGE_RATE_LIMIT_SEARCH", "120/60")
+RATE_LIMIT_ADMIN_MUTATION = os.environ.get("TUNEFORGE_RATE_LIMIT_ADMIN_MUTATION", "120/60")
 EXPECTED_DATABASE_REVISION = "0027"
 
 # Overridable so tests can run against a temporary data directory (NFR-6).
@@ -108,6 +118,16 @@ def validate_runtime_config() -> None:
         raise RuntimeError("TUNEFORGE_MAX_PDF_PAGES must be between 1 and 20000.")
     if not TRUSTED_HOSTS:
         raise RuntimeError("TUNEFORGE_TRUSTED_HOSTS must contain at least one hostname.")
+    for name in (
+        "RATE_LIMIT_LOGIN",
+        "RATE_LIMIT_ASK",
+        "RATE_LIMIT_RESEARCH",
+        "RATE_LIMIT_PUBLIC_UPLOAD",
+        "RATE_LIMIT_CURATOR_UPLOAD",
+        "RATE_LIMIT_SEARCH",
+        "RATE_LIMIT_ADMIN_MUTATION",
+    ):
+        parse_rate_limit_policy(globals()[name], f"TUNEFORGE_{name}")
     _validate_https_service_url("TUNEFORGE_PROVENANCE_SEARCH_ENDPOINT", PROVENANCE_SEARCH_ENDPOINT)
     _validate_https_service_url(
         "TUNEFORGE_TRUSTED_WEB_SEARCH_ENDPOINT", TRUSTED_WEB_SEARCH_ENDPOINT
@@ -146,6 +166,8 @@ def validate_runtime_config() -> None:
             raise RuntimeError("Production requires TUNEFORGE_AUTH_COOKIE_SECURE=1.")
         if any(host == "*" for host in TRUSTED_HOSTS):
             raise RuntimeError("Production does not allow a wildcard trusted host.")
+        if not RATE_LIMIT_ENABLED:
+            raise RuntimeError("Production requires TUNEFORGE_RATE_LIMIT_ENABLED=1.")
 
 
 def _validate_llm_base_url(base_url: str) -> None:
@@ -186,3 +208,14 @@ def _validate_https_service_url(name: str, value: str) -> None:
         return
     if not address.is_global:
         raise RuntimeError(f"{name} must not target a private or special-use address.")
+
+
+def parse_rate_limit_policy(value: str, name: str) -> tuple[int, int]:
+    try:
+        limit_text, window_text = value.split("/", 1)
+        limit, window = int(limit_text), int(window_text)
+    except (AttributeError, TypeError, ValueError):
+        raise RuntimeError(f"{name} must use the format requests/window_seconds.") from None
+    if not 1 <= limit <= 100_000 or not 1 <= window <= 86_400:
+        raise RuntimeError(f"{name} values are outside the supported range.")
+    return limit, window

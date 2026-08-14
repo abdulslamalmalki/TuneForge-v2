@@ -26,3 +26,22 @@ def test_runtime_rejects_unsafe_search_service_endpoints(monkeypatch, value):
     monkeypatch.setattr(config, "PROVENANCE_SEARCH_ENDPOINT", value)
     with pytest.raises(RuntimeError, match="PROVENANCE_SEARCH_ENDPOINT"):
         config.validate_runtime_config()
+
+
+@pytest.mark.parametrize("value", ("", "10", "0/60", "5/0", "many/60", "5/999999"))
+def test_rate_limit_policy_parser_rejects_invalid_values(value):
+    with pytest.raises(RuntimeError, match="RATE_LIMIT_TEST"):
+        config.parse_rate_limit_policy(value, "TUNEFORGE_RATE_LIMIT_TEST")
+
+
+def test_rate_limit_policy_parser_returns_limit_and_window():
+    assert config.parse_rate_limit_policy("12/300", "test") == (12, 300)
+
+
+def test_production_requires_rate_limiting(monkeypatch):
+    monkeypatch.setattr(config, "ENVIRONMENT", "production")
+    monkeypatch.setattr(config, "AUTH_MODE", "required")
+    monkeypatch.setattr(config, "AUTH_COOKIE_SECURE", True)
+    monkeypatch.setattr(config, "RATE_LIMIT_ENABLED", False)
+    with pytest.raises(RuntimeError, match="RATE_LIMIT_ENABLED=1"):
+        config.validate_runtime_config()

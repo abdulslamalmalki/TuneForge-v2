@@ -15,6 +15,7 @@ def test_production_config_requires_auth_secure_cookie_and_specific_hosts(monkey
         config.validate_runtime_config()
 
     monkeypatch.setattr(config, "AUTH_COOKIE_SECURE", True)
+    monkeypatch.setattr(config, "RATE_LIMIT_ENABLED", True)
     monkeypatch.setattr(config, "TRUSTED_HOSTS", ("*",))
     with pytest.raises(RuntimeError, match="wildcard"):
         config.validate_runtime_config()

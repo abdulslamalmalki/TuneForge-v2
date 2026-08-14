@@ -10,6 +10,7 @@ from app import config
 from app.auth.context import reset_actor, set_actor
 from app.db.session import SessionLocal
 from app.domain import auth
+from app.security import rate_limit
 
 _PUBLIC_GET_EXACT = {
     "/",
@@ -43,6 +44,10 @@ _UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 
 class AuthBoundaryMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app) -> None:
+        super().__init__(app)
+        self._rate_limiter = rate_limit.SlidingWindowRateLimiter()
+
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         if config.AUTH_MODE == "disabled":
             principal = auth.LOCAL_PRINCIPAL
@@ -64,11 +69,28 @@ class AuthBoundaryMiddleware(BaseHTTPMiddleware):
                 protected=not self._is_public(request.method, request.url.path),
             )
 
+        rule = rate_limit.rule_for_request(request)
+        decision = (
+            self._rate_limiter.check(rule, rate_limit.request_identity(request, principal))
+            if rule is not None
+            else None
+        )
+        if decision is not None and not decision.allowed:
+            response = self._rate_limited(request)
+            rate_limit.apply_headers(response.headers, decision)
+            return self._secure(
+                response,
+                request=request,
+                protected=not self._is_public(request.method, request.url.path),
+            )
+
         actor_token = set_actor(principal.username if principal else "anonymous")
         try:
             response = await call_next(request)
         finally:
             reset_actor(actor_token)
+        if decision is not None:
+            rate_limit.apply_headers(response.headers, decision)
         return self._secure(
             response,
             request=request,
@@ -115,6 +137,13 @@ class AuthBoundaryMiddleware(BaseHTTPMiddleware):
         if request.url.path.startswith("/api/"):
             return JSONResponse({"detail": message}, status_code=403)
         return Response(message, status_code=403, media_type="text/plain")
+
+    @staticmethod
+    def _rate_limited(request: Request) -> Response:
+        message = "Too many requests. Try again later."
+        if request.url.path.startswith("/api/"):
+            return JSONResponse({"detail": message}, status_code=429)
+        return Response(message, status_code=429, media_type="text/plain")
 
     @staticmethod
     def _secure(response: Response, *, request: Request, protected: bool) -> Response:
