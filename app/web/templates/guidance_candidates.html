@@ -1,0 +1,62 @@
+{% extends "admin_layout.html" %}
+
+{% block title %}Guidance Candidates — TuneForge Admin{% endblock %}
+{% block page_title %}Guidance candidates{% endblock %}
+
+{% block content %}
+<section class="admin-welcome compact">
+  <div>
+    <p class="admin-eyebrow">Verified knowledge expansion</p>
+    <h1>Guidance candidate review</h1>
+    <p>Generated candidates preserve official-manual text. They are not public facts; promotion creates a draft claim for a separate human approval.</p>
+  </div>
+</section>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<section class="admin-metrics guidance-metrics" aria-label="Guidance coverage">
+  <div class="admin-metric metric-settings"><span class="metric-value">{{ '{:,}'.format(metrics.total_approved_settings) }}</span><strong>Approved settings</strong><small>Complete reviewed source library</small></div>
+  <div class="admin-metric metric-claims"><span class="metric-value">{{ '{:,}'.format(metrics.settings_with_verified_claims) }}</span><strong>With verified claims</strong><small>{{ metrics.coverage_percent }}% source-setting coverage</small></div>
+  <div class="admin-metric metric-evidence"><span class="metric-value">{{ '{:,}'.format(metrics.pending_candidates) }}</span><strong>Pending candidates</strong><small>Require human review</small></div>
+  <div class="admin-metric metric-gaps"><span class="metric-value">{{ '{:,}'.format(metrics.needs_research) }}</span><strong>Needs research</strong><small>Missing a required evidence gate</small></div>
+</section>
+
+<section class="admin-panel">
+  <form method="get" action="/guidance-candidates" class="candidate-filters">
+    <label>Status
+      <select name="status">
+        <option value="">All states</option>
+        {% for value, count in counts.items() %}<option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ value|replace('_', ' ')|title }} ({{ count }})</option>{% endfor %}
+      </select>
+    </label>
+    <label>Vendor
+      <select name="vendor">
+        <option value="">All vendors</option>
+        {% for value in ('asus', 'msi', 'gigabyte', 'asrock') %}<option value="{{ value }}" {% if vendor_filter == value %}selected{% endif %}>{{ value|upper }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Claim type
+      <select name="claim_type">
+        <option value="">All types</option>
+        {% for value in claim_types %}<option value="{{ value }}" {% if claim_type_filter == value %}selected{% endif %}>{{ value|title }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="checkbox-label"><input type="checkbox" name="conflicts" value="true" {% if conflicts_only %}checked{% endif %}> Possible conflicts only</label>
+    <button type="submit" class="admin-button primary">Apply filters</button>
+  </form>
+</section>
+
+<section class="admin-panel candidate-queue-panel">
+  <header class="admin-panel-heading"><div><p class="admin-eyebrow">Priority ordered</p><h2>{{ rows|length }} candidates shown</h2></div><small>Demand → cross-vendor reach → risk/category</small></header>
+  <div class="candidate-list">
+    {% for row in rows %}
+    <a class="candidate-row{% if row.candidate.possible_conflict %} has-conflict{% endif %}" href="/guidance-candidates/{{ row.candidate.id }}">
+      <span class="candidate-score">{{ row.candidate.priority_score }}</span>
+      <span class="candidate-main"><strong>{{ row.setting_name }}</strong><small>{{ row.vendor_name }} · {{ row.manual_title }} · Page {{ row.candidate.source_page_number }}</small><span>{{ row.candidate.claim_text or 'No atomic factual statement could be extracted.' }}</span></span>
+      <span class="candidate-meta"><span class="status status-{{ row.candidate.status }}">{{ row.candidate.status|replace('_', ' ') }}</span><small>{{ row.candidate.claim_type or 'unclassified' }} · {{ '%.2f'|format(row.candidate.confidence_basis_points / 100) }}%</small><small>{{ row.canonical_name or 'No canonical mapping' }}</small></span>
+    </a>
+    {% else %}
+    <p class="admin-empty">No candidates match these filters.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

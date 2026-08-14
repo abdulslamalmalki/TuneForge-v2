@@ -256,10 +256,13 @@ def _clean_state(_create_schema):
         EvidencePassage,
         EvidenceSource,
         EvidenceSourceEvent,
+        GuidanceCandidate,
+        GuidanceCandidateEvent,
         GuidanceClaim,
         GuidanceClaimEvent,
         GuidanceClaimEvidence,
         GuidanceClaimSetting,
+        GuidanceClaimSourceSetting,
         IngestionBatch,
         IngestionBatchItem,
         Manual,
@@ -288,8 +291,11 @@ def _clean_state(_create_schema):
         session.query(TrustedWebResearchEvent).delete()
         session.query(TrustedWebResearchResult).delete()
         session.query(TrustedWebResearchRun).delete()
+        session.query(GuidanceCandidateEvent).delete()
+        session.query(GuidanceCandidate).delete()
         session.query(GuidanceClaimEvent).delete()
         session.query(GuidanceClaimEvidence).delete()
+        session.query(GuidanceClaimSourceSetting).delete()
         session.query(GuidanceClaimSetting).delete()
         session.query(GuidanceClaim).delete()
         session.query(EvidencePassage).delete()

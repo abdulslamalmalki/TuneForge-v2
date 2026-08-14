@@ -93,8 +93,12 @@ The current release includes:
   1,206 approved mappings, including AMD ECO Mode and additional official
   power-recovery, graphics-power, UMA, Intel performance, and rail-specific
   DRAM PMIC switching-frequency records in the v1.30 Wave 25 batch
+- A v1.33 audited guidance-candidate pipeline over all 4,018 approved settings,
+  with exact manual excerpts, deterministic atomic facts, explicit confidence,
+  demand-aware priority, duplicate/conflict detection, and a protected human
+  review queue. Candidates never become public facts automatically.
 
-This tree is the **TuneForge 1.32 focused BIOS settings platform release**. The
+This tree is the **TuneForge 1.33 knowledge-expansion development release**. The
 public product is limited to BIOS Settings, Compare Vendors, Ask TuneForge, and
 Upload Manual. Guided question acceptance, exact-system validation, ingestion,
 provenance, and review operations remain protected administrator tools. See
@@ -103,6 +107,8 @@ provenance, and review operations remain protected administrator tools. See
 `docs/v1-release.md` for the original focused-v1 scope evidence.
 The scope reconciliation with the original desktop PRD is documented in
 `docs/v1-completion-audit.md`.
+The candidate trust boundary, migration, metrics, and reviewer workflow are
+documented in `docs/v1.33-guidance-coverage.md`.
 
 ## Requirements
 

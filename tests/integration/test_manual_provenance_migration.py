@@ -216,6 +216,19 @@ def test_upgrade_backfills_existing_manual_provenance(tmp_path):
             )
         }
         assert len(guidance_tables) == 4
+        guidance_candidate_tables = {
+            row[0]
+            for row in connection.execute(
+                """
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name IN (
+                    'guidance_claim_source_settings', 'guidance_candidates',
+                    'guidance_candidate_events'
+                )
+                """
+            )
+        }
+        assert len(guidance_candidate_tables) == 3
         refusal_tables = {
             row[0]
             for row in connection.execute(
@@ -254,7 +267,7 @@ def test_upgrade_backfills_existing_manual_provenance(tmp_path):
             )
         }
         assert len(research_tables) == 3
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0020",)
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0021",)
 
 
 def test_hardware_migration_backfill_matches_phase1_scope_rules(tmp_path):

@@ -1,0 +1,72 @@
+{% extends "admin_layout.html" %}
+
+{% block title %}Guidance Candidate {{ detail.candidate.id }} — TuneForge Admin{% endblock %}
+{% block page_title %}Candidate {{ detail.candidate.id }}{% endblock %}
+
+{% block content %}
+{% set candidate = detail.candidate %}
+<nav class="candidate-step-nav" aria-label="Candidate navigation">
+  {% if detail.previous_id %}<a id="previous-candidate" href="/guidance-candidates/{{ detail.previous_id }}">← Previous</a>{% else %}<span></span>{% endif %}
+  <a href="/guidance-candidates?status={{ candidate.status }}">Back to {{ candidate.status|replace('_', ' ') }} queue</a>
+  {% if detail.next_id %}<a id="next-candidate" href="/guidance-candidates/{{ detail.next_id }}">Next →</a>{% endif %}
+</nav>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<div class="candidate-detail-grid">
+  <main>
+    <section class="admin-panel candidate-evidence-card">
+      <header class="admin-panel-heading"><div><p class="admin-eyebrow">Official source evidence</p><h1>{{ detail.setting.edited_name or detail.setting.extracted_name }}</h1></div><span class="status status-{{ candidate.status }}">{{ candidate.status|replace('_', ' ') }}</span></header>
+      <dl class="candidate-facts">
+        <div><dt>Vendor</dt><dd>{{ detail.manual.vendor }}</dd></div>
+        <div><dt>Manual</dt><dd>{{ detail.manual.document_title }}</dd></div>
+        <div><dt>Page</dt><dd>{{ candidate.source_page_number }}</dd></div>
+        <div><dt>Canonical</dt><dd>{% if detail.canonical %}<a href="/canonical-settings/{{ detail.canonical.canonical_id }}">{{ detail.canonical.canonical_name }}</a>{% else %}Not mapped{% endif %}</dd></div>
+        <div><dt>Category / risk</dt><dd>{{ detail.category_name or 'Unclassified' }} · {{ detail.risk_level or 'unclassified' }}</dd></div>
+        <div><dt>Trust / confidence</dt><dd>{{ candidate.source_trust|replace('_', ' ') }} · {{ '%.2f'|format(candidate.confidence_basis_points / 100) }}%</dd></div>
+      </dl>
+      <h2>Original reviewed excerpt</h2>
+      <blockquote>{{ candidate.source_excerpt or 'No reviewed description was available.' }}</blockquote>
+      {% if detail.manual.source_url %}<p><a href="{{ detail.manual.source_url }}" target="_blank" rel="noreferrer">Open official source ↗</a></p>{% endif %}
+      {% if candidate.possible_conflict %}<p class="error"><strong>Possible conflict:</strong> {{ candidate.conflict_detail }}</p>{% endif %}
+    </section>
+
+    <section class="admin-panel">
+      <h2>Candidate fact</h2>
+      <form action="/guidance-candidates/{{ candidate.id }}/edit" method="post">
+        <label for="claim_text">Atomic claim</label>
+        <textarea id="claim_text" name="claim_text" rows="5" required>{{ candidate.claim_text or '' }}</textarea>
+        <label for="claim_type">Claim type</label>
+        <select id="claim_type" name="claim_type">{% for value in claim_types %}<option value="{{ value }}" {% if candidate.claim_type == value %}selected{% endif %}>{{ value|title }}</option>{% endfor %}</select>
+        <label for="edit-note">Why this edit is correct</label>
+        <textarea id="edit-note" name="note" rows="2" required></textarea>
+        <button class="admin-button secondary" type="submit">Save reviewed edit</button>
+      </form>
+    </section>
+
+    <section class="admin-panel">
+      <h2>Human decision</h2>
+      <p>Promotion does not publish this fact. It creates a draft in the existing claim-review queue.</p>
+      <form action="/guidance-candidates/{{ candidate.id }}/promote" method="post" class="candidate-action-form">
+        <label for="promote-note">Review note</label><textarea id="promote-note" name="note" rows="2" required></textarea>
+        <button class="admin-button primary" type="submit" {% if candidate.status != 'pending' or candidate.possible_conflict %}disabled{% endif %}>Promote to draft claim</button>
+      </form>
+      <form action="/guidance-candidates/{{ candidate.id }}/state" method="post" class="candidate-action-form">
+        <label for="state-note">Decision reason</label><textarea id="state-note" name="note" rows="2" required></textarea>
+        <div class="candidate-actions"><button name="status" value="needs_research">Needs research</button><button name="status" value="uncertain">Mark uncertain</button><button name="status" value="skipped">Skip</button><button class="danger" name="status" value="rejected">Reject</button></div>
+      </form>
+      <form action="/guidance-candidates/{{ candidate.id }}/merge" method="post" class="candidate-action-form">
+        <label for="duplicate-id">Duplicate of candidate ID</label><input id="duplicate-id" name="duplicate_of_candidate_id" type="number" min="1" required>
+        <label for="merge-note">Merge reason</label><textarea id="merge-note" name="note" rows="2" required></textarea>
+        <button type="submit">Merge duplicate</button>
+      </form>
+    </section>
+  </main>
+
+  <aside>
+    <section class="admin-panel"><h2>Applicability</h2><pre>{{ detail.hardware_scope | tojson(indent=2) }}</pre><p>BIOS scope: {{ detail.bios_scope.status|replace('_', ' ') }}</p></section>
+    <section class="admin-panel"><h2>Related verified/draft claims</h2><ul>{% for claim in detail.related_claims %}<li><a href="/guidance-claims/{{ claim.id }}">{{ claim.claim_type }} · {{ claim.status }}</a><small>{{ claim.claim_text }}</small></li>{% else %}<li>No related claims.</li>{% endfor %}</ul></section>
+    <section class="admin-panel"><h2>Append-only history</h2><ol>{% for event in detail.events %}<li><strong>{{ event.action|replace('_', ' ') }}</strong><small>{{ event.actor }} · {{ event.created_at }}</small></li>{% endfor %}</ol></section>
+  </aside>
+</div>
+
+{% endblock %}

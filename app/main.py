@@ -25,6 +25,7 @@ from app.web.routes import (
     canonical_settings,
     canonicalization,
     evidence_sources,
+    guidance_candidates,
     guidance_claims,
     guidance_read,
     guided_answers,
@@ -140,6 +141,7 @@ def create_app() -> FastAPI:
     app.include_router(canonical_settings.router, include_in_schema=False)
     app.include_router(canonicalization.router, include_in_schema=False)
     app.include_router(evidence_sources.router, include_in_schema=False)
+    app.include_router(guidance_candidates.router, include_in_schema=False)
     app.include_router(guidance_claims.router, include_in_schema=False)
     app.include_router(guidance_read.router, include_in_schema=False)
     app.include_router(guided_answers.router, include_in_schema=False)

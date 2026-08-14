@@ -1,5 +1,6 @@
 """Read-only, citation-first projection over approved guidance claims."""
 
+import hashlib
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -15,10 +16,14 @@ from app.db.models import (
     GuidanceClaim,
     GuidanceClaimEvidence,
     GuidanceClaimSetting,
+    GuidanceClaimSourceSetting,
+    Manual,
+    Setting,
 )
 from app.domain import canonical_settings
 from app.domain.canonical_settings import CanonicalClassificationView, VendorEquivalentName
 from app.domain.errors import GuidanceReadError
+from app.domain.review import effective_description
 from app.domain.system_context import SystemContext
 from app.normalization.canonical_settings import normalize_alias
 
@@ -33,7 +38,7 @@ CLAIM_TYPE_ORDER = {"definition": 0, "behavior": 1, "constraint": 2, "safety": 3
 
 @dataclass(frozen=True)
 class GuidanceReadCitation:
-    passage_id: int
+    passage_id: int | None
     source_id: int
     publisher_name: str
     source_title: str
@@ -44,6 +49,9 @@ class GuidanceReadCitation:
     section_heading: str | None
     passage_text: str
     text_sha256: str
+    source_kind: str = "evidence_passage"
+    setting_id: int | None = None
+    manual_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -253,9 +261,52 @@ def _explanation_for_identity(
                     text_sha256=passage.text_sha256,
                 )
             )
+        source_rows = session.execute(
+            select(GuidanceClaimSourceSetting.claim_id, Setting, Manual)
+            .join(Setting, Setting.id == GuidanceClaimSourceSetting.setting_id)
+            .join(Manual, Manual.id == Setting.manual_id)
+            .where(GuidanceClaimSourceSetting.claim_id.in_(claim_ids))
+            .order_by(
+                GuidanceClaimSourceSetting.claim_id,
+                Manual.id,
+                Setting.page_number,
+                Setting.id,
+            )
+        )
+        for claim_id, setting, manual in source_rows:
+            passage_text = effective_description(setting)
+            citations_by_claim[claim_id].append(
+                GuidanceReadCitation(
+                    passage_id=None,
+                    source_id=manual.id,
+                    publisher_name=manual.vendor or "Official motherboard vendor",
+                    source_title=manual.document_title or manual.original_filename,
+                    source_url=manual.source_url or "",
+                    document_id=manual.sha256,
+                    document_version=manual.document_version or "",
+                    page_number=setting.edited_page_number or setting.page_number,
+                    section_heading=None,
+                    passage_text=passage_text,
+                    text_sha256=hashlib.sha256(passage_text.encode("utf-8")).hexdigest(),
+                    source_kind="approved_source_setting",
+                    setting_id=setting.id,
+                    manual_id=manual.id,
+                )
+            )
     facts = []
     for claim in claims:
-        citations = tuple(citations_by_claim[claim.id])
+        citations = tuple(
+            sorted(
+                citations_by_claim[claim.id],
+                key=lambda item: (
+                    item.source_kind,
+                    item.source_id,
+                    item.page_number,
+                    item.passage_id or 0,
+                    item.setting_id or 0,
+                ),
+            )
+        )
         if not citations:
             raise RuntimeError(f"Approved guidance claim {claim.id} has no approved citation.")
         facts.append(
@@ -297,12 +348,13 @@ def _scope_notice(facts: Sequence[GuidanceReadFact]) -> str:
         )
 
     source_labels: list[str] = []
-    seen_sources: set[int] = set()
+    seen_sources: set[tuple[str, int]] = set()
     for fact in facts:
         for citation in fact.citations:
-            if citation.source_id in seen_sources:
+            source_key = (citation.source_kind, citation.source_id)
+            if source_key in seen_sources:
                 continue
-            seen_sources.add(citation.source_id)
+            seen_sources.add(source_key)
             source_labels.append(f"{citation.publisher_name} — {citation.source_title}")
     sources = "; ".join(source_labels)
     if any(fact.applicability_scope == "source_scope" for fact in facts):

@@ -13,6 +13,8 @@ from app.db.models import (
     EvidenceSource,
     EvidenceSourceEvent,
     ExtractionRun,
+    GuidanceCandidate,
+    GuidanceCandidateEvent,
     GuidanceClaim,
     GuidanceClaimEvent,
     GuidanceClaimSetting,
@@ -112,6 +114,12 @@ def build_dashboard(session: Session) -> AdminDashboard:
         GuidanceClaim.status == "approved",
     )
     draft_claim_count = _count(session, GuidanceClaim, GuidanceClaim.status == "draft")
+    pending_candidate_count = _count(
+        session, GuidanceCandidate, GuidanceCandidate.status == "pending"
+    )
+    research_candidate_count = _count(
+        session, GuidanceCandidate, GuidanceCandidate.status == "needs_research"
+    )
     covered_canonical_count = (
         session.scalar(
             select(func.count(distinct(GuidanceClaimSetting.canonical_id)))
@@ -227,6 +235,18 @@ def build_dashboard(session: Session) -> AdminDashboard:
             "attention" if pending_source_count else "clear",
         ),
         DashboardTask(
+            "guidance-candidates",
+            "Guidance candidates",
+            pending_candidate_count + research_candidate_count,
+            (
+                f"{pending_candidate_count} pending review and "
+                f"{research_candidate_count} needing research."
+            ),
+            "/guidance-candidates",
+            "Review candidates",
+            "attention" if pending_candidate_count else "normal",
+        ),
+        DashboardTask(
             "claim-review",
             "Guidance claim drafts",
             draft_claim_count,
@@ -311,6 +331,13 @@ def _recent_activity(session: Session) -> tuple[DashboardActivity, ...]:
             "Guidance claim",
             "claim_id",
             "/guidance-claims/{}",
+        ),
+        (
+            GuidanceCandidateEvent,
+            "candidate",
+            "Guidance candidate",
+            "candidate_id",
+            "/guidance-candidates/{}",
         ),
         (
             CanonicalMappingEvent,

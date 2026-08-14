@@ -67,6 +67,7 @@ def edit_claim(
     claim_text: Annotated[str, Form()] = "",
     claim_type: Annotated[str, Form()] = "",
     passage_ids: Annotated[str, Form()] = "",
+    source_setting_ids: Annotated[str, Form()] = "",
     canonical_ids: Annotated[str, Form()] = "",
 ):
     claim = claim_domain.get_claim(session, claim_id)
@@ -79,6 +80,7 @@ def edit_claim(
             claim_text=claim_text,
             claim_type=claim_type,
             passage_ids=_parse_passage_ids(passage_ids),
+            source_setting_ids=_parse_passage_ids(source_setting_ids),
             canonical_ids=_parse_canonical_ids(canonical_ids),
         )
     except GuidanceClaimError as error:

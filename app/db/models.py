@@ -333,6 +333,28 @@ class GuidanceClaimSetting(Base):
     )
 
 
+class GuidanceClaimSourceSetting(Base):
+    """An approved manual setting used as direct page-scoped claim evidence."""
+
+    __tablename__ = "guidance_claim_source_settings"
+    __table_args__ = (
+        CheckConstraint("relation IN ('supports')", name="ck_guidance_source_setting_relation"),
+    )
+
+    claim_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("guidance_claims.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    setting_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("settings.id", ondelete="RESTRICT"),
+        primary_key=True,
+        index=True,
+    )
+    relation: Mapped[str] = mapped_column(Text)
+
+
 class GuidanceClaimEvent(Base):
     """Append-only history for claim candidates, edits, and decisions."""
 
@@ -347,6 +369,99 @@ class GuidanceClaimEvent(Base):
     action: Mapped[str] = mapped_column(Text)
     actor: Mapped[str] = mapped_column(Text)
     detail: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(Text)
+
+
+class GuidanceCandidate(Base):
+    """Automated or edited candidate; never public until separately claim-approved."""
+
+    __tablename__ = "guidance_candidates"
+    __table_args__ = (
+        CheckConstraint(
+            "claim_type IS NULL OR claim_type IN "
+            "('definition', 'behavior', 'constraint', 'safety')",
+            name="ck_guidance_candidate_claim_type",
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'needs_research', 'uncertain', 'rejected', "
+            "'skipped', 'duplicate', 'promoted')",
+            name="ck_guidance_candidate_status",
+        ),
+        CheckConstraint(
+            "source_trust IN ('trusted_official_manual', 'incomplete')",
+            name="ck_guidance_candidate_source_trust",
+        ),
+        CheckConstraint(
+            "confidence_basis_points BETWEEN 0 AND 10000",
+            name="ck_guidance_candidate_confidence",
+        ),
+        CheckConstraint(
+            "possible_conflict IN (0, 1)", name="ck_guidance_candidate_conflict_flag"
+        ),
+        CheckConstraint("source_page_number > 0", name="ck_guidance_candidate_page_number"),
+        Index(
+            "ux_guidance_candidate_source_fact",
+            "setting_id",
+            "claim_type",
+            "evidence_sha256",
+            unique=True,
+        ),
+        Index("ix_guidance_candidates_status", "status"),
+        Index("ix_guidance_candidates_priority", "status", "priority_score"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    setting_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("settings.id", ondelete="RESTRICT"), index=True
+    )
+    canonical_id: Mapped[str | None] = mapped_column(
+        Text,
+        ForeignKey("canonical_settings.canonical_id", ondelete="RESTRICT"),
+        index=True,
+    )
+    claim_text: Mapped[str | None] = mapped_column(Text)
+    claim_type: Mapped[str | None] = mapped_column(Text)
+    source_excerpt: Mapped[str] = mapped_column(Text)
+    source_page_number: Mapped[int] = mapped_column(Integer)
+    hardware_scope_json: Mapped[str] = mapped_column(Text, server_default="{}")
+    bios_scope_json: Mapped[str] = mapped_column(Text, server_default="{}")
+    source_trust: Mapped[str] = mapped_column(Text)
+    confidence_basis_points: Mapped[int] = mapped_column(Integer)
+    priority_score: Mapped[int] = mapped_column(Integer, server_default="0")
+    status: Mapped[str] = mapped_column(Text)
+    possible_conflict: Mapped[int] = mapped_column(Integer, server_default="0")
+    conflict_detail: Mapped[str | None] = mapped_column(Text)
+    duplicate_of_candidate_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("guidance_candidates.id", ondelete="RESTRICT")
+    )
+    promoted_claim_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("guidance_claims.id", ondelete="RESTRICT"),
+        index=True,
+    )
+    generator_version: Mapped[str] = mapped_column(Text)
+    evidence_sha256: Mapped[str] = mapped_column(Text)
+    reviewer: Mapped[str | None] = mapped_column(Text)
+    review_note: Mapped[str | None] = mapped_column(Text)
+    reviewed_at: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[str] = mapped_column(Text)
+
+
+class GuidanceCandidateEvent(Base):
+    """Append-only history for generation and every candidate decision."""
+
+    __tablename__ = "guidance_candidate_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    candidate_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("guidance_candidates.id", ondelete="RESTRICT"),
+        index=True,
+    )
+    action: Mapped[str] = mapped_column(Text)
+    actor: Mapped[str] = mapped_column(Text)
+    detail: Mapped[str] = mapped_column(Text)
     created_at: Mapped[str] = mapped_column(Text)
 
 

@@ -283,6 +283,7 @@ class CreateGuidanceClaimIn(BaseModel):
     claim_text: str = ""
     claim_type: str = ""
     passage_ids: list[int] = Field(default_factory=list)
+    source_setting_ids: list[int] = Field(default_factory=list)
     canonical_ids: list[str] = Field(default_factory=list)
     applicability_scope: str = "source_scope"
     cpu_model_id: str | None = None
@@ -338,6 +339,16 @@ class GuidanceCitationOut(BaseModel):
     text_sha256: str
 
 
+class GuidanceSourceSettingCitationOut(BaseModel):
+    setting_id: int
+    manual_id: int
+    source_title: str
+    source_url: str | None
+    document_version: str | None
+    page_number: int
+    passage_text: str
+
+
 class GuidanceSettingOut(BaseModel):
     canonical_id: str
     canonical_name: str
@@ -367,6 +378,7 @@ class GuidanceClaimDetailOut(BaseModel):
     created_at: str
     updated_at: str
     evidence: list[GuidanceCitationOut]
+    source_settings: list[GuidanceSourceSettingCitationOut]
     settings: list[GuidanceSettingOut]
     events: list[GuidanceClaimEventOut]
 
@@ -400,6 +412,24 @@ class GuidanceClaimDetailOut(BaseModel):
                 )
                 for citation in detail.evidence
             ],
+            source_settings=[
+                GuidanceSourceSettingCitationOut(
+                    setting_id=citation.setting.id,
+                    manual_id=citation.manual.id,
+                    source_title=(
+                        citation.manual.document_title
+                        or citation.manual.original_filename
+                    ),
+                    source_url=citation.manual.source_url,
+                    document_version=citation.manual.document_version,
+                    page_number=(
+                        citation.setting.edited_page_number
+                        or citation.setting.page_number
+                    ),
+                    passage_text=effective_description(citation.setting),
+                )
+                for citation in detail.source_settings
+            ],
             settings=[
                 GuidanceSettingOut(
                     canonical_id=setting.canonical_id,
@@ -412,7 +442,7 @@ class GuidanceClaimDetailOut(BaseModel):
 
 
 class CitationFirstCitationOut(BaseModel):
-    passage_id: int
+    passage_id: int | None
     source_id: int
     publisher_name: str
     source_title: str
@@ -423,6 +453,9 @@ class CitationFirstCitationOut(BaseModel):
     section_heading: str | None
     passage_text: str
     text_sha256: str
+    source_kind: str = "evidence_passage"
+    setting_id: int | None = None
+    manual_id: int | None = None
 
 
 class CitationFirstFactOut(BaseModel):

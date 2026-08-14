@@ -17,7 +17,12 @@ from app.db.models import (
     GuidanceClaimEvent,
     GuidanceClaimEvidence,
     GuidanceClaimSetting,
+    GuidanceClaimSourceSetting,
+    Manual,
+    Setting,
+    SettingCanonicalMapping,
 )
+from app.domain import canonicalization
 from app.domain.errors import GuidanceClaimError
 from app.domain.extraction_runs import utc_now_iso
 
@@ -38,6 +43,12 @@ class GuidanceCitation:
 
 
 @dataclass(frozen=True)
+class GuidanceSourceSettingCitation:
+    setting: Setting
+    manual: Manual
+
+
+@dataclass(frozen=True)
 class GuidanceClaimOverview:
     claim: GuidanceClaim
     evidence_count: int
@@ -48,6 +59,7 @@ class GuidanceClaimOverview:
 class GuidanceClaimDetail:
     claim: GuidanceClaim
     evidence: tuple[GuidanceCitation, ...]
+    source_settings: tuple[GuidanceSourceSettingCitation, ...]
     settings: tuple[CanonicalSetting, ...]
     cpu_model: CpuModel | None
     events: tuple[GuidanceClaimEvent, ...]
@@ -59,10 +71,12 @@ def create_claim(
     claim_text: str,
     claim_type: str,
     passage_ids: tuple[int, ...] | list[int],
+    source_setting_ids: tuple[int, ...] | list[int] = (),
     canonical_ids: tuple[str, ...] | list[str],
     applicability_scope: str = APPLICABILITY_SOURCE_SCOPE,
     cpu_model_id: str | None = None,
     actor: str | None = None,
+    commit: bool = True,
 ) -> GuidanceClaim:
     actor = actor or current_actor()
     values = _validate_claim_values(
@@ -70,6 +84,7 @@ def create_claim(
         claim_text=claim_text,
         claim_type=claim_type,
         passage_ids=passage_ids,
+        source_setting_ids=source_setting_ids,
         canonical_ids=canonical_ids,
         applicability_scope=applicability_scope,
         cpu_model_id=cpu_model_id,
@@ -102,6 +117,7 @@ def create_claim(
         session,
         claim.id,
         passage_ids=values["passage_ids"],
+        source_setting_ids=values["source_setting_ids"],
         canonical_ids=values["canonical_ids"],
     )
     session.add(
@@ -113,8 +129,11 @@ def create_claim(
             created_at=now,
         )
     )
-    session.commit()
-    session.refresh(claim)
+    if commit:
+        session.commit()
+        session.refresh(claim)
+    else:
+        session.flush()
     return claim
 
 
@@ -127,6 +146,14 @@ def list_claims(session: Session, *, status: str = "") -> list[GuidanceClaimOver
         .group_by(GuidanceClaimEvidence.claim_id)
         .subquery()
     )
+    source_setting_counts = (
+        select(
+            GuidanceClaimSourceSetting.claim_id,
+            func.count().label("source_setting_count"),
+        )
+        .group_by(GuidanceClaimSourceSetting.claim_id)
+        .subquery()
+    )
     setting_counts = (
         select(GuidanceClaimSetting.claim_id, func.count().label("setting_count"))
         .group_by(GuidanceClaimSetting.claim_id)
@@ -136,9 +163,14 @@ def list_claims(session: Session, *, status: str = "") -> list[GuidanceClaimOver
         select(
             GuidanceClaim,
             func.coalesce(evidence_counts.c.evidence_count, 0),
+            func.coalesce(source_setting_counts.c.source_setting_count, 0),
             func.coalesce(setting_counts.c.setting_count, 0),
         )
         .outerjoin(evidence_counts, evidence_counts.c.claim_id == GuidanceClaim.id)
+        .outerjoin(
+            source_setting_counts,
+            source_setting_counts.c.claim_id == GuidanceClaim.id,
+        )
         .outerjoin(setting_counts, setting_counts.c.claim_id == GuidanceClaim.id)
         .order_by(GuidanceClaim.id)
     )
@@ -150,7 +182,8 @@ def list_claims(session: Session, *, status: str = "") -> list[GuidanceClaimOver
             evidence_count=evidence_count,
             setting_count=setting_count,
         )
-        for claim, evidence_count, setting_count in session.execute(query)
+        for claim, evidence_count, source_setting_count, setting_count in session.execute(query)
+        for evidence_count in (evidence_count + source_setting_count,)
     ]
 
 
@@ -184,6 +217,19 @@ def get_detail(session: Session, claim_id: int) -> GuidanceClaimDetail | None:
             .order_by(EvidencePassage.page_number, EvidencePassage.ordinal)
         )
     )
+    source_settings = tuple(
+        GuidanceSourceSettingCitation(setting=setting, manual=manual)
+        for setting, manual in session.execute(
+            select(Setting, Manual)
+            .join(
+                GuidanceClaimSourceSetting,
+                GuidanceClaimSourceSetting.setting_id == Setting.id,
+            )
+            .join(Manual, Manual.id == Setting.manual_id)
+            .where(GuidanceClaimSourceSetting.claim_id == claim_id)
+            .order_by(Manual.id, Setting.page_number, Setting.id)
+        )
+    )
     settings = tuple(
         session.scalars(
             select(CanonicalSetting)
@@ -206,6 +252,7 @@ def get_detail(session: Session, claim_id: int) -> GuidanceClaimDetail | None:
     return GuidanceClaimDetail(
         claim=claim,
         evidence=evidence,
+        source_settings=source_settings,
         settings=settings,
         cpu_model=cpu_model,
         events=events,
@@ -219,6 +266,7 @@ def edit_claim(
     claim_text: str,
     claim_type: str,
     passage_ids: tuple[int, ...] | list[int],
+    source_setting_ids: tuple[int, ...] | list[int] = (),
     canonical_ids: tuple[str, ...] | list[str],
     applicability_scope: str = APPLICABILITY_SOURCE_SCOPE,
     cpu_model_id: str | None = None,
@@ -230,6 +278,7 @@ def edit_claim(
         claim_text=claim_text,
         claim_type=claim_type,
         passage_ids=passage_ids,
+        source_setting_ids=source_setting_ids,
         canonical_ids=canonical_ids,
         applicability_scope=applicability_scope,
         cpu_model_id=cpu_model_id,
@@ -244,6 +293,7 @@ def edit_claim(
         "applicability_scope": values["applicability_scope"],
         "cpu_model_id": values["cpu_model_id"],
         "passage_ids": list(values["passage_ids"]),
+        "source_setting_ids": list(values["source_setting_ids"]),
         "canonical_ids": list(values["canonical_ids"]),
     }
     if before == after:
@@ -268,6 +318,7 @@ def edit_claim(
         session,
         claim.id,
         passage_ids=values["passage_ids"],
+        source_setting_ids=values["source_setting_ids"],
         canonical_ids=values["canonical_ids"],
     )
     session.add(
@@ -306,12 +357,20 @@ def review_claim(
     if detail is None:
         raise RuntimeError(f"Guidance claim {claim.id} could not be reloaded.")
     if decision == STATUS_APPROVED:
-        if not detail.evidence:
+        if not detail.evidence and not detail.source_settings:
             raise GuidanceClaimError("An approved claim must have supporting evidence.")
         if not detail.settings:
             raise GuidanceClaimError("An approved claim must link to a canonical setting.")
         if any(citation.source.status != "approved" for citation in detail.evidence):
             raise GuidanceClaimError("All supporting evidence sources must be approved.")
+        for citation in detail.source_settings:
+            reasons = canonicalization.source_trust_reasons(
+                citation.setting, citation.manual
+            )
+            if reasons:
+                raise GuidanceClaimError(
+                    "All supporting manual settings must remain trusted and approved."
+                )
         if claim.applicability_scope != APPLICABILITY_SOURCE_SCOPE:
             raise GuidanceClaimError(
                 "CPU-model-specific guidance is not enabled in the 0.20 pilot."
@@ -343,6 +402,7 @@ def _validate_claim_values(
     claim_text: str,
     claim_type: str,
     passage_ids: tuple[int, ...] | list[int],
+    source_setting_ids: tuple[int, ...] | list[int],
     canonical_ids: tuple[str, ...] | list[str],
     applicability_scope: str,
     cpu_model_id: str | None,
@@ -368,8 +428,6 @@ def _validate_claim_values(
             "The 0.20 pilot accepts source-scope claims without inferred CPU applicability."
         )
     clean_passage_ids = tuple(sorted(dict.fromkeys(int(value) for value in passage_ids)))
-    if not clean_passage_ids:
-        raise GuidanceClaimError("Select at least one supporting evidence passage.")
     evidence_rows = session.execute(
         select(EvidencePassage.id, EvidenceSource.status)
         .join(EvidenceSource, EvidenceSource.id == EvidencePassage.source_id)
@@ -379,6 +437,26 @@ def _validate_claim_values(
         raise GuidanceClaimError("One or more evidence passages were not found.")
     if any(source_status != "approved" for _, source_status in evidence_rows):
         raise GuidanceClaimError("Guidance claims require approved evidence sources.")
+    clean_source_setting_ids = tuple(
+        sorted(dict.fromkeys(int(value) for value in source_setting_ids))
+    )
+    source_rows = list(
+        session.execute(
+            select(Setting, Manual, SettingCanonicalMapping.canonical_id)
+            .join(Manual, Manual.id == Setting.manual_id)
+            .outerjoin(
+                SettingCanonicalMapping,
+                SettingCanonicalMapping.setting_id == Setting.id,
+            )
+            .where(Setting.id.in_(clean_source_setting_ids))
+        )
+    )
+    if len(source_rows) != len(clean_source_setting_ids):
+        raise GuidanceClaimError("One or more source settings were not found.")
+    if not clean_passage_ids and not clean_source_setting_ids:
+        raise GuidanceClaimError(
+            "Select at least one evidence passage or approved source setting."
+        )
     clean_canonical_ids = tuple(
         sorted(dict.fromkeys(value.strip() for value in canonical_ids if value.strip()))
     )
@@ -393,12 +471,22 @@ def _validate_claim_values(
     )
     if found_canonical_ids != set(clean_canonical_ids):
         raise GuidanceClaimError("One or more canonical settings were not found.")
+    for setting, manual, mapped_canonical_id in source_rows:
+        if canonicalization.source_trust_reasons(setting, manual):
+            raise GuidanceClaimError(
+                "Guidance claims require trusted, page-reviewed source settings."
+            )
+        if mapped_canonical_id not in clean_canonical_ids:
+            raise GuidanceClaimError(
+                "Every source setting must map to a selected canonical setting."
+            )
     return {
         "claim_text": claim_text,
         "claim_type": claim_type,
         "applicability_scope": applicability_scope,
         "cpu_model_id": cpu_model_id,
         "passage_ids": clean_passage_ids,
+        "source_setting_ids": clean_source_setting_ids,
         "canonical_ids": clean_canonical_ids,
     }
 
@@ -408,13 +496,25 @@ def _replace_links(
     claim_id: int,
     *,
     passage_ids: tuple[int, ...],
+    source_setting_ids: tuple[int, ...],
     canonical_ids: tuple[str, ...],
 ) -> None:
     session.execute(delete(GuidanceClaimEvidence).where(GuidanceClaimEvidence.claim_id == claim_id))
+    session.execute(
+        delete(GuidanceClaimSourceSetting).where(
+            GuidanceClaimSourceSetting.claim_id == claim_id
+        )
+    )
     session.execute(delete(GuidanceClaimSetting).where(GuidanceClaimSetting.claim_id == claim_id))
     session.add_all(
         GuidanceClaimEvidence(claim_id=claim_id, passage_id=value, relation="supports")
         for value in passage_ids
+    )
+    session.add_all(
+        GuidanceClaimSourceSetting(
+            claim_id=claim_id, setting_id=value, relation="supports"
+        )
+        for value in source_setting_ids
     )
     session.add_all(
         GuidanceClaimSetting(claim_id=claim_id, canonical_id=value) for value in canonical_ids
@@ -428,6 +528,7 @@ def _claim_snapshot(claim: GuidanceClaim, values: dict[str, object]) -> dict[str
         "applicability_scope": claim.applicability_scope,
         "cpu_model_id": claim.cpu_model_id,
         "passage_ids": list(values["passage_ids"]),
+        "source_setting_ids": list(values["source_setting_ids"]),
         "canonical_ids": list(values["canonical_ids"]),
     }
 
@@ -439,5 +540,8 @@ def _detail_snapshot(detail: GuidanceClaimDetail) -> dict[str, object]:
         "applicability_scope": detail.claim.applicability_scope,
         "cpu_model_id": detail.claim.cpu_model_id,
         "passage_ids": [citation.passage.id for citation in detail.evidence],
+        "source_setting_ids": [
+            citation.setting.id for citation in detail.source_settings
+        ],
         "canonical_ids": [setting.canonical_id for setting in detail.settings],
     }
