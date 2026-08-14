@@ -46,6 +46,7 @@ def build_presentation(
             query=gap_query or setting,
             refusal_message=error.message,
             referral_pointers=pointers,
+            suggestions=tuple(matches),
         )
 
     pointers = []
@@ -59,6 +60,9 @@ def build_presentation(
                 "canonical_id": explanation.canonical_id,
                 "model_id": motherboard_model_id,
                 "cpu_model_id": cpu_model_id,
+                "applicability": (
+                    "scope_mismatch" if explanation.excluded_fact_count else "no_claims"
+                ),
             },
         )
         pointers = refusal_gaps.referrals_for_matches(

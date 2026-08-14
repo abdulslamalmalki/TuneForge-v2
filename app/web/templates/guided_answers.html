@@ -38,6 +38,7 @@
 {% if error %}<p class="public-error" role="alert">{{ error }}</p>{% endif %}
 
 {% if answer %}
+<p><span class="status">{{ answer.presentation.answer_state }}</span></p>
 <article class="answer-result guided-result">
   <header class="answer-heading">
     <div>

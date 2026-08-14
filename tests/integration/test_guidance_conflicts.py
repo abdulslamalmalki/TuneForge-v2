@@ -124,6 +124,7 @@ def test_conflict_scan_requires_human_confirmation_and_surfaces_reviewed_disagre
     )
     assert public.status_code == 200
     assert public.json()["knowledge_conflicts"][0]["status"] == "confirmed"
+    assert public.json()["answer_state"] == "Conflicting Evidence"
     assert "true disagreement" in public.json()["knowledge_conflicts"][0]["reviewer_note"]
 
     page = client.get("/guidance", params={"setting": "conflict-test-setting"})

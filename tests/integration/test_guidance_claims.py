@@ -368,7 +368,10 @@ def test_reviewed_bios_scopes_are_audited_and_matched_without_version_inference(
             "bios_version": "3.21",
         },
     )
-    assert different.json()["facts"][0]["bios_match_status"] == "not_applicable"
+    assert different.json()["facts"] == []
+    assert different.json()["excluded_fact_count"] == 1
+    assert different.json()["answer_state"] == "No Verified Answer"
+    assert "do not match" in different.json()["scope_notice"]
 
     no_version = client.get(
         "/api/v1/guidance/explain",
@@ -379,6 +382,7 @@ def test_reviewed_bios_scopes_are_audited_and_matched_without_version_inference(
         },
     )
     assert no_version.json()["facts"][0]["bios_match_status"] == "version_not_provided"
+    assert no_version.json()["answer_state"] == "Partially Verified Answer"
 
     page = client.get(f"/guidance-claims/{body['id']}")
     assert "Reviewed BIOS-version applicability" in page.text
@@ -451,3 +455,57 @@ def test_bios_ranges_require_explicit_numeric_semantics(client, pdf_bytes_factor
     )
     assert conflicting.status_code == 400
     assert "either an exact BIOS version or a valid range" in conflicting.json()["detail"]
+
+
+def test_retrieval_excludes_claims_for_a_different_reviewed_motherboard(
+    client,
+    pdf_bytes_factory,
+):
+    passage_id = _approved_evidence_and_setting(client, pdf_bytes_factory)
+    created = client.post(
+        "/api/v1/guidance-claims",
+        json={
+            "claim_text": "This fact is documented for the X870E Taichi White only.",
+            "claim_type": "constraint",
+            "passage_ids": [passage_id],
+            "canonical_ids": ["precision-boost-overdrive"],
+            "applicability_scope": "reviewed_hardware",
+            "applicability_targets": [
+                {
+                    "target_type": "motherboard_model",
+                    "target_id": "asrock-x870e-taichi-white",
+                    "evidence_basis": "Official evidence explicitly names this exact board.",
+                }
+            ],
+        },
+    ).json()
+    client.post(
+        f"/api/v1/guidance-claims/{created['id']}/review",
+        json={"decision": "approved", "note": "Exact board scope verified."},
+    )
+
+    matched = client.get(
+        "/api/v1/guidance/explain",
+        params={
+            "setting": "precision-boost-overdrive",
+            "motherboard_model_id": "asrock-x870e-taichi-white",
+            "cpu_model_id": "amd-ryzen-7-9800x3d",
+        },
+    ).json()
+    assert matched["facts"][0]["hardware_match_status"] == "matched"
+
+    excluded = client.get(
+        "/api/v1/guidance/explain",
+        params={
+            "setting": "precision-boost-overdrive",
+            "motherboard_model_id": "asus-tuf-gaming-x870-plus-wifi",
+            "cpu_model_id": "amd-ryzen-7-9800x3d",
+        },
+    ).json()
+    assert excluded["facts"] == []
+    assert excluded["excluded_fact_count"] == 1
+    assert excluded["answer_state"] == "No Verified Answer"
+    assert "excluded" in excluded["context_notice"]
+    gap = client.get("/api/v1/refusal-gaps/events").json()[0]
+    assert gap["reason"] == "no_accepted_guidance_claims"
+    assert gap["context"]["applicability"] == "scope_mismatch"

@@ -45,6 +45,7 @@ CONTEXT_KEYS = (
     "category_id",
     "risk_level",
     "cpu_model_id",
+    "applicability",
 )
 
 logger = logging.getLogger(__name__)

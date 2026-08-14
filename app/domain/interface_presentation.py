@@ -10,14 +10,14 @@ from app.domain.interface_contract import (
     build_deterministic_draft,
     validate_draft,
 )
-from app.domain.refusal_gaps import ReferralPointerView
+from app.domain.refusal_gaps import NearestCanonicalMatch, ReferralPointerView
 from app.domain.system_context import SystemContext
 from app.normalization.interface_contract import INTERFACE_CONTRACT_VERSION
 
 
 @dataclass(frozen=True)
 class PresentationCitation:
-    passage_id: int
+    passage_id: int | None
     source_id: int
     publisher_name: str
     source_title: str
@@ -27,6 +27,26 @@ class PresentationCitation:
     page_number: int
     section_heading: str | None
     text_sha256: str
+    source_kind: str = "evidence_passage"
+    setting_id: int | None = None
+    manual_id: int | None = None
+
+
+@dataclass(frozen=True)
+class PresentationHardwareScope:
+    target_type: str
+    target_name: str
+    evidence_level: str
+    evidence_basis: str
+
+
+@dataclass(frozen=True)
+class PresentationBiosScope:
+    context_name: str
+    version_label: str
+    comparison_mode: str
+    version_notes: str
+    evidence_basis: str
 
 
 @dataclass(frozen=True)
@@ -36,6 +56,11 @@ class PresentationFact:
     applicability_scope: str
     text: str
     citations: tuple[PresentationCitation, ...]
+    section_label: str = "Reviewed fact"
+    hardware_match_status: str = "unscoped"
+    bios_match_status: str = "unscoped"
+    hardware_scopes: tuple[PresentationHardwareScope, ...] = ()
+    bios_scopes: tuple[PresentationBiosScope, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -61,6 +86,15 @@ class PresentationReferral:
 
 
 @dataclass(frozen=True)
+class PresentationSuggestion:
+    canonical_id: str
+    canonical_name: str
+    matched_name: str
+    match_kind: str
+    score: float
+
+
+@dataclass(frozen=True)
 class PresentationEnvelope:
     contract_version: str
     outcome: str
@@ -82,6 +116,8 @@ class PresentationEnvelope:
     refusal_message: str | None
     referral_pointers: tuple[PresentationReferral, ...]
     knowledge_conflicts: tuple[PresentationConflict, ...] = ()
+    answer_state: str = "No Verified Answer"
+    suggestions: tuple[PresentationSuggestion, ...] = ()
 
 
 def build_resolved_envelope(
@@ -113,8 +149,38 @@ def build_resolved_envelope(
                     page_number=citation.page_number,
                     section_heading=citation.section_heading,
                     text_sha256=citation.text_sha256,
+                    source_kind=citation.source_kind,
+                    setting_id=citation.setting_id,
+                    manual_id=citation.manual_id,
                 )
                 for citation in fact.citations
+            ),
+            section_label={
+                "definition": "What it does",
+                "behavior": "What changing it does",
+                "constraint": "Available modes / constraints",
+                "safety": "Risks / cautions",
+            }[fact.claim_type],
+            hardware_match_status=fact.hardware_match_status,
+            bios_match_status=fact.bios_match_status,
+            hardware_scopes=tuple(
+                PresentationHardwareScope(
+                    target_type=target.target_type,
+                    target_name=target.canonical_name,
+                    evidence_level=target.evidence_level,
+                    evidence_basis=target.evidence_basis,
+                )
+                for target in fact.applicability_targets
+            ),
+            bios_scopes=tuple(
+                PresentationBiosScope(
+                    context_name=scope.context_name,
+                    version_label=_bios_version_label(scope),
+                    comparison_mode=scope.comparison_mode,
+                    version_notes=scope.version_notes,
+                    evidence_basis=scope.evidence_basis,
+                )
+                for scope in fact.bios_scopes
             ),
         )
         for fact in explanation.facts
@@ -123,6 +189,7 @@ def build_resolved_envelope(
         contract_version=INTERFACE_CONTRACT_VERSION,
         outcome=OUTCOME_SUPPORTED if statements else OUTCOME_REFUSED,
         resolution_status="resolved",
+        answer_state=explanation.answer_state,
         query=explanation.matched_input,
         canonical_id=explanation.canonical_id,
         canonical_name=explanation.canonical_name,
@@ -159,11 +226,13 @@ def build_unresolved_envelope(
     query: str,
     refusal_message: str,
     referral_pointers: list[ReferralPointerView] | tuple[ReferralPointerView, ...] = (),
+    suggestions: tuple[NearestCanonicalMatch, ...] = (),
 ) -> PresentationEnvelope:
     return PresentationEnvelope(
         contract_version=INTERFACE_CONTRACT_VERSION,
         outcome=OUTCOME_REFUSED,
         resolution_status="unresolved",
+        answer_state="No Verified Answer",
         query=" ".join(query.split()),
         canonical_id=None,
         canonical_name=None,
@@ -184,6 +253,16 @@ def build_unresolved_envelope(
         ),
         refusal_message=refusal_message,
         referral_pointers=_referrals(referral_pointers),
+        suggestions=tuple(
+            PresentationSuggestion(
+                canonical_id=item.canonical_id,
+                canonical_name=item.canonical_name,
+                matched_name=item.matched_name,
+                match_kind=item.match_kind,
+                score=item.score,
+            )
+            for item in suggestions
+        ),
     )
 
 
@@ -206,6 +285,7 @@ def build_capability_refusal_envelope(
         contract_version=INTERFACE_CONTRACT_VERSION,
         outcome=OUTCOME_REFUSED,
         resolution_status="capability_unavailable",
+        answer_state="No Verified Answer",
         query=" ".join(query.split()),
         canonical_id=canonical_id,
         canonical_name=canonical_name,
@@ -244,3 +324,18 @@ def _referrals(
         )
         for pointer in pointers
     )
+
+
+def _bios_version_label(scope) -> str:
+    if scope.bios_version_exact:
+        return f"exact {scope.bios_version_exact}"
+    if scope.valid_from or scope.valid_until:
+        return f"{scope.valid_from or 'open'} through {scope.valid_until or 'open'}"
+    markers = []
+    if scope.introduced_in:
+        markers.append(f"introduced {scope.introduced_in}")
+    if scope.changed_in:
+        markers.append(f"changed {scope.changed_in}")
+    if scope.deprecated_in:
+        markers.append(f"deprecated {scope.deprecated_in}")
+    return "; ".join(markers)

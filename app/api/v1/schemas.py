@@ -645,6 +645,7 @@ class CitationFirstFactOut(BaseModel):
     applicability_targets: list[GuidanceApplicabilityTargetOut]
     bios_scopes: list[GuidanceBiosScopeOut]
     bios_match_status: str
+    hardware_match_status: str
     citations: list[CitationFirstCitationOut]
 
 
@@ -913,6 +914,8 @@ class CitationFirstExplanationOut(BaseModel):
     equivalent_vendor_names: list[VendorEquivalentNameOut]
     facts: list[CitationFirstFactOut]
     knowledge_conflicts: list[KnowledgeConflictOut]
+    answer_state: str
+    excluded_fact_count: int
     answer_mode: str
     scope_notice: str
     recommendation_status: str
@@ -967,6 +970,7 @@ class CitationFirstExplanationOut(BaseModel):
                         for scope in fact.bios_scopes
                     ],
                     bios_match_status=fact.bios_match_status,
+                    hardware_match_status=fact.hardware_match_status,
                     citations=[
                         CitationFirstCitationOut.model_validate(citation, from_attributes=True)
                         for citation in fact.citations
@@ -989,6 +993,8 @@ class CitationFirstExplanationOut(BaseModel):
                 )
                 for item in explanation.knowledge_conflicts
             ],
+            answer_state=explanation.answer_state,
+            excluded_fact_count=explanation.excluded_fact_count,
             answer_mode=explanation.answer_mode,
             scope_notice=explanation.scope_notice,
             recommendation_status=explanation.recommendation_status,
@@ -1009,7 +1015,7 @@ class GuidanceCoverageOut(BaseModel):
 class InterfaceCitationOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    passage_id: int
+    passage_id: int | None
     source_id: int
     publisher_name: str
     source_title: str
@@ -1019,6 +1025,28 @@ class InterfaceCitationOut(BaseModel):
     page_number: int
     section_heading: str | None
     text_sha256: str
+    source_kind: str
+    setting_id: int | None
+    manual_id: int | None
+
+
+class InterfaceHardwareScopeOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    target_type: str
+    target_name: str
+    evidence_level: str
+    evidence_basis: str
+
+
+class InterfaceBiosScopeOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    context_name: str
+    version_label: str
+    comparison_mode: str
+    version_notes: str
+    evidence_basis: str
 
 
 class InterfaceStatementOut(BaseModel):
@@ -1029,6 +1057,11 @@ class InterfaceStatementOut(BaseModel):
     applicability_scope: str
     text: str
     citations: list[InterfaceCitationOut]
+    section_label: str
+    hardware_match_status: str
+    bios_match_status: str
+    hardware_scopes: list[InterfaceHardwareScopeOut]
+    bios_scopes: list[InterfaceBiosScopeOut]
 
 
 class InterfaceConflictOut(BaseModel):
@@ -1055,10 +1088,21 @@ class InterfaceReferralOut(BaseModel):
     document_version: str
 
 
+class InterfaceSuggestionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    canonical_id: str
+    canonical_name: str
+    matched_name: str
+    match_kind: str
+    score: float
+
+
 class InterfacePresentationOut(BaseModel):
     contract_version: str
     outcome: str
     resolution_status: str
+    answer_state: str
     query: str
     canonical_id: str | None
     canonical_name: str | None
@@ -1076,6 +1120,7 @@ class InterfacePresentationOut(BaseModel):
     recommendation_notice: str
     refusal_message: str | None
     referral_pointers: list[InterfaceReferralOut]
+    suggestions: list[InterfaceSuggestionOut]
 
     @classmethod
     def from_envelope(cls, envelope: PresentationEnvelope) -> "InterfacePresentationOut":
@@ -1083,6 +1128,7 @@ class InterfacePresentationOut(BaseModel):
             contract_version=envelope.contract_version,
             outcome=envelope.outcome,
             resolution_status=envelope.resolution_status,
+            answer_state=envelope.answer_state,
             query=envelope.query,
             canonical_id=envelope.canonical_id,
             canonical_name=envelope.canonical_name,
@@ -1120,6 +1166,10 @@ class InterfacePresentationOut(BaseModel):
             referral_pointers=[
                 InterfaceReferralOut.model_validate(item, from_attributes=True)
                 for item in envelope.referral_pointers
+            ],
+            suggestions=[
+                InterfaceSuggestionOut.model_validate(item, from_attributes=True)
+                for item in envelope.suggestions
             ],
         )
 

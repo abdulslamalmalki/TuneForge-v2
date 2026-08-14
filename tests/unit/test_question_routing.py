@@ -17,6 +17,9 @@ def test_exact_reviewed_question_routes_to_stable_question_id():
     [
         ("What is Curve Optimizer?", "Curve Optimizer", "what_is"),
         ("Explain PBO Scalar in the BIOS.", "PBO Scalar", "what_is"),
+        ("Where is PBO Scalar in the BIOS?", "PBO Scalar", "where_is"),
+        ("Is PBO Scalar safe to change?", "PBO Scalar", "is_safe"),
+        ("Available values for PBO Scalar?", "PBO Scalar", "available_values"),
         ("What does CPU Boost Scalar mean?", "CPU Boost Scalar", "what_does"),
         ("How does Precision Boost Overdrive work?", "Precision Boost Overdrive", "how_does"),
     ],

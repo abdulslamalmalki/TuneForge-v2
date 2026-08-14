@@ -35,6 +35,29 @@ _WRAPPERS = (
             re.IGNORECASE,
         ),
     ),
+    (
+        "where_is",
+        re.compile(
+            r"^where\s+is\s+(?P<setting>.+?)(?:\s+in\s+(?:the\s+)?bios)?[?.!]*$",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "is_safe",
+        re.compile(
+            r"^is\s+(?P<setting>.+?)\s+safe(?:\s+to\s+(?:enable|disable|change))?"
+            r"(?:\s+in\s+(?:the\s+)?bios)?[?.!]*$",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "available_values",
+        re.compile(
+            r"^(?:what\s+are\s+)?(?:the\s+)?(?:available\s+)?(?:modes|values|options)"
+            r"\s+(?:for|of)\s+(?P<setting>.+?)(?:\s+in\s+(?:the\s+)?bios)?[?.!]*$",
+            re.IGNORECASE,
+        ),
+    ),
 )
 _TRAILING_QUESTION_PUNCTUATION = re.compile(r"[?.!]+$")
 _SETTING_EDGE_PUNCTUATION = re.compile(r"^[\"'“”‘’?.!\s]+|[\"'“”‘’?.!\s]+$")

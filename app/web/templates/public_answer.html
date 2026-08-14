@@ -47,6 +47,7 @@
 {% if presentation %}
   {% if presentation.outcome == 'supported' %}
   <article class="answer-result">
+    <p><span class="fact-type">{{ presentation.answer_state }}</span></p>
     <header class="answer-heading">
       <div>
         <p class="eyebrow">Reviewed canonical setting</p>
@@ -93,8 +94,10 @@
       <div class="subsection-heading"><div><p class="eyebrow">What the sources say</p><h3 id="reviewed-facts">Reviewed facts</h3></div></div>
       {% for statement in presentation.statements %}
       <article class="public-fact">
-        <span class="fact-type">{{ statement.claim_type | capitalize }}</span>
+        <span class="fact-type">{{ statement.section_label }}</span>
         <p>{{ statement.text }}</p>
+        {% if statement.hardware_scopes %}<p><strong>Hardware applicability:</strong> {% for item in statement.hardware_scopes %}{{ item.target_name }} ({{ item.evidence_level|replace('_', ' ') }}){% if not loop.last %}; {% endif %}{% endfor %} · {{ statement.hardware_match_status|replace('_', ' ') }}</p>{% endif %}
+        {% if statement.bios_scopes %}<p><strong>BIOS-version notes:</strong> {% for item in statement.bios_scopes %}{{ item.context_name }} — {{ item.version_label }}: {{ item.version_notes }}{% if not loop.last %}; {% endif %}{% endfor %} · {{ statement.bios_match_status|replace('_', ' ') }}</p>{% endif %}
         <div class="citation-list">
           {% for citation in statement.citations %}
           <a class="citation-card" href="{{ citation.source_url }}" target="_blank" rel="noreferrer">
@@ -131,6 +134,12 @@
     <h2>TuneForge cannot verify this answer yet.</h2>
     <p>{{ presentation.refusal_message }}</p>
     <p class="refusal-explanation">TuneForge will not guess from model memory or unreviewed sources.</p>
+    {% if presentation.suggestions %}
+    <section class="resolved-identity-card">
+      <p class="eyebrow">Reviewed suggestions — not auto-selected</p><h3>Did you mean?</h3>
+      {% for item in presentation.suggestions %}<p><a href="/answer?setting={{ item.canonical_id }}">{{ item.canonical_name }}</a> <small>matched “{{ item.matched_name }}” · {{ (item.score * 100)|round|int }}%</small></p>{% endfor %}
+    </section>
+    {% endif %}
     {% if presentation.canonical_name %}
     <section class="resolved-identity-card">
       <p class="eyebrow">Verified identity found</p>
@@ -161,7 +170,7 @@
   {% if library_matches and library_matches.results %}
   <section class="assistant-discovery" aria-labelledby="approved-library-matches">
     <div class="subsection-heading">
-      <div><p class="eyebrow">Approved TuneForge library</p><h2 id="approved-library-matches">Related reviewed source settings</h2></div>
+      <div><p class="eyebrow">Library Match</p><h2 id="approved-library-matches">Related reviewed source settings</h2></div>
       <span>{{ library_matches.results | length }} matches</span>
     </div>
     <p class="assistant-boundary-note">These are approved manual records that match your keywords. They are discovery results, not a generated recommendation.</p>
@@ -181,7 +190,7 @@
   {% if web_research %}
   <section class="trusted-research-panel status-{{ web_research.status }}" aria-labelledby="trusted-research-heading">
     <div class="trusted-research-heading">
-      <div><p class="eyebrow">Live trusted-source research</p><h2 id="trusted-research-heading">Official website results</h2></div>
+      <div><p class="eyebrow">Live Research Result</p><h2 id="trusted-research-heading">Live trusted-source research</h2></div>
       <span>Not reviewed by TuneForge</span>
     </div>
     <p class="trusted-research-warning">{{ web_research.notice }}</p>

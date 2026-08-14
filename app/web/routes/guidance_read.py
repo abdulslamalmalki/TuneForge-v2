@@ -76,6 +76,9 @@ def guidance_page(
                 "canonical_id": explanation.canonical_id,
                 "model_id": motherboard_model_id,
                 "cpu_model_id": cpu_model_id,
+                "applicability": (
+                    "scope_mismatch" if explanation.excluded_fact_count else "no_claims"
+                ),
             },
         )
         referral_pointers = refusal_gaps.referrals_for_matches(

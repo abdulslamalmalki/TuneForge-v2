@@ -40,6 +40,15 @@ BIOS_VERSION_NOT_PROVIDED = "version_not_provided"
 BIOS_MATCHED = "matched"
 BIOS_NOT_APPLICABLE = "not_applicable"
 BIOS_UNKNOWN = "unknown"
+HARDWARE_UNSCOPED = "unscoped"
+HARDWARE_CONTEXT_NOT_PROVIDED = "context_not_provided"
+HARDWARE_MATCHED = "matched"
+HARDWARE_NOT_APPLICABLE = "not_applicable"
+
+ANSWER_VERIFIED = "Verified Answer"
+ANSWER_PARTIAL = "Partially Verified Answer"
+ANSWER_CONFLICTING = "Conflicting Evidence"
+ANSWER_NONE = "No Verified Answer"
 
 
 @dataclass(frozen=True)
@@ -70,6 +79,7 @@ class GuidanceReadFact:
     applicability_targets: tuple[GuidanceApplicabilityTarget, ...] = ()
     bios_scopes: tuple[GuidanceBiosScope, ...] = ()
     bios_match_status: str = BIOS_UNSCOPED
+    hardware_match_status: str = HARDWARE_UNSCOPED
 
 
 @dataclass(frozen=True)
@@ -90,6 +100,8 @@ class GuidanceExplanation:
     recommendation_status: str
     recommendation_notice: str
     knowledge_conflicts: tuple[guidance_conflicts.ConflictOverview, ...] = ()
+    answer_state: str = ANSWER_NONE
+    excluded_fact_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -332,9 +344,35 @@ def _explanation_for_identity(
                 citations=citations,
             )
         )
+    facts = [
+        GuidanceReadFact(
+            claim_id=fact.claim_id,
+            claim_text=fact.claim_text,
+            claim_type=fact.claim_type,
+            applicability_scope=fact.applicability_scope,
+            citations=fact.citations,
+            applicability_targets=fact.applicability_targets,
+            bios_scopes=fact.bios_scopes,
+            bios_match_status=fact.bios_match_status,
+            hardware_match_status=_hardware_match_status(
+                system_context, fact.applicability_targets
+            ),
+        )
+        for fact in facts
+    ]
     facts.sort(key=lambda item: (CLAIM_TYPE_ORDER[item.claim_type], item.claim_id))
-    knowledge_conflicts = guidance_conflicts.public_conflicts_for_claims(session, claim_ids)
-    scope_notice = _scope_notice(facts)
+    eligible_facts = tuple(
+        fact
+        for fact in facts
+        if fact.hardware_match_status != HARDWARE_NOT_APPLICABLE
+        and fact.bios_match_status != BIOS_NOT_APPLICABLE
+    )
+    excluded_fact_count = len(facts) - len(eligible_facts)
+    visible_claim_ids = [fact.claim_id for fact in eligible_facts]
+    knowledge_conflicts = guidance_conflicts.public_conflicts_for_claims(
+        session, visible_claim_ids
+    )
+    scope_notice = _scope_notice(eligible_facts, excluded_fact_count=excluded_fact_count)
     if knowledge_conflicts:
         scope_notice += (
             f" {len(knowledge_conflicts)} reviewed knowledge difference(s) are attached; "
@@ -349,21 +387,40 @@ def _explanation_for_identity(
         matched_alias=matched_alias,
         classification=canonical_settings.get_classification(session, identity.canonical_id),
         system_context=system_context,
-        context_notice=_context_notice(system_context, facts),
+        context_notice=_context_notice(
+            system_context, eligible_facts, excluded_fact_count=excluded_fact_count
+        ),
         equivalent_vendor_names=canonical_settings.list_vendor_equivalences(
             session, (identity.canonical_id,)
         )[identity.canonical_id],
-        facts=tuple(facts),
+        facts=eligible_facts,
         knowledge_conflicts=knowledge_conflicts,
         answer_mode=ANSWER_MODE,
         scope_notice=scope_notice,
         recommendation_status=RECOMMENDATION_STATUS,
         recommendation_notice=RECOMMENDATION_NOTICE,
+        answer_state=_answer_state(
+            system_context,
+            eligible_facts,
+            knowledge_conflicts,
+            excluded_fact_count=excluded_fact_count,
+        ),
+        excluded_fact_count=excluded_fact_count,
     )
 
 
-def _scope_notice(facts: Sequence[GuidanceReadFact]) -> str:
+def _scope_notice(
+    facts: Sequence[GuidanceReadFact],
+    *,
+    excluded_fact_count: int = 0,
+) -> str:
     if not facts:
+        if excluded_fact_count:
+            return (
+                f"{excluded_fact_count} accepted fact(s) exist but do not match the selected "
+                "reviewed hardware or BIOS-version context. TuneForge excludes them rather "
+                "than generalizing their scope."
+            )
         return (
             "No accepted guidance claims are available for this setting, so TuneForge "
             "makes no hardware or CPU applicability claim."
@@ -408,6 +465,8 @@ def _scope_notice(facts: Sequence[GuidanceReadFact]) -> str:
 def _context_notice(
     context: SystemContext | None,
     facts: Sequence[GuidanceReadFact],
+    *,
+    excluded_fact_count: int = 0,
 ) -> str | None:
     if context is None:
         return None
@@ -419,6 +478,11 @@ def _context_notice(
         f"System identity resolved as {context.motherboard_model_name} with "
         f"{context.cpu_model_name}. "
     )
+    if excluded_fact_count:
+        summary += (
+            f"{excluded_fact_count} accepted fact(s) were excluded because their reviewed "
+            "hardware or BIOS scope does not match. "
+        )
     bios_counts = {
         status: sum(fact.bios_match_status == status for fact in facts)
         for status in (BIOS_MATCHED, BIOS_NOT_APPLICABLE, BIOS_VERSION_NOT_PROVIDED, BIOS_UNKNOWN)
@@ -492,6 +556,43 @@ def _bios_match_status(
             continue
         return BIOS_MATCHED
     return BIOS_NOT_APPLICABLE if comparable else BIOS_UNKNOWN
+
+
+def _hardware_match_status(
+    context: SystemContext | None,
+    targets: Sequence[GuidanceApplicabilityTarget],
+) -> str:
+    if not targets:
+        return HARDWARE_UNSCOPED
+    if context is None:
+        return HARDWARE_CONTEXT_NOT_PROVIDED
+    return (
+        HARDWARE_MATCHED
+        if _targets_match_context(context, targets)
+        else HARDWARE_NOT_APPLICABLE
+    )
+
+
+def _answer_state(
+    context: SystemContext | None,
+    facts: Sequence[GuidanceReadFact],
+    conflicts: Sequence[guidance_conflicts.ConflictOverview],
+    *,
+    excluded_fact_count: int,
+) -> str:
+    if not facts:
+        return ANSWER_NONE
+    if any(item.conflict.status == guidance_conflicts.STATUS_CONFIRMED for item in conflicts):
+        return ANSWER_CONFLICTING
+    if excluded_fact_count:
+        return ANSWER_PARTIAL
+    if context is not None and any(
+        fact.hardware_match_status in {HARDWARE_UNSCOPED, HARDWARE_CONTEXT_NOT_PROVIDED}
+        or fact.bios_match_status in {BIOS_VERSION_NOT_PROVIDED, BIOS_UNKNOWN}
+        for fact in facts
+    ):
+        return ANSWER_PARTIAL
+    return ANSWER_VERIFIED
 
 
 def _bios_version_key(value: str, mode: str) -> tuple[int, ...]:

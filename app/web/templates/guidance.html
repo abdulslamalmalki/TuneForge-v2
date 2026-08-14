@@ -38,6 +38,7 @@
 {% if error %}{% include "_referral_pointers.html" %}{% endif %}
 
 {% if explanation %}
+<p><span class="status">{{ explanation.answer_state }}</span>{% if explanation.excluded_fact_count %} · {{ explanation.excluded_fact_count }} context-incompatible fact(s) excluded{% endif %}</p>
 <h2>{{ explanation.canonical_name }}</h2>
 <p>{{ explanation.canonical_description or 'No canonical description recorded.' }}</p>
 <dl>
@@ -94,7 +95,7 @@
 {% for fact in facts %}
 <article class="guidance-fact">
   <p><strong>{{ fact.claim_text }}</strong></p>
-  <p><span class="status">{{ fact.applicability_scope }}</span></p>
+  <p><span class="status">{{ fact.applicability_scope }}</span> <span class="status">hardware {{ fact.hardware_match_status|replace('_', ' ') }}</span></p>
   {% if fact.applicability_targets %}<ul class="guidance-applicability">{% for target in fact.applicability_targets %}<li>{{ target.canonical_name }} · {{ target.evidence_level|replace('_', ' ') }}<small>{{ target.evidence_basis }}</small></li>{% endfor %}</ul>{% endif %}
   {% if fact.bios_scopes %}
   <p><span class="status">BIOS {{ fact.bios_match_status|replace('_', ' ') }}</span></p>

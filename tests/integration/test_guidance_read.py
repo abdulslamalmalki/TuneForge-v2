@@ -155,6 +155,7 @@ def test_citation_first_api_returns_only_accepted_facts(client, pdf_bytes_factor
     assert body["canonical_id"] == "precision-boost-overdrive"
     assert body["resolved_by"] == "canonical_id"
     assert body["answer_mode"] == "accepted_claims_only"
+    assert body["answer_state"] == "Verified Answer"
     assert body["recommendation_status"] == "not_available"
     assert "will not invent values" in body["recommendation_notice"]
     assert "Advanced Micro Devices, Inc. — Ryzen Master User Guide" in body["scope_notice"]
@@ -464,6 +465,7 @@ def test_guidance_carries_system_identity_without_inventing_exact_applicability(
     body = response.json()
     assert body["system_context"]["motherboard_model_name"] == "X870E Taichi White"
     assert body["system_context"]["bios_version_status"] == "not_provided"
+    assert body["answer_state"] == "Partially Verified Answer"
     assert "Current accepted guidance remains source-scoped" in body["context_notice"]
     assert "not validated for this exact motherboard" in body["context_notice"]
 

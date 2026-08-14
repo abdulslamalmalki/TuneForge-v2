@@ -179,6 +179,7 @@ def test_supported_envelope_contains_exact_claim_and_metadata_only(client, pdf_b
     assert body["contract_version"] == "1.0"
     assert body["outcome"] == "supported"
     assert body["resolution_status"] == "resolved"
+    assert body["answer_state"] == "Verified Answer"
     assert body["recommendation_status"] == "not_available"
     assert body["refusal_message"] is None
     assert body["referral_pointers"] == []
@@ -186,6 +187,9 @@ def test_supported_envelope_contains_exact_claim_and_metadata_only(client, pdf_b
     statement = body["statements"][0]
     assert statement["claim_id"] == claim_id
     assert statement["text"] == claim_text
+    assert statement["section_label"] == "What changing it does"
+    assert statement["hardware_match_status"] == "unscoped"
+    assert statement["bios_match_status"] == "unscoped"
     assert statement["citations"][0]["passage_id"] == passage_id
     assert statement["citations"][0]["source_url"] == SOURCE_DATA["source_url"]
     assert "passage_text" not in set(_all_keys(body))
@@ -238,6 +242,30 @@ def test_unresolved_input_returns_structured_refusal_and_general_pointer(client)
     assert len(body["referral_pointers"]) == 1
     gap = client.get("/api/v1/refusal-gaps/events").json()[0]
     assert gap["reason"] == "no_exact_guidance_match"
+
+
+def test_typo_returns_ranked_reviewed_suggestions_without_auto_resolution(
+    client,
+    pdf_bytes_factory,
+):
+    canonical_id, _, _, _ = _seed_supported_claim(client, pdf_bytes_factory)
+    response = client.get(
+        "/api/v1/interface/presentation",
+        params={"setting": "Precision Boost Overdrvie"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["outcome"] == "refused"
+    assert body["answer_state"] == "No Verified Answer"
+    assert body["canonical_id"] is None
+    assert body["suggestions"][0]["canonical_id"] == canonical_id
+    assert body["suggestions"][0]["match_kind"] == "canonical_name"
+    assert body["suggestions"][0]["score"] > 0.9
+
+    page = client.get("/answer", params={"setting": "Precision Boost Overdrvie"})
+    assert "Reviewed suggestions — not auto-selected" in page.text
+    assert "Did you mean?" in page.text
+    assert "Precision Boost Overdrive" in page.text
 
 
 def test_invalid_hardware_context_is_validation_error_not_knowledge_gap(client):
