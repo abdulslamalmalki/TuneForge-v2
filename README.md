@@ -114,11 +114,10 @@ This tree is the **TuneForge 1.33 knowledge-expansion development release**. The
 public product is limited to BIOS Settings, Compare Vendors, Ask TuneForge, and
 Upload Manual. Guided question acceptance, exact-system validation, ingestion,
 provenance, and review operations remain protected administrator tools. See
-`docs/focused-bios-platform-v1.2.md` for the product boundary,
-`docs/public-bios-settings-library.md` for the Library contract, and
-`docs/v1-release.md` for the original focused-v1 scope evidence.
-The scope reconciliation with the original desktop PRD is documented in
-`docs/v1-completion-audit.md`.
+`docs/v1.33-architecture.md` for the product boundary, trust model, knowledge
+objects, workflows, and operating contract.
+The final engineering evidence and release decision are in
+`docs/v1.33-release-candidate-report.md`.
 The candidate trust boundary, migration, metrics, and reviewer workflow are
 documented in `docs/v1.33-guidance-coverage.md`.
 The complete canonical backlog classification is documented in
@@ -287,15 +286,14 @@ TuneForge classifies the document type and, when provenance is incomplete,
 suggests cover-page metadata and searches for an official vendor support page.
 Suggestions are audited but never become reviewer decisions automatically.
 Extraction starts only after required provenance is complete and a reviewer
-confirms that the document is eligible. See `docs/provenance-discovery.md` and
-`docs/eligibility-gate.md`.
+confirms that the document is eligible. See `docs/v1.33-architecture.md`.
 
 For larger intake rounds, `/batches/upload` accepts up to 50 PDFs. Each file is
 validated and committed independently, so invalid files and duplicates remain
 visible without cancelling valid manuals. Batch progress links every accepted
 manual to its provenance, eligibility, extraction, or draft-review next action.
 The same workflow is available under `/api/v1/batches`. See
-`docs/batch-ingestion.md`.
+`docs/v1.33-architecture.md`.
 
 ## Layout
 
@@ -323,14 +321,14 @@ and GIGABYTE legacy-platform expansions.
 Parser 1.3 retains every previously approved setting and recovers all 122
 curator-recorded omissions across the four BIOS guides. It adds no candidates
 to the certified MSI full-manual negative case. See
-`docs/parser-1.3-validation.md`.
+`docs/v1.33-architecture.md`.
 
 The controlled-expansion pilot adds MSI AMD AM5 and GIGABYTE Intel 800
 coverage: 465 candidates were approved, 164 were rejected, and one GIGABYTE
 omission was recorded with its source page. The eligibility classifier now
 recognizes compact and reordered official vendor filenames such as
 `AMDAM5BIOS.pdf` and `mb_manual_intel800-bios_e_v2.pdf`. See
-`docs/controlled-expansion.md`.
+`docs/v1.33-architecture.md`.
 
 Vendor Normalization Phase 2 assigns stable vendor IDs to every production
 manual while retaining compatible canonical display names. Uploads and
@@ -338,13 +336,13 @@ provenance edits accept known manufacturer and sub-brand aliases, preserve the
 submitted value in immutable audit detail, and reject unknown nonblank vendors.
 The API, reviewer detail page, and approved-setting search expose stable IDs;
 the regenerated 30-manual corpus manifest now reports canonical `GIGABYTE`.
-See `docs/vendor-normalization.md`.
+See `docs/v1.33-architecture.md`.
 
 The ASUS AMD 800 wave adds 835 approved settings from a 116-page guide. All
 1,032 parser candidates and every rendered source page were reviewed; 197
 document headings, option fragments, subgroup labels, and read-only fields were
 rejected. No source-page omissions were found. See
-`docs/asus-amd800-expansion.md`.
+`docs/v1.33-architecture.md`.
 
 The GIGABYTE legacy-platform wave adds 232 approved settings from the 19-page
 AMD B550/A520 and 28-page Intel 600 Series BIOS guides. All 328 parser
@@ -352,7 +350,7 @@ candidates and 47 rendered source pages were reviewed; 96 non-settings were
 rejected, long voltage labels were reconstructed, and one Intel power-limit
 omission was recorded. Both manuals have official support provenance and
 hardware applicability with no warnings. See
-`docs/gigabyte-legacy-expansion.md`.
+`docs/v1.33-architecture.md`.
 
 The ASUS Intel legacy-platform wave adds 1,032 approved settings from dedicated
 Intel 600 and 700 Series BIOS manuals. All 1,303 candidates and 182 rendered
@@ -360,14 +358,14 @@ pages were reviewed; 271 non-settings were rejected, eight split option
 descriptions were reconstructed, and five visible omissions were recorded.
 The staged MSI manuals were retained for future full-manual extraction work
 because none contains a dedicated BIOS setting catalog. See
-`docs/asus-intel-legacy-expansion.md`.
+`docs/v1.33-architecture.md`.
 
 Canonical Setting Mapping Phase 1 adds 20 vendor-neutral identities, 23 exact
 aliases, and 137 reviewed mappings across ASUS, ASRock, GIGABYTE, and MSI.
 Only approved settings can be mapped. Alias matches remain suggestions until a
 reviewer confirms them, and every mapping change is append-only audited.
 Canonical IDs are exposed in setting details, catalog endpoints, and approved
-search results. See `docs/canonical-setting-mapping.md`.
+search results. See `docs/v1.33-architecture.md`.
 
 Canonical Mapping Phase 2 classifies all 20 identities into a stable
 10-category taxonomy with explicit risk levels and reviewer rationale. It adds
@@ -375,7 +373,7 @@ Canonical Mapping Phase 2 classifies all 20 identities into a stable
 audited suggestion queue, bringing the catalog to 32 aliases and 153 mappings.
 Suggestions never map automatically, dismissed decisions are not regenerated,
 and approved-setting search can filter by category and risk. See
-`docs/canonical-mapping-phase2.md`.
+`docs/v1.5-canonicalization-report.md`.
 
 The PBO Canonical Foundation adds 17 tuning-critical identities and 51 reviewed
 source mappings for Precision Boost Overdrive, power/current limits, scalar,
@@ -384,7 +382,7 @@ catalog now contains 37 identities, 73 aliases, and 204 mappings. CPU identity
 normalization is deliberately limited to the AMD Ryzen 7 9800X3D pilot, and a
 small typed tuning vocabulary is exposed at `/api/v1/tuning-contract`. This
 release contains no tuning recommendations. See
-`docs/pbo-canonical-foundation.md`.
+`docs/v1.33-architecture.md`.
 
 Trusted Evidence Intake adds a separate, reviewer-gated corpus for tuning
 sources. Official PDF provenance is validated against supported publisher
@@ -392,7 +390,7 @@ domains; approval creates deterministic, immutable page-scoped passages and an
 append-only audit trail. The first accepted source is AMD publication 68886,
 Ryzen Master User Guide revision 3.1.0: 42 pages and 55 evidence passages.
 No guidance claim, recommendation, or generated answer is created in this
-release. See `docs/trusted-evidence-intake.md`.
+release. See `docs/v1.33-architecture.md`.
 
 Guidance Acceptance adds a reviewer-controlled layer between accepted evidence
 passages and any future answer system. The AMD pilot contains 16 approved
@@ -401,7 +399,7 @@ append-only claim events. It covers PBO modes and limits, PPT/TDC/EDC
 definitions, Curve Optimizer behavior and modes, and explicit process/stability
 warnings. No claim is scoped specifically to the Ryzen 7 9800X3D, and the
 release cannot create recommendation-type claims or user-facing tuning answers.
-See `docs/guidance-acceptance.md`.
+See `docs/v1.33-guidance-coverage.md`.
 
 Citation-First Guidance projects the accepted claim corpus into a read-only
 setting explanation API and curator page. It resolves only canonical IDs,
@@ -411,7 +409,7 @@ safety facts while preserving source-scope notices and exact source/page
 citations. Fourteen canonical settings currently have claim coverage. The
 response contract explicitly reports `accepted_claims_only` and
 `recommendation_status: not_available`. Release 0.21 makes no schema or
-production data changes. See `docs/citation-first-guidance.md`.
+production data changes. See `docs/v1.33-architecture.md`.
 
 The v0.21 baseline hardening keeps the schema and API shapes unchanged while
 tightening five invariants: certification requires a recognized official
@@ -426,7 +424,7 @@ include vendor-specific source names with exact manual, page, setting-record,
 and provenance URL citations. Guidance also resolves exact normalized names of
 approved mapped settings. Conflicting mapped names fail closed instead of being
 silently merged. The projection is read-only and adds no tables or migrations;
-see `docs/vendor-equivalence-discovery.md`.
+see `docs/v1.33-architecture.md`.
 
 The AM5 System Context Pilot in v0.23 lets a user select one reviewed AM5
 motherboard and CPU identity and carry that context into Search and Guidance.
@@ -437,7 +435,7 @@ for the selected motherboard, CPU, or BIOS version. The context is
 request-scoped, is not saved, and adds no database migration. BIOS-version
 identity and applicability remain deliberately unmodeled. AM4 and Intel
 LGA1700 reuse the same platform-neutral identity graph only after the AM5 exit
-gates pass; see `docs/am5-system-context-pilot.md`.
+gates pass; see `docs/v1.33-hardware-profile.md`.
 
 AM5 Coverage Validation in v0.24 makes those exit gates measurable at
 `/am5-coverage` and `/api/v1/hardware/am5-coverage`. The production snapshot
@@ -454,7 +452,7 @@ Broad manual compatibility remains vendor-scoped, including in My System
 Search, so one vendor's platform guide cannot support another vendor's board.
 The coverage projection remains read-only; v0.24.1 adds only motherboard-catalog
 migration 0015 and the reviewed exact source. See
-`docs/am5-coverage-validation.md`.
+`docs/v1.6-am5-coverage.md`.
 
 The AM5 Product Journey in v0.25 connects the existing My System, Search, and
 Citation-First Guidance surfaces into one context-preserving workflow. Every
@@ -465,7 +463,7 @@ passages or explicitly refuses when no accepted claims exist. Unmapped and
 empty Search outcomes now explain why guidance is unavailable and never fall
 back to unreviewed sources or model memory. The release changes no schema,
 review state, canonical mapping, claim, or production evidence record. See
-`docs/am5-product-journey.md`.
+`docs/v1.33-architecture.md`.
 
 AM5 Product-Question Acceptance in v0.26 turns twelve fixed daily-use questions
 into a deterministic, read-only product contract at
@@ -476,7 +474,7 @@ recommendation, exact-system, or BIOS-version capabilities and pass only when
 TuneForge refuses them. The production baseline passes 11 of 12 questions. The
 single visible gap is a missing accepted behavior claim for PBO Scalar. The
 report generates no answers and changes no review or evidence data. See
-`docs/am5-question-acceptance.md`.
+`docs/v1.33-ask-evaluation-suite.md`.
 
 The ASUS PBO Scalar Evidence milestone in v0.27 closes the only failed AM5
 product question through the normal Trusted Evidence workflow. ASUS document
@@ -485,7 +483,7 @@ source-scoped behavior claim is accepted from page 30. Citation-First Guidance
 now explains Scalar with both the existing AMD definition and the ASUS behavior
 citation; no value recommendation or exact-hardware applicability is created.
 The fixed AM5 question set is `ready` at 12/12. See
-`docs/asus-scalar-evidence.md`.
+`docs/v1.33-architecture.md`.
 
 Refusal Gap Worklist and Official Referrals in v0.28 turn fail-closed Search and
 Guidance outcomes into a demand-ranked curation queue. Each event stores a
@@ -495,7 +493,7 @@ never stores IP addresses, headers, or free-form hardware profiles. Reviewed
 official pointers may be shown after refusal, but contain metadata and links
 only and never count as evidence or accepted claims. Migration 0016 adds the
 append-only log and audited pointer registry. See
-`docs/refusal-gap-worklist.md`.
+`docs/v1.33-retrieval-quality.md`.
 
 The LLM Interface Rulebook in v0.29 defines a provider-neutral boundary before
 any model is connected. Contract 1.0 permits only exact accepted claim text,
@@ -505,7 +503,7 @@ reordering, omission, invention, altered citations, changed notices, and factual
 output after empty retrieval. The machine-readable policy is available at
 `/api/v1/interface-contract`. No prompt, model response, API key, provider,
 natural-language router, schema migration, or production data is added. See
-`docs/llm-interface-rulebook.md`.
+`docs/v1.33-grounded-llm-providers.md`.
 
 The Interface Presentation Envelope in v0.30 exposes the provider-independent
 input boundary at `/api/v1/interface/presentation`. Supported envelopes contain
@@ -514,7 +512,7 @@ exclude evidence passage text. Resolved identities without claims and unresolved
 inputs return structured refusals with navigation-only official pointers and
 feed the refusal-gap worklist. Invalid hardware context remains a validation
 error. No model, prompt, provider, natural-language router, migration, or
-production row is added. See `docs/interface-presentation-envelope.md`.
+production row is added. See `docs/v1.33-grounded-llm-providers.md`.
 
 AM5 Guided Answers in v0.31 turns the fixed product-question acceptance set into
 a usable no-model interface at `/assistant`. Nine supported questions return
@@ -524,7 +522,7 @@ recommendation, exact-system, or BIOS-version capability refusals without
 presenting related facts as answers. The same contract is available at
 `/api/v1/interface/questions` and
 `/api/v1/interface/questions/{question_id}/answer`. See
-`docs/am5-guided-answers.md`.
+`docs/v1.33-ask-evaluation-suite.md`.
 
 The Provider-Neutral Model Boundary in v0.32 adds a narrow transport contract
 for optional model adapters without connecting a live provider. Adapters receive
@@ -544,7 +542,7 @@ and structured refusals without exposing raw passages or reviewer records.
 Guided Answers and My System now share the public visual shell, while every
 existing curation workflow remains available through TuneForge Admin. No model,
 external service, migration, authentication change, or production data is
-added. See `docs/public-am5-experience.md`.
+added. See `docs/v1.33-architecture.md`.
 
 The Admin Operations Dashboard in v0.34 adds a focused `/admin` home for the
 curator workspace. It derives live counts and work queues from existing manual,
@@ -554,7 +552,7 @@ pending review queues link directly to their existing tools, and recent events
 are projected only from append-only audit tables. The responsive admin shell
 keeps the public product one click away and retains a visible local-only
 security notice. No migration or production row is added. See
-`docs/admin-operations-dashboard.md`.
+`docs/v1.33-admin-knowledge-operations.md`.
 
 The Authentication and Authorization Boundary in v0.35 protects every curator
 page, source artifact, OpenAPI surface, and non-public API while preserving the
@@ -565,7 +563,7 @@ Passwords use salted PBKDF2-HMAC-SHA256, session cookies are opaque, HTTP-only,
 strict same-site values backed by revocable database records, and unsafe writes
 require same-origin confirmation. Signed-in usernames replace the historical
 fixed reviewer label in new knowledge audit events. See
-`docs/authentication-boundary.md`.
+`docs/v1.33-security-audit.md`.
 
 The Operations and Recovery Baseline in v0.36 makes unsafe production settings
 fail at startup, rejects untrusted Host headers, and adds a public `/api/v1/ready`
@@ -586,7 +584,7 @@ canonical/alias lookup. Any recommendation, safety, hardware, firmware, or other
 unsupported phrasing is left intact and therefore fails closed instead of being
 guessed. `/api/v1/interface/route` exposes every routing decision and rule. No
 model, fuzzy match, ranking, paraphrase, migration, or knowledge mutation is
-added. See `docs/deterministic-question-routing.md`.
+added. See `docs/v1.33-retrieval-quality.md`.
 
 Release Readiness in v0.38 adds `/admin/release-readiness` and the protected
 `/api/v1/release-readiness` report. Product checks cover reviewed AM5 expansion,
@@ -597,13 +595,13 @@ backup newer than the live database. The dashboard now links to the gate,
 labels authentication bypass accurately, and marks only the current navigation
 item active. All protected curator workflows now inherit the same admin shell
 instead of the old crowded top navigation. The report is read-only and adds no
-migration or knowledge rows. See `docs/release-readiness.md`.
+migration or knowledge rows. See `docs/v1.33-production-deployment.md`.
 
 The TuneForge 1.0 release froze the focused AM5 answer scope after all product
 gates passed. Release 1.1 adds corpus-wide public discovery, not generated
 recommendations or cross-platform tuning advice. Ask TuneForge and Guided
 Answers remain bounded by accepted claims and their existing AM5 acceptance
-contract. See `docs/v1-release.md` and `docs/public-bios-settings-library.md`.
+contract. See `docs/v1.33-architecture.md`.
 
 The Public BIOS Settings Library in v1.1 adds `/library` plus a separate
 `/api/v1/library` read contract. Canonical mode groups reviewed cross-vendor
@@ -614,7 +612,7 @@ platform, chipset, category, and risk. Public details compose manual provenance,
 hardware applicability, canonical classification, vendor-equivalence citations,
 and accepted evidence claims without exposing drafts, rejections, reviewer
 notes, audit actors, or raw passages. No schema migration or duplicated
-knowledge store is introduced. See `docs/public-bios-settings-library.md`.
+knowledge store is introduced. See `docs/v1.33-architecture.md`.
 
 Grounded Assistant and Trusted-Web Research in v1.32 broadens `/answer` without
 weakening the accepted-claim contract. When an accepted answer is unavailable,
@@ -699,7 +697,7 @@ hardware applicability, and BIOS menu context. Automatic mappings require every
 hard gate and at least 99.50% confidence; missing evidence fails closed into the
 protected reviewer queue. Suggestions retain structured evidence and automatic
 decisions use the existing append-only mapping history with an explicit reversal
-workflow. See `docs/canonicalization-backlog.md`.
+workflow. See `docs/v1.33-canonical-backlog-classification.md`.
 
 Canonical Identity Review and Menu Context in v1.4 makes new-identity proposals
 durable and reviewer-controlled. Reviewed BIOS menu paths carry append-only,
@@ -759,5 +757,4 @@ normalization events. Manual and setting pages show normalized targets;
 `/api/v1/hardware` publishes the ID contract; approved-setting search can filter
 by platform, chipset family, chipset, or motherboard while including compatible
 broad-scope guides. See
-`docs/hardware-applicability-normalization.md` and
-`docs/hardware-applicability-phase2.md`.
+`docs/v1.33-guidance-hardware-applicability.md`.
