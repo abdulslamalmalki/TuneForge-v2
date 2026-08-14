@@ -1,8 +1,10 @@
 """Public BIOS Settings Library trust, discovery, citation, and UI contracts."""
 
+from sqlalchemy import event
+
 from app import config
 from app.db.models import CanonicalSetting, ExtractionRun, Manual, Setting
-from app.db.session import SessionLocal
+from app.db.session import SessionLocal, engine
 from app.domain import canonical_identity_review, canonical_settings, review
 
 
@@ -278,6 +280,51 @@ def test_library_browses_only_approved_settings_with_filters_and_pagination(
     assert client.get(f"/library/source/{draft_id}").status_code == 404
     assert client.get(f"/library/source/{rejected_id}").status_code == 404
     assert canonical_id == "precision-boost-overdrive"
+
+
+def test_unfiltered_canonical_library_has_a_bounded_query_budget(client, pdf_bytes_factory):
+    """Guard the public catalog against per-canonical and per-manual N+1 reads."""
+
+    _knowledge_fixture(client, pdf_bytes_factory)
+    for ordinal in range(8):
+        with SessionLocal() as session:
+            identity = canonical_settings.create_identity(
+                session,
+                name=f"Query Budget Setting {ordinal}",
+                description="A reviewed test identity used to protect batched public reads.",
+                aliases=(),
+            )
+            canonical_id = identity.canonical_id
+        _source_setting(
+            client,
+            pdf_bytes_factory,
+            vendor="ASUS" if ordinal % 2 == 0 else "MSI",
+            filename=f"query-budget-{ordinal}.pdf",
+            name=f"Query Budget Vendor Setting {ordinal}",
+            description="A reviewed source setting used to protect batched public reads.",
+            canonical_id=canonical_id,
+        )
+
+    statements: list[str] = []
+
+    def record_statement(_connection, _cursor, statement, _parameters, _context, _many):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record_statement)
+    try:
+        response = client.get(
+            "/api/v1/library/settings",
+            params={"view": "canonical", "page_size": 100},
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", record_statement)
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 9
+    assert len(statements) <= 20, (
+        "Unfiltered canonical Library exceeded its fixed query budget; "
+        "check for a reintroduced N+1 projection."
+    )
 
 
 def test_library_details_combine_manual_and_evidence_citations_without_internal_data(

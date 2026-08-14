@@ -654,6 +654,14 @@ hardware relationships, BIOS ranges, and research lifecycle consistency.
 Ambiguous duplicates and unreferenced files are reported for review and never
 deleted. See `docs/v1.33-data-quality-audit.md`.
 
+Public Read-Path Performance in v1.33 removes the Library's per-canonical and
+per-manual N+1 reads while preserving the approved read models and immediate
+review visibility. On the current production corpus, canonical browse falls
+from 2,993 SQL statements and about 1.24 seconds to 14 statements and about 18
+milliseconds. A read-only profiler and integration query budget protect the
+improvement without introducing a cache, schema migration, or trust-model
+change. See `docs/v1.33-performance.md`.
+
 The Conservative Canonicalization Backlog in v1.3 evaluates every approved,
 unmapped Source Setting against reviewed canonical identities using normalized
 names, descriptions, vendor aliases, mapped precedents, official provenance,

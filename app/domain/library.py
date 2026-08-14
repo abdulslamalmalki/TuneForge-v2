@@ -7,6 +7,7 @@ reviewer notes, rejected candidates, drafts, or inferred relationships.
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 from math import ceil
 
@@ -15,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import (
     CanonicalSetting,
+    CanonicalSettingAlias,
     CanonicalSettingCategory,
     CanonicalSettingClassification,
     Manual,
@@ -24,6 +26,7 @@ from app.db.models import (
 )
 from app.domain import canonical_settings, guidance_read, hardware
 from app.domain.canonical_settings import (
+    CanonicalCatalogRow,
     CanonicalClassificationView,
     VendorEquivalentName,
 )
@@ -175,6 +178,10 @@ def browse(
         "category_id": category_id.strip().casefold(),
         "risk_level": risk_level.strip().casefold(),
     }
+    if not any(filters.values()):
+        if view == VIEW_SOURCE:
+            return _unfiltered_source_page(session, page=page, page_size=page_size)
+        return _unfiltered_canonical_page(session, page=page, page_size=page_size)
     if view == VIEW_SOURCE:
         values: list[LibraryCanonicalSetting | LibrarySourceSetting] = list(
             _filtered_source_settings(session, **filters)
@@ -194,16 +201,130 @@ def browse(
     )
 
 
+def _unfiltered_source_page(
+    session: Session,
+    *,
+    page: int,
+    page_size: int,
+) -> LibraryPage:
+    total = approved_source_count(session)
+    total_pages = ceil(total / page_size) if total else 0
+    effective_name = func.lower(func.coalesce(Setting.edited_name, Setting.extracted_name))
+    vendor_name = func.lower(func.coalesce(Manual.vendor, "Unknown vendor"))
+    setting_ids = set(
+        session.scalars(
+            select(Setting.id)
+            .join(Manual, Manual.id == Setting.manual_id)
+            .where(Setting.status == "approved")
+            .order_by(effective_name, vendor_name, Setting.id)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    )
+    values = tuple(
+        sorted(
+            _load_source_settings(session, setting_ids=setting_ids),
+            key=lambda item: (
+                item.effective_name.casefold(),
+                item.vendor_name.casefold(),
+                item.setting_id,
+            ),
+        )
+    )
+    return LibraryPage(
+        view=VIEW_SOURCE,
+        items=values,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+    )
+
+
+def _unfiltered_canonical_page(
+    session: Session,
+    *,
+    page: int,
+    page_size: int,
+) -> LibraryPage:
+    catalog = canonical_settings.list_catalog(session, include_deprecated=False)
+    catalog.sort(key=lambda row: row.canonical_name.casefold())
+    total = len(catalog)
+    total_pages = ceil(total / page_size) if total else 0
+    selected = catalog[(page - 1) * page_size : page * page_size]
+    canonical_ids = {row.canonical_id for row in selected}
+    source_ids = set(
+        session.scalars(
+            select(SettingCanonicalMapping.setting_id)
+            .join(Setting, Setting.id == SettingCanonicalMapping.setting_id)
+            .where(
+                SettingCanonicalMapping.canonical_id.in_(canonical_ids),
+                Setting.status == "approved",
+            )
+        )
+    )
+    sources = _load_source_settings(session, setting_ids=source_ids)
+    by_canonical: dict[str, list[LibrarySourceSetting]] = defaultdict(list)
+    for source in sources:
+        if source.canonical_id:
+            by_canonical[source.canonical_id].append(source)
+    aliases = _alias_map(session, canonical_ids)
+    equivalences = canonical_settings.list_vendor_equivalences(session, canonical_ids)
+    covered = _guidance_ids(session)
+    values = tuple(
+        _canonical_projection(
+            row,
+            tuple(by_canonical.get(row.canonical_id, ())),
+            aliases=aliases.get(row.canonical_id, ()),
+            equivalences=equivalences.get(row.canonical_id, ()),
+            guidance_available=row.canonical_id in covered,
+        )
+        for row in selected
+    )
+    return LibraryPage(
+        view=VIEW_CANONICAL,
+        items=values,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+    )
+
+
 def canonical_detail(session: Session, canonical_id: str) -> LibraryCanonicalDetail | None:
     identity = session.get(CanonicalSetting, canonical_id)
     if identity is None or identity.status != canonical_settings.IDENTITY_ACTIVE:
         return None
-    sources = tuple(
-        item
-        for item in _load_source_settings(session)
-        if item.canonical_id == identity.canonical_id
+    setting_ids = set(
+        session.scalars(
+            select(SettingCanonicalMapping.setting_id).where(
+                SettingCanonicalMapping.canonical_id == identity.canonical_id
+            )
+        )
     )
-    setting = _canonical_projection(session, identity, sources)
+    sources = _load_source_settings(session, setting_ids=setting_ids)
+    catalog = next(
+        (
+            row
+            for row in canonical_settings.list_catalog(session, include_deprecated=False)
+            if row.canonical_id == canonical_id
+        ),
+        None,
+    )
+    if catalog is None:
+        raise RuntimeError("Canonical Library identity disappeared during projection.")
+    aliases = _alias_map(session, {canonical_id}).get(canonical_id, ())
+    equivalences = canonical_settings.list_vendor_equivalences(session, {canonical_id}).get(
+        canonical_id, ()
+    )
+    covered = _guidance_ids(session)
+    setting = _canonical_projection(
+        catalog,
+        sources,
+        aliases=aliases,
+        equivalences=equivalences,
+        guidance_available=canonical_id in covered,
+    )
     explanation = guidance_read.explain_canonical_id(session, canonical_id)
     if explanation is None:  # guarded by the identity lookup above
         raise RuntimeError("Canonical Library identity could not be explained.")
@@ -359,14 +480,22 @@ def _filtered_canonical_settings(
         if source.canonical_id:
             by_canonical.setdefault(source.canonical_id, []).append(source)
 
+    catalog = canonical_settings.list_catalog(session, include_deprecated=False)
+    canonical_ids = {row.canonical_id for row in catalog}
+    aliases = _alias_map(session, canonical_ids)
+    equivalences = canonical_settings.list_vendor_equivalences(session, canonical_ids)
+    covered = _guidance_ids(session)
     values = []
     normalized_query = normalize_alias(query)
-    for row in canonical_settings.list_catalog(session, include_deprecated=False):
-        identity = session.get(CanonicalSetting, row.canonical_id)
-        if identity is None:
-            continue
+    for row in catalog:
         sources = tuple(by_canonical.get(row.canonical_id, ()))
-        projection = _canonical_projection(session, identity, sources)
+        projection = _canonical_projection(
+            row,
+            sources,
+            aliases=aliases.get(row.canonical_id, ()),
+            equivalences=equivalences.get(row.canonical_id, ()),
+            guidance_available=row.canonical_id in covered,
+        )
         if category_id and projection.category_id != category_id:
             continue
         if risk_level and projection.risk_level != risk_level:
@@ -392,36 +521,30 @@ def _filtered_canonical_settings(
 
 
 def _canonical_projection(
-    session: Session,
-    identity: CanonicalSetting,
+    catalog: CanonicalCatalogRow,
     sources: tuple[LibrarySourceSetting, ...],
+    *,
+    aliases: tuple[LibraryAlias, ...],
+    equivalences: tuple[VendorEquivalentName, ...],
+    guidance_available: bool,
 ) -> LibraryCanonicalSetting:
-    detail = canonical_settings.get_detail(session, identity.canonical_id)
-    if detail is None:
-        raise RuntimeError("Canonical Library identity disappeared during projection.")
-    equivalences = canonical_settings.list_vendor_equivalences(
-        session, (identity.canonical_id,)
-    ).get(identity.canonical_id, ())
     target_map = {
         (target.target_type, target.target_id): target
         for source in sources
         for target in source.applicability_targets
     }
     return LibraryCanonicalSetting(
-        canonical_id=identity.canonical_id,
-        canonical_name=identity.canonical_name,
-        description=identity.description,
-        aliases=tuple(
-            LibraryAlias(alias.display_alias, alias.vendor_id) for alias in detail.aliases
-        ),
+        canonical_id=catalog.canonical_id,
+        canonical_name=catalog.canonical_name,
+        description=catalog.description,
+        aliases=aliases,
         equivalent_vendor_names=equivalences,
         source_setting_count=len(sources),
         vendor_count=len({source.vendor_id for source in sources if source.vendor_id}),
-        category_id=(detail.classification.category_id if detail.classification else None),
-        category_name=(detail.classification.category_name if detail.classification else None),
-        risk_level=(detail.classification.risk_level if detail.classification else None),
-        guidance_available=any(source.guidance_available for source in sources)
-        or _has_guidance(session, identity.canonical_id),
+        category_id=catalog.category_id,
+        category_name=catalog.category_name,
+        risk_level=catalog.risk_level,
+        guidance_available=guidance_available,
         applicability_targets=tuple(
             sorted(target_map.values(), key=lambda item: (item.target_type, item.canonical_name))
         ),
@@ -469,10 +592,8 @@ def _load_source_settings(
         statement = statement.where(Setting.id.in_(setting_ids))
     rows = session.execute(statement).all()
     manual_ids = {manual.id for _, manual, _, _, _, _ in rows}
-    applicability = {
-        manual_id: hardware.get_manual_applicability(session, manual_id) for manual_id in manual_ids
-    }
-    covered = {row.canonical_id for row in guidance_read.list_coverage(session, approved_only=True)}
+    applicability = hardware.get_manual_applicability_many(session, manual_ids)
+    covered = _guidance_ids(session)
     values = []
     for setting, manual, canonical, classification, category, menu_context in rows:
         if canonical is not None and canonical.status != canonical_settings.IDENTITY_ACTIVE:
@@ -636,11 +757,27 @@ def _target_matches_chipset(target: LibraryApplicabilityTarget, chipset_id: str)
     return False
 
 
-def _has_guidance(session: Session, canonical_id: str) -> bool:
-    return any(
-        row.canonical_id == canonical_id
-        for row in guidance_read.list_coverage(session, approved_only=True)
+def _guidance_ids(session: Session) -> set[str]:
+    return {
+        row.canonical_id for row in guidance_read.list_coverage(session, approved_only=True)
+    }
+
+
+def _alias_map(
+    session: Session,
+    canonical_ids: set[str],
+) -> dict[str, tuple[LibraryAlias, ...]]:
+    if not canonical_ids:
+        return {}
+    grouped: dict[str, list[LibraryAlias]] = {canonical_id: [] for canonical_id in canonical_ids}
+    rows = session.scalars(
+        select(CanonicalSettingAlias)
+        .where(CanonicalSettingAlias.canonical_id.in_(canonical_ids))
+        .order_by(CanonicalSettingAlias.canonical_id, CanonicalSettingAlias.display_alias)
     )
+    for row in rows:
+        grouped[row.canonical_id].append(LibraryAlias(row.display_alias, row.vendor_id))
+    return {canonical_id: tuple(values) for canonical_id, values in grouped.items()}
 
 
 def _eligibility_label(status: str) -> str:

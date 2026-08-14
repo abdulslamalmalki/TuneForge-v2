@@ -178,6 +178,83 @@ def get_manual_applicability(session: Session, manual_id: int) -> ApplicabilityV
     )
 
 
+def get_manual_applicability_many(
+    session: Session,
+    manual_ids: set[int] | tuple[int, ...] | list[int],
+) -> dict[int, ApplicabilityView]:
+    """Batch the public read projection without changing single-record semantics."""
+
+    requested = tuple(sorted(set(manual_ids)))
+    if not requested:
+        return {}
+    projections = list(
+        session.scalars(
+            select(ManualApplicability).where(ManualApplicability.manual_id.in_(requested))
+        )
+    )
+    target_rows = list(
+        session.scalars(
+            select(ManualApplicabilityTarget)
+            .where(ManualApplicabilityTarget.manual_id.in_(requested))
+            .order_by(ManualApplicabilityTarget.manual_id, ManualApplicabilityTarget.ordinal)
+        )
+    )
+    names: dict[tuple[str, str], str] = {}
+    identity_queries = (
+        (
+            TARGET_PLATFORM,
+            HardwarePlatform,
+            HardwarePlatform.platform_id,
+            {row.platform_id for row in target_rows if row.platform_id},
+        ),
+        (
+            TARGET_CHIPSET_FAMILY,
+            ChipsetFamily,
+            ChipsetFamily.family_id,
+            {row.chipset_family_id for row in target_rows if row.chipset_family_id},
+        ),
+        (
+            TARGET_CHIPSET,
+            Chipset,
+            Chipset.chipset_id,
+            {row.chipset_id for row in target_rows if row.chipset_id},
+        ),
+        (
+            TARGET_MOTHERBOARD_MODEL,
+            MotherboardModel,
+            MotherboardModel.model_id,
+            {row.motherboard_model_id for row in target_rows if row.motherboard_model_id},
+        ),
+    )
+    for target_type, model, id_column, ids in identity_queries:
+        if ids:
+            for identity in session.scalars(select(model).where(id_column.in_(ids))):
+                identity_id = getattr(identity, id_column.key)
+                names[(target_type, identity_id)] = identity.canonical_name
+    grouped: dict[int, list[ApplicabilityTarget]] = {manual_id: [] for manual_id in requested}
+    for row in target_rows:
+        target_type, target_id = _target_identity(row)
+        try:
+            name = names[(target_type, target_id)]
+        except KeyError:
+            raise RuntimeError(
+                f"Applicability target {row.manual_id}/{row.ordinal} is orphaned."
+            ) from None
+        grouped[row.manual_id].append(ApplicabilityTarget(target_type, target_id, name))
+    return {
+        row.manual_id: ApplicabilityView(
+            manual_id=row.manual_id,
+            scope=row.scope,
+            normalization_version=row.normalization_version,
+            model_status=row.model_status,
+            detected_model_id=row.detected_model_id,
+            targets=tuple(grouped[row.manual_id]),
+            warnings=tuple(_warnings(row.warnings_json)),
+        )
+        for row in projections
+    }
+
+
 def snapshot(view: ApplicabilityView | None) -> dict[str, object] | None:
     if view is None:
         return None
@@ -261,6 +338,18 @@ def _target_view(session: Session, row: ManualApplicabilityTarget) -> Applicabil
             row.motherboard_model_id,
             definition.canonical_name,
         )
+    raise RuntimeError(f"Applicability target {row.manual_id}/{row.ordinal} has no identity.")
+
+
+def _target_identity(row: ManualApplicabilityTarget) -> tuple[str, str]:
+    if row.platform_id:
+        return TARGET_PLATFORM, row.platform_id
+    if row.chipset_family_id:
+        return TARGET_CHIPSET_FAMILY, row.chipset_family_id
+    if row.chipset_id:
+        return TARGET_CHIPSET, row.chipset_id
+    if row.motherboard_model_id:
+        return TARGET_MOTHERBOARD_MODEL, row.motherboard_model_id
     raise RuntimeError(f"Applicability target {row.manual_id}/{row.ordinal} has no identity.")
 
 
