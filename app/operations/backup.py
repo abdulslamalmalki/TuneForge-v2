@@ -177,7 +177,7 @@ def create_backup(
         ) from error
     finally:
         if snapshot is not None:
-            snapshot.unlink(missing_ok=True)
+            _remove_snapshot_files(snapshot)
         if partial is not None:
             partial.unlink(missing_ok=True)
 
@@ -279,6 +279,16 @@ def _snapshot_database(source: Path, destination: Path) -> None:
                 # knowledge. A restored system always requires a fresh login.
                 destination_db.execute("DELETE FROM auth_sessions")
                 destination_db.commit()
+                checkpoint = destination_db.execute(
+                    "PRAGMA wal_checkpoint(TRUNCATE)"
+                ).fetchone()
+                if checkpoint is not None and checkpoint[0] != 0:
+                    raise BackupError("Database snapshot WAL checkpoint did not complete.")
+                journal_mode = destination_db.execute("PRAGMA journal_mode=DELETE").fetchone()
+                if journal_mode != ("delete",):
+                    raise BackupError(
+                        "Database snapshot could not be converted to a standalone file."
+                    )
                 integrity = destination_db.execute("PRAGMA integrity_check").fetchone()
                 if integrity != ("ok",):
                     raise BackupError("Database snapshot failed its integrity check.")
@@ -289,7 +299,9 @@ def _snapshot_database(source: Path, destination: Path) -> None:
 def _database_inventory(database: Path) -> tuple[str, list[tuple[str, str]]]:
     try:
         with closing(
-            sqlite3.connect(f"file:{database.as_posix()}?mode=ro", uri=True)
+            sqlite3.connect(
+                f"file:{database.as_posix()}?mode=ro&immutable=1", uri=True
+            )
         ) as connection:
             revision_row = connection.execute("SELECT version_num FROM alembic_version").fetchone()
             if revision_row is None:
@@ -355,6 +367,13 @@ def _temporary_path(parent: Path, *, prefix: str, suffix: str) -> Path:
     path = Path(handle.name)
     handle.close()
     return path
+
+
+def _remove_snapshot_files(snapshot: Path) -> None:
+    """Remove the exact temporary database and any SQLite transaction sidecars."""
+
+    for suffix in ("", "-wal", "-shm", "-journal"):
+        Path(f"{snapshot}{suffix}").unlink(missing_ok=True)
 
 
 def _read_manifest(archive: zipfile.ZipFile) -> dict[str, object]:
@@ -454,7 +473,11 @@ def _restore_destination(staging: Path, member: str) -> Path:
 
 def _verify_restored_database(database: Path, expected_revision: str) -> str:
     try:
-        with closing(sqlite3.connect(database)) as connection:
+        with closing(
+            sqlite3.connect(
+                f"file:{database.as_posix()}?mode=ro&immutable=1", uri=True
+            )
+        ) as connection:
             integrity = connection.execute("PRAGMA integrity_check").fetchone()
             revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
             sessions = connection.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()

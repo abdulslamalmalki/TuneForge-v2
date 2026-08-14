@@ -1,0 +1,18 @@
+services:
+  tuneforge:
+    environment:
+      TUNEFORGE_ENVIRONMENT: production
+      TUNEFORGE_AUTH_MODE: required
+      TUNEFORGE_AUTH_COOKIE_SECURE: "1"
+      TUNEFORGE_RATE_LIMIT_ENABLED: "1"
+      TUNEFORGE_LOG_FORMAT: json
+      TUNEFORGE_TRUSTED_HOSTS: ${TUNEFORGE_TRUSTED_HOSTS:?set the public TuneForge hostname}
+      TUNEFORGE_FORWARDED_ALLOW_IPS: ${TUNEFORGE_FORWARDED_ALLOW_IPS:-127.0.0.1}
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+

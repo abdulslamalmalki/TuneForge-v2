@@ -48,7 +48,11 @@ def run_migrations_online() -> None:
     # Alembic is a short-lived process. NullPool plus explicit disposal ensures
     # Windows releases the database handle before callers inspect, move, or
     # remove migrated test/staging databases.
-    engine = create_engine(app_config.DATABASE_URL, poolclass=NullPool)
+    engine = create_engine(
+        app_config.DATABASE_URL,
+        poolclass=NullPool,
+        connect_args={"timeout": app_config.SQLITE_BUSY_TIMEOUT_SECONDS},
+    )
     try:
         with engine.connect() as connection:
             context.configure(connection=connection, target_metadata=target_metadata)

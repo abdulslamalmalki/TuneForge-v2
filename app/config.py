@@ -44,6 +44,12 @@ UPLOADS_DIR = DATA_DIR / "uploads"
 EVIDENCE_SOURCES_DIR = DATA_DIR / "evidence_sources"
 DATABASE_PATH = DATA_DIR / "knowledge_builder.sqlite3"
 DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
+SQLITE_BUSY_TIMEOUT_SECONDS = int(
+    os.environ.get("TUNEFORGE_SQLITE_BUSY_TIMEOUT_SECONDS", "30")
+)
+SQLITE_JOURNAL_MODE = os.environ.get(
+    "TUNEFORGE_SQLITE_JOURNAL_MODE", "wal"
+).strip().lower()
 
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # FR-3
 MAX_PDF_PAGES = int(os.environ.get("TUNEFORGE_MAX_PDF_PAGES", "5000"))
@@ -118,6 +124,12 @@ def validate_runtime_config() -> None:
         raise RuntimeError("TUNEFORGE_LOG_LEVEL is invalid.")
     if LOG_FORMAT not in {"text", "json"}:
         raise RuntimeError("TUNEFORGE_LOG_FORMAT must be text or json.")
+    if not 1 <= SQLITE_BUSY_TIMEOUT_SECONDS <= 300:
+        raise RuntimeError(
+            "TUNEFORGE_SQLITE_BUSY_TIMEOUT_SECONDS must be between 1 and 300."
+        )
+    if SQLITE_JOURNAL_MODE not in {"wal", "delete"}:
+        raise RuntimeError("TUNEFORGE_SQLITE_JOURNAL_MODE must be wal or delete.")
     if AUTH_MODE not in {"required", "disabled"}:
         raise RuntimeError("TUNEFORGE_AUTH_MODE must be required or disabled.")
     if not 1 <= AUTH_SESSION_HOURS <= 168:
@@ -176,6 +188,8 @@ def validate_runtime_config() -> None:
             raise RuntimeError("Production does not allow a wildcard trusted host.")
         if not RATE_LIMIT_ENABLED:
             raise RuntimeError("Production requires TUNEFORGE_RATE_LIMIT_ENABLED=1.")
+        if SQLITE_JOURNAL_MODE != "wal":
+            raise RuntimeError("Production requires TUNEFORGE_SQLITE_JOURNAL_MODE=wal.")
 
 
 def _validate_llm_base_url(base_url: str) -> None:

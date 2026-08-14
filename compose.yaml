@@ -9,9 +9,12 @@ services:
       TUNEFORGE_AUTH_COOKIE_SECURE: "0"
       TUNEFORGE_TRUSTED_HOSTS: 127.0.0.1,localhost
       KNOWLEDGE_BUILDER_DATA_DIR: /data
+      TUNEFORGE_BACKUPS_DIR: /backups
     volumes:
       - tuneforge-data:/data
+      - tuneforge-backups:/backups
     restart: unless-stopped
 
 volumes:
   tuneforge-data:
+  tuneforge-backups:

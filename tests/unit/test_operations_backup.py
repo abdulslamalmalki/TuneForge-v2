@@ -46,6 +46,7 @@ def test_backup_and_restore_preserve_data_but_revoke_sessions(
         assert connection.execute("SELECT username FROM user_accounts").fetchone() == ("owner",)
         assert connection.execute("SELECT COUNT(*) FROM auth_sessions").fetchone() == (0,)
         assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+        assert connection.execute("PRAGMA journal_mode").fetchone() == ("delete",)
     assert (restored.target_dir / "uploads" / manual.stored_filename).is_file()
     manifest = json.loads((restored.target_dir / "backup-manifest.json").read_text())
     assert manifest["sessions_included"] is False

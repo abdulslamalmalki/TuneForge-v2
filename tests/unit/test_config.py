@@ -45,3 +45,13 @@ def test_production_requires_rate_limiting(monkeypatch):
     monkeypatch.setattr(config, "RATE_LIMIT_ENABLED", False)
     with pytest.raises(RuntimeError, match="RATE_LIMIT_ENABLED=1"):
         config.validate_runtime_config()
+
+
+def test_production_requires_wal(monkeypatch):
+    monkeypatch.setattr(config, "ENVIRONMENT", "production")
+    monkeypatch.setattr(config, "AUTH_MODE", "required")
+    monkeypatch.setattr(config, "AUTH_COOKIE_SECURE", True)
+    monkeypatch.setattr(config, "RATE_LIMIT_ENABLED", True)
+    monkeypatch.setattr(config, "SQLITE_JOURNAL_MODE", "delete")
+    with pytest.raises(RuntimeError, match="SQLITE_JOURNAL_MODE=wal"):
+        config.validate_runtime_config()

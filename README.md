@@ -154,8 +154,9 @@ uvicorn app.main:app --reload
 
 Open `http://127.0.0.1:8000`. The public BIOS Settings Library opens immediately. The
 first visit to `/admin` redirects to a one-time administrator setup; subsequent
-curator access requires sign-in. Internet deployment still requires HTTPS,
-secure-cookie mode, reverse-proxy rate limiting, and an operational backup plan.
+curator access requires sign-in. For Internet deployment, use the locked container,
+production override, HTTPS reverse proxy, persistent volumes, and off-host backup
+plan in `docs/v1.33-production-deployment.md`.
 
 ## Data and backups
 
@@ -574,7 +575,7 @@ hashes every member, and excludes active sessions; restore validates paths,
 sizes, checksums, schema revision, and database integrity before atomically
 publishing a new data directory. Docker and local Compose definitions preserve
 the same single-service architecture and durable volume boundary. See
-`docs/operations-recovery-baseline.md`.
+`docs/v1.33-production-deployment.md`.
 
 Deterministic Question Routing in v0.37 lets the public Ask TuneForge box accept
 the twelve exact reviewed AM5 questions and simple forms such as “What is Curve
@@ -684,6 +685,12 @@ and readiness checks for SQLite integrity, foreign keys, schema, and real writes
 to every durable storage directory. User questions, credentials, tokens, API
 keys, provider payloads, and uploaded content are excluded from logs and metric
 labels. See `docs/v1.33-observability.md`.
+
+Production Preparation in v1.33 keeps the measured single-instance SQLite design,
+enables WAL with full synchronization and bounded writer waits, pins the container's
+runtime dependency closure, adds a pre-migration storage/configuration check, and
+documents hardened Compose, proxy, persistence, upgrade, recovery, DNS, and hosting
+requirements. See `docs/v1.33-production-deployment.md`.
 
 The Conservative Canonicalization Backlog in v1.3 evaluates every approved,
 unmapped Source Setting against reviewed canonical identities using normalized
