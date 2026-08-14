@@ -646,6 +646,14 @@ Active work queues are shown first, clear queues are collapsed, and existing
 canonical-mapping and missing-guidance backlogs become directly visible without
 duplicating workflow state. See `docs/v1.33-admin-knowledge-operations.md`.
 
+The v1.33 Data Quality Audit adds `python -m tools.audit_data_quality`, a
+read-only composition of the proven public-knowledge audit and reusable checks
+for all stored file hashes, extraction ownership, pages, passage hashes,
+official URLs, review completeness, citations, duplicate identities/claims,
+hardware relationships, BIOS ranges, and research lifecycle consistency.
+Ambiguous duplicates and unreferenced files are reported for review and never
+deleted. See `docs/v1.33-data-quality-audit.md`.
+
 The Conservative Canonicalization Backlog in v1.3 evaluates every approved,
 unmapped Source Setting against reviewed canonical identities using normalized
 names, descriptions, vendor aliases, mapped precedents, official provenance,
