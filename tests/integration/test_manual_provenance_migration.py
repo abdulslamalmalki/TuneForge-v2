@@ -274,13 +274,14 @@ def test_upgrade_backfills_existing_manual_provenance(tmp_path):
                 SELECT name FROM sqlite_master
                 WHERE type='table' AND name IN (
                     'trusted_web_research_runs', 'trusted_web_research_results',
-                    'trusted_web_research_events'
+                    'trusted_web_research_events', 'research_evidence_intakes',
+                    'research_evidence_intake_events'
                 )
                 """
             )
         }
-        assert len(research_tables) == 3
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0022",)
+        assert len(research_tables) == 5
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0023",)
 
 
 def test_hardware_migration_backfill_matches_phase1_scope_rules(tmp_path):

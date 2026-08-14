@@ -38,6 +38,7 @@ from app.web.routes import (
     search,
     settings,
     system_context,
+    trusted_web_research,
 )
 from app.web.templating import templates
 
@@ -147,6 +148,7 @@ def create_app() -> FastAPI:
     app.include_router(guided_answers.router, include_in_schema=False)
     app.include_router(library.router, include_in_schema=False)
     app.include_router(refusal_gaps.router, include_in_schema=False)
+    app.include_router(trusted_web_research.router, include_in_schema=False)
     app.include_router(api_v1.router)
 
     # Failures render a page with a safe message, never a raw stack trace

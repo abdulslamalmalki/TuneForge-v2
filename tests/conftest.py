@@ -271,6 +271,8 @@ def _clean_state(_create_schema):
         ReferralPointer,
         ReferralPointerEvent,
         ReferralPointerSetting,
+        ResearchEvidenceIntake,
+        ResearchEvidenceIntakeEvent,
         SettingMenuContext,
         SettingMenuContextCitation,
         SettingMenuContextEvent,
@@ -290,6 +292,8 @@ def _clean_state(_create_schema):
         session.query(ReferralPointerSetting).delete()
         session.query(ReferralPointer).delete()
         session.query(UnansweredLookup).delete()
+        session.query(ResearchEvidenceIntakeEvent).delete()
+        session.query(ResearchEvidenceIntake).delete()
         session.query(TrustedWebResearchEvent).delete()
         session.query(TrustedWebResearchResult).delete()
         session.query(TrustedWebResearchRun).delete()

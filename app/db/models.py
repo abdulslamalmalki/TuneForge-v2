@@ -395,9 +395,7 @@ class GuidanceCandidate(Base):
             "confidence_basis_points BETWEEN 0 AND 10000",
             name="ck_guidance_candidate_confidence",
         ),
-        CheckConstraint(
-            "possible_conflict IN (0, 1)", name="ck_guidance_candidate_conflict_flag"
-        ),
+        CheckConstraint("possible_conflict IN (0, 1)", name="ck_guidance_candidate_conflict_flag"),
         CheckConstraint("source_page_number > 0", name="ck_guidance_candidate_page_number"),
         Index(
             "ux_guidance_candidate_source_fact",
@@ -638,6 +636,78 @@ class TrustedWebResearchEvent(Base):
     run_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("trusted_web_research_runs.id", ondelete="RESTRICT"),
+        index=True,
+    )
+    action: Mapped[str] = mapped_column(Text)
+    actor: Mapped[str] = mapped_column(Text)
+    detail: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(Text)
+
+
+class ResearchEvidenceIntake(Base):
+    """Reviewer state between a live research lead and approved evidence."""
+
+    __tablename__ = "research_evidence_intakes"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('evidence_intake', 'needs_corroboration', 'low_quality', "
+            "'rejected', 'archived', 'evidence_linked', 'claim_drafted')",
+            name="ck_research_evidence_intake_status",
+        ),
+        CheckConstraint(
+            "proposed_claim_type IS NULL OR proposed_claim_type IN "
+            "('definition', 'behavior', 'constraint', 'safety')",
+            name="ck_research_evidence_intake_claim_type",
+        ),
+        CheckConstraint(
+            "(evidence_source_id IS NULL AND evidence_passage_id IS NULL) OR "
+            "(evidence_source_id IS NOT NULL AND evidence_passage_id IS NOT NULL)",
+            name="ck_research_evidence_intake_evidence_pair",
+        ),
+        Index("ix_research_evidence_intakes_status", "status"),
+    )
+
+    result_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("trusted_web_research_results.id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    status: Mapped[str] = mapped_column(Text)
+    setting_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("settings.id", ondelete="RESTRICT"), index=True
+    )
+    canonical_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("canonical_settings.canonical_id", ondelete="RESTRICT"), index=True
+    )
+    hardware_scope_json: Mapped[str] = mapped_column(Text, server_default="{}")
+    bios_scope_json: Mapped[str] = mapped_column(Text, server_default="{}")
+    proposed_claim_text: Mapped[str | None] = mapped_column(Text)
+    proposed_claim_type: Mapped[str | None] = mapped_column(Text)
+    evidence_source_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("evidence_sources.id", ondelete="RESTRICT")
+    )
+    evidence_passage_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("evidence_passages.id", ondelete="RESTRICT")
+    )
+    draft_claim_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("guidance_claims.id", ondelete="RESTRICT")
+    )
+    reviewer: Mapped[str] = mapped_column(Text)
+    review_note: Mapped[str] = mapped_column(Text)
+    reviewed_at: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[str] = mapped_column(Text)
+
+
+class ResearchEvidenceIntakeEvent(Base):
+    """Append-only history for every live-research triage and promotion step."""
+
+    __tablename__ = "research_evidence_intake_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    result_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("research_evidence_intakes.result_id", ondelete="RESTRICT"),
         index=True,
     )
     action: Mapped[str] = mapped_column(Text)
@@ -1156,8 +1226,7 @@ class CanonicalBacklogAssessment(Base):
             name="ck_canonical_backlog_assessment_confidence",
         ),
         CheckConstraint(
-            "assessment_method IN ('deterministic_triage', 'human_review', "
-            "'external_research')",
+            "assessment_method IN ('deterministic_triage', 'human_review', 'external_research')",
             name="ck_canonical_backlog_assessment_method",
         ),
         CheckConstraint(

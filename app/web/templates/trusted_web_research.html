@@ -1,0 +1,45 @@
+{% extends "admin_layout.html" %}
+
+{% block title %}Official Research Leads — TuneForge Admin{% endblock %}
+{% block page_title %}Official research leads{% endblock %}
+
+{% block content %}
+<section class="admin-welcome compact">
+  <div>
+    <p class="admin-eyebrow">Unreviewed source discovery</p>
+    <h1>Research-to-evidence intake</h1>
+    <p>These are captured excerpts from allowlisted official websites. They are research leads—not approved Evidence Sources, verified facts, or public guidance.</p>
+  </div>
+</section>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<section class="admin-metrics guidance-metrics" aria-label="Research intake states">
+  <div class="admin-metric metric-gaps"><span class="metric-value">{{ counts.new }}</span><strong>Unreviewed leads</strong><small>Require a human decision</small></div>
+  <div class="admin-metric metric-evidence"><span class="metric-value">{{ counts.evidence_intake }}</span><strong>Evidence intake</strong><small>Promoted for source review</small></div>
+  <div class="admin-metric metric-settings"><span class="metric-value">{{ counts.evidence_linked }}</span><strong>Evidence linked</strong><small>Approved passages selected</small></div>
+  <div class="admin-metric metric-claims"><span class="metric-value">{{ counts.claim_drafted }}</span><strong>Claims drafted</strong><small>Still require claim approval</small></div>
+</section>
+
+<section class="admin-panel">
+  <form method="get" action="/trusted-web-research" class="candidate-filters">
+    <label>Status
+      <select name="status"><option value="">All states</option>{% for value, count in counts.items() %}<option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ value|replace('_', ' ')|title }} ({{ count }})</option>{% endfor %}</select>
+    </label>
+    <label>Publisher ID<input name="publisher" value="{{ publisher_filter }}" placeholder="amd, intel, asus…"></label>
+    <button type="submit" class="admin-button primary">Apply filters</button>
+  </form>
+</section>
+
+<section class="admin-panel candidate-queue-panel">
+  <header class="admin-panel-heading"><div><p class="admin-eyebrow">Captured snapshots</p><h2>{{ rows|length }} results shown</h2></div><small>Official does not mean reviewed</small></header>
+  <div class="candidate-list">
+    {% for row in rows %}
+    <a class="candidate-row" href="/trusted-web-research/results/{{ row.result.id }}">
+      <span class="candidate-score">{{ row.result.ordinal }}</span>
+      <span class="candidate-main"><strong>{{ row.result.title }}</strong><small>{{ row.result.publisher_name }} · {{ row.result.retrieved_at }}</small><span>{{ row.result.excerpt_text or 'Official link captured without an excerpt.' }}</span></span>
+      <span class="candidate-meta"><span class="status status-{{ row.intake.status if row.intake else 'pending' }}">{{ row.intake.status|replace('_', ' ') if row.intake else 'new' }}</span><small>{{ row.result.evidence_kind|replace('_', ' ') }}</small><small>Query: {{ row.run.query_text }}</small></span>
+    </a>
+    {% else %}<p class="admin-empty">No research leads match these filters.</p>{% endfor %}
+  </div>
+</section>
+{% endblock %}

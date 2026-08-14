@@ -39,6 +39,7 @@
         <div class="admin-nav-group">
           <span>Knowledge</span>
           <a{% if request.url.path.startswith('/evidence-sources') %} class="active" aria-current="page"{% endif %} href="/evidence-sources"><span aria-hidden="true">E</span>Evidence sources</a>
+          <a{% if request.url.path.startswith('/trusted-web-research') %} class="active" aria-current="page"{% endif %} href="/trusted-web-research"><span aria-hidden="true">W</span>Research leads</a>
           <a{% if request.url.path.startswith('/guidance-candidates') %} class="active" aria-current="page"{% endif %} href="/guidance-candidates"><span aria-hidden="true">G</span>Guidance candidates</a>
           <a{% if request.url.path.startswith('/guidance-claims') %} class="active" aria-current="page"{% endif %} href="/guidance-claims"><span aria-hidden="true">K</span>Guidance claims</a>
           <a{% if request.url.path.startswith('/refusal-gaps') %} class="active" aria-current="page"{% endif %} href="/refusal-gaps"><span aria-hidden="true">G</span>Refusal gaps</a>

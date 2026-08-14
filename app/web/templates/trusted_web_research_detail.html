@@ -1,0 +1,73 @@
+{% extends "admin_layout.html" %}
+
+{% block title %}Research Result {{ detail.result.id }} — TuneForge Admin{% endblock %}
+{% block page_title %}Research result {{ detail.result.id }}{% endblock %}
+
+{% block content %}
+{% set result = detail.result %}{% set intake = detail.intake %}
+<nav class="candidate-step-nav" aria-label="Research navigation"><span></span><a href="/trusted-web-research?status={{ intake.status if intake else 'new' }}">Back to research queue</a><span></span></nav>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<div class="candidate-detail-grid">
+  <main>
+    <section class="admin-panel candidate-evidence-card">
+      <header class="admin-panel-heading"><div><p class="admin-eyebrow">Official research lead · unreviewed</p><h1>{{ result.title }}</h1></div><span class="status status-{{ intake.status if intake else 'pending' }}">{{ intake.status|replace('_', ' ') if intake else 'new' }}</span></header>
+      <p class="error"><strong>Trust boundary:</strong> This snapshot is not approved evidence and cannot appear in public guidance.</p>
+      <dl class="candidate-facts">
+        <div><dt>Query</dt><dd>{{ detail.run.query_text }}</dd></div>
+        <div><dt>Publisher</dt><dd>{{ result.publisher_name }} ({{ result.publisher_id }})</dd></div>
+        <div><dt>Retrieved</dt><dd>{{ result.retrieved_at }}</dd></div>
+        <div><dt>Trust tier</dt><dd>{{ trust_tier|replace('_', ' ') }}</dd></div>
+        <div><dt>Capture type</dt><dd>{{ result.evidence_kind|replace('_', ' ') }}</dd></div>
+        <div><dt>Policy version</dt><dd>{{ detail.run.policy_version }}</dd></div>
+        <div><dt>Content SHA-256</dt><dd><code>{{ result.content_sha256 or 'No captured page hash' }}</code></dd></div>
+        <div><dt>Official URL</dt><dd><a href="{{ result.source_url }}" target="_blank" rel="noreferrer">Open official page ↗</a></dd></div>
+      </dl>
+      <h2>Exact captured excerpt</h2>
+      <blockquote>{{ result.excerpt_text or 'No excerpt was captured; this result is an official link only.' }}</blockquote>
+      {% if detail.possible_conflict %}<p class="error"><strong>Conflict signal:</strong> {{ detail.possible_conflict }}</p>{% endif %}
+    </section>
+
+    <section class="admin-panel">
+      <h2>1. Human triage</h2>
+      <p>Save context and choose a disposition. “Evidence intake” does not create or approve an Evidence Source.</p>
+      <form action="/trusted-web-research/results/{{ result.id }}/triage" method="post">
+        <label for="setting-id">Approved source setting ID (optional)</label><input id="setting-id" name="setting_id" type="number" min="1" value="{{ intake.setting_id if intake and intake.setting_id else '' }}">
+        <label for="canonical-id">Active canonical ID (optional)</label><input id="canonical-id" name="canonical_id" value="{{ intake.canonical_id if intake and intake.canonical_id else '' }}">
+        <label for="claim-text">Proposed atomic claim (optional)</label><textarea id="claim-text" name="proposed_claim_text" rows="4">{{ intake.proposed_claim_text if intake and intake.proposed_claim_text else '' }}</textarea>
+        <label for="claim-type">Claim type</label><select id="claim-type" name="proposed_claim_type"><option value="">Not proposed</option>{% for value in claim_types %}<option value="{{ value }}" {% if intake and intake.proposed_claim_type == value %}selected{% endif %}>{{ value|title }}</option>{% endfor %}</select>
+        <label for="triage-note">Reviewer reason</label><textarea id="triage-note" name="note" rows="3" required></textarea>
+        <div class="candidate-actions"><button class="admin-button primary" name="status" value="evidence_intake">Promote to Evidence Intake</button><button name="status" value="needs_corroboration">Needs corroboration</button><button name="status" value="low_quality">Low quality</button><button class="danger" name="status" value="rejected">Reject</button><button name="status" value="archived">Archive</button></div>
+      </form>
+    </section>
+
+    <section class="admin-panel">
+      <h2>2. Link separately reviewed evidence</h2>
+      <p>Upload and approve the complete official document through <a href="/evidence-sources/upload">Evidence Sources</a>, then select an immutable passage from the same publisher.</p>
+      <form action="/trusted-web-research/results/{{ result.id }}/link-evidence" method="post">
+        <label for="evidence-option">Approved Evidence Source passage</label>
+        <select id="evidence-option" required onchange="const parts=this.value.split(':'); document.getElementById('evidence-source-id').value=parts[0]||''; document.getElementById('evidence-passage-id').value=parts[1]||'';"><option value="">Choose reviewed evidence</option>{% for option in evidence_options %}<option value="{{ option.source.id }}:{{ option.passage.id }}">{{ option.source.title }} · page {{ option.passage.page_number }} · passage {{ option.passage.id }}</option>{% endfor %}</select>
+        <input id="evidence-source-id" name="evidence_source_id" type="hidden"><input id="evidence-passage-id" name="evidence_passage_id" type="hidden">
+        <label for="evidence-note">Why this passage supports the proposed claim</label><textarea id="evidence-note" name="note" rows="3" required></textarea>
+        <button class="admin-button secondary" type="submit" {% if not intake or intake.status not in ('evidence_intake', 'needs_corroboration', 'evidence_linked') %}disabled{% endif %}>Link approved passage</button>
+      </form>
+      {% if not evidence_options %}<p class="admin-empty">No approved passages from {{ result.publisher_name }} are available yet.</p>{% endif %}
+    </section>
+
+    <section class="admin-panel">
+      <h2>3. Create or extend a draft claim</h2>
+      <p>These actions never approve or publish the claim. The normal Guidance Claims review remains mandatory.</p>
+      <form action="/trusted-web-research/results/{{ result.id }}/create-claim" method="post" class="candidate-action-form"><label for="draft-note">Draft reason</label><textarea id="draft-note" name="note" rows="2" required></textarea><button class="admin-button primary" type="submit" {% if not intake or intake.status != 'evidence_linked' %}disabled{% endif %}>Create candidate claim</button></form>
+      <form action="/trusted-web-research/results/{{ result.id }}/attach-claim" method="post" class="candidate-action-form"><label for="claim-id">Existing draft claim ID</label><input id="claim-id" name="claim_id" type="number" min="1" required><label for="attach-note">Attachment reason</label><textarea id="attach-note" name="note" rows="2" required></textarea><button type="submit" {% if not intake or intake.status != 'evidence_linked' %}disabled{% endif %}>Attach to existing draft</button></form>
+    </section>
+  </main>
+
+  <aside>
+    <section class="admin-panel"><h2>Knowledge context</h2><p><strong>Source setting:</strong> {% if detail.setting %}<a href="/settings/{{ detail.setting.id }}">{{ detail.setting.edited_name or detail.setting.extracted_name }}</a>{% else %}Not linked{% endif %}</p><p><strong>Canonical:</strong> {% if detail.canonical %}<a href="/canonical-settings/{{ detail.canonical.canonical_id }}">{{ detail.canonical.canonical_name }}</a>{% else %}Not linked{% endif %}</p></section>
+    <section class="admin-panel"><h2>Hardware / BIOS scope</h2><pre>{{ detail.hardware_scope|tojson(indent=2) }}</pre><pre>{{ detail.bios_scope|tojson(indent=2) }}</pre></section>
+    <section class="admin-panel"><h2>Similar Evidence Sources</h2><ul>{% for source in detail.similar_sources %}<li><a href="/evidence-sources/{{ source.id }}">{{ source.title }}</a><small>{{ source.status }} · {{ source.document_version or 'unversioned' }}</small></li>{% else %}<li>No same-publisher Evidence Sources.</li>{% endfor %}</ul></section>
+    <section class="admin-panel"><h2>Related claims</h2><ul>{% for claim in detail.related_claims %}<li><a href="/guidance-claims/{{ claim.id }}">Claim {{ claim.id }} · {{ claim.status }}</a><small>{{ claim.claim_text }}</small></li>{% else %}<li>No claims for this canonical setting.</li>{% endfor %}</ul></section>
+    <section class="admin-panel"><h2>Append-only history</h2><ol>{% for event in detail.events %}<li><strong>{{ event.action|replace('_', ' ') }}</strong><small>{{ event.actor }} · {{ event.created_at }}</small></li>{% else %}<li>No human decision yet.</li>{% endfor %}</ol></section>
+  </aside>
+</div>
+{% endblock %}

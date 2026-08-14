@@ -22,8 +22,11 @@ from app.db.models import (
     GuidanceClaimSetting,
     ManualEvent,
     ReferralPointerEvent,
+    ResearchEvidenceIntake,
+    ResearchEvidenceIntakeEvent,
     ReviewEvent,
     Setting,
+    TrustedWebResearchResult,
     UnansweredLookup,
 )
 from app.domain import am5_coverage, manuals, refusal_gaps
@@ -127,6 +130,17 @@ def build_dashboard(session: Session) -> AdminDashboard:
     )
     research_candidate_count = _count(
         session, GuidanceCandidate, GuidanceCandidate.status == "needs_research"
+    )
+    unreviewed_research_count = int(
+        session.scalar(
+            select(func.count(TrustedWebResearchResult.id))
+            .outerjoin(
+                ResearchEvidenceIntake,
+                ResearchEvidenceIntake.result_id == TrustedWebResearchResult.id,
+            )
+            .where(ResearchEvidenceIntake.result_id.is_(None))
+        )
+        or 0
     )
     covered_canonical_count = (
         session.scalar(
@@ -255,6 +269,15 @@ def build_dashboard(session: Session) -> AdminDashboard:
             "attention" if pending_candidate_count else "normal",
         ),
         DashboardTask(
+            "official-research-leads",
+            "Official research leads",
+            unreviewed_research_count,
+            "Captured official-web excerpts waiting for human evidence-intake triage.",
+            "/trusted-web-research?status=new",
+            "Review research",
+            "attention" if unreviewed_research_count else "clear",
+        ),
+        DashboardTask(
             "claim-review",
             "Guidance claim drafts",
             draft_claim_count,
@@ -376,6 +399,13 @@ def _recent_activity(session: Session) -> tuple[DashboardActivity, ...]:
             "Referral pointer",
             "pointer_id",
             "/refusal-gaps",
+        ),
+        (
+            ResearchEvidenceIntakeEvent,
+            "research",
+            "Research result",
+            "result_id",
+            "/trusted-web-research/results/{}",
         ),
     )
     for model, kind, label, subject_field, href_pattern in event_types:
