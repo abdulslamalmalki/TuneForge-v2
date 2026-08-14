@@ -167,11 +167,10 @@ def create_manual(
         raise
 
     logger.info(
-        "upload accepted manual_id=%s pages=%s bytes=%s original=%r",
+        "upload accepted manual_id=%s pages=%s bytes=%s",
         manual.id,
         page_count,
         size,
-        original_filename,
     )
     return manual
 

@@ -24,6 +24,7 @@ from app.db.models import (
 )
 from app.domain.errors import EvidenceSourceError
 from app.domain.extraction_runs import utc_now_iso
+from app.observability import log_event, metrics
 from app.storage import files
 
 ACTOR = "local-reviewer"
@@ -380,6 +381,7 @@ def _extract_approved_source(session: Session, source: EvidenceSource, *, note: 
             )
         )
         session.commit()
+        metrics.increment("evidence_extraction_runs_total", status="succeeded")
     except Exception as error:
         session.rollback()
         run = session.scalar(
@@ -400,6 +402,13 @@ def _extract_approved_source(session: Session, source: EvidenceSource, *, note: 
                 )
             )
             session.commit()
+            metrics.increment("evidence_extraction_runs_total", status="failed")
+            log_event(
+                logger,
+                "evidence_extraction_failed",
+                level=logging.WARNING,
+                source_id=source.id,
+            )
         if isinstance(error, EvidenceSourceError):
             raise
         raise EvidenceSourceError("The PDF text could not be extracted safely.") from None

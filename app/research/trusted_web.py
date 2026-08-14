@@ -9,6 +9,7 @@ import html
 import http.client
 import ipaddress
 import json
+import logging
 import re
 import socket
 import ssl
@@ -28,6 +29,7 @@ from app.db.models import (
 )
 from app.domain.extraction_runs import utc_now_iso
 from app.normalization.canonical_settings import normalize_alias
+from app.observability import log_event, metrics
 from app.provenance.search import SearchUnavailableError, search_raw_results
 
 POLICY_VERSION = "official-bios-web-1.0"
@@ -232,6 +234,7 @@ def research(
         except Exception:
             # The already validated official link remains useful and is clearly
             # distinguished from content retrieved directly from that page.
+            metrics.increment("trusted_web_page_fetch_failures_total")
             pass
         views.append(
             TrustedWebSourceView(
@@ -333,6 +336,14 @@ def _finish(
         )
     )
     session.commit()
+    metrics.increment("trusted_web_runs_total", status=status)
+    log_event(
+        logging.getLogger(__name__),
+        "trusted_web_run_finished",
+        level=logging.WARNING if status == STATUS_FAILED else logging.INFO,
+        status=status,
+        result_count=len(sources),
+    )
     notice = reason or (
         "Live official-source research is not reviewer-approved TuneForge knowledge. "
         "Treat excerpts as research leads and verify the linked source before changing "

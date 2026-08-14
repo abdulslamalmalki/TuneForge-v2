@@ -21,6 +21,7 @@ from app.domain.interface_presentation import (
 )
 from app.llm.models import ModelProviderError, ModelResponse
 from app.llm.providers.fake import FakeModelProvider
+from app.observability import metrics
 
 
 def _envelope(*, supported: bool = True) -> PresentationEnvelope:
@@ -122,6 +123,7 @@ def test_exact_provider_output_is_accepted_only_after_validation():
 
 
 def test_paraphrase_is_discarded_and_deterministic_draft_is_used():
+    metrics.reset()
     envelope = _envelope()
     expected = build_expected_draft(envelope)
     changed_statement = replace(expected.statements[0], text="PBO raises motherboard limits.")
@@ -140,6 +142,13 @@ def test_paraphrase_is_discarded_and_deterministic_draft_is_used():
     assert result.draft == expected
     assert result.fallback_reason == "provider_output_failed_validation"
     assert "claim_text_changed" in {issue.code for issue in result.validation.issues}
+    counters = metrics.snapshot()["counters"]
+    assert any(row["name"] == "citation_validation_failures_total" for row in counters)
+    assert any(
+        row["name"] == "provider_presentations_total"
+        and row["labels"]["status"] == "fallback"
+        for row in counters
+    )
 
 
 @pytest.mark.parametrize(

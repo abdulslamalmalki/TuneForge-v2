@@ -21,6 +21,7 @@ from app.domain import manuals as manuals_domain
 from app.domain import settings as settings_domain
 from app.domain.errors import ManualNotFoundError
 from app.extraction import pdf_text, settings_parser
+from app.observability import log_event, metrics
 from app.storage import files
 
 logger = logging.getLogger(__name__)
@@ -121,6 +122,7 @@ def execute_pending_run(manual_id: int) -> None:
         run.status = extraction_runs.STATUS_SUCCEEDED
         run.finished_at = extraction_runs.utc_now_iso()
         session.commit()
+        metrics.increment("manual_extraction_runs_total", status="succeeded")
         logger.info(
             "extraction run %s succeeded manual_id=%s pages=%s settings=%s",
             run.id,
@@ -135,4 +137,12 @@ def _fail_run(session: Session, run: ExtractionRun, message: str) -> None:
     run.error_message = message
     run.finished_at = extraction_runs.utc_now_iso()
     session.commit()
+    metrics.increment("manual_extraction_runs_total", status="failed")
+    log_event(
+        logger,
+        "manual_extraction_failed",
+        level=logging.WARNING,
+        run_id=run.id,
+        manual_id=run.manual_id,
+    )
     logger.info("extraction run %s failed manual_id=%s: %s", run.id, run.manual_id, message)

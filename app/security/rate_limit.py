@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import logging
 import math
 import threading
 import time
@@ -12,6 +13,7 @@ from dataclasses import dataclass
 from fastapi import Request
 
 from app import config
+from app.observability import log_event, metrics
 
 MAX_BUCKETS = 50_000
 
@@ -119,6 +121,14 @@ def apply_headers(headers, decision: RateLimitDecision) -> None:
     headers["RateLimit-Remaining"] = str(decision.remaining)
     headers["RateLimit-Reset"] = str(decision.reset_seconds)
     if not decision.allowed:
+        metrics.increment("rate_limit_events_total", surface=decision.surface)
+        log_event(
+            logging.getLogger(__name__),
+            "rate_limit_exceeded",
+            level=logging.WARNING,
+            surface=decision.surface,
+            retry_after=decision.reset_seconds,
+        )
         headers["Retry-After"] = str(decision.reset_seconds)
 
 

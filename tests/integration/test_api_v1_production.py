@@ -14,6 +14,7 @@ from app.db.session import SessionLocal
 from app.domain import manuals as manuals_domain
 from app.extraction.settings_parser import PARSER_VERSION
 from app.main import create_app
+from app.observability import metrics
 
 PROSE_PAGE = "Plain lowercase reference prose for extraction threshold padding. " * 4
 
@@ -51,12 +52,40 @@ def _three_manuals(client, pdf_bytes_factory):
 
 
 def test_health_reports_versions(client):
-    body = client.get("/api/v1/health").json()
+    response = client.get("/api/v1/health")
+    body = response.json()
     assert body == {
         "status": "ok",
         "app_version": config.APP_VERSION,
         "parser_version": PARSER_VERSION,
     }
+    assert len(response.headers["x-request-id"]) == 32
+
+
+def test_request_id_is_echoed_only_when_well_formed(client):
+    accepted = client.get("/api/v1/health", headers={"X-Request-ID": "request-1234"})
+    replaced = client.get("/api/v1/health", headers={"X-Request-ID": "short"})
+
+    assert accepted.headers["x-request-id"] == "request-1234"
+    assert replaced.headers["x-request-id"] != "short"
+    assert len(replaced.headers["x-request-id"]) == 32
+
+
+def test_operational_metrics_use_route_templates_and_require_no_user_content(client):
+    metrics.reset()
+    client.get("/library/canonical/not-a-real-identity")
+    response = client.get("/api/v1/operations/metrics")
+
+    assert response.status_code == 200
+    body = response.json()
+    labels = [row["labels"] for row in body["counters"] if row["name"] == "http_requests_total"]
+    expected = {
+        "method": "GET",
+        "route": "/library/canonical/{canonical_id}",
+        "status_class": "4xx",
+    }
+    assert expected in labels
+    assert "not-a-real-identity" not in response.text
 
 
 def test_runtime_and_package_versions_cannot_drift():
@@ -125,6 +154,7 @@ def test_unexpected_errors_return_safe_json_on_api_paths(client, monkeypatch):
     assert response.status_code == 500
     assert response.json() == {"detail": "Internal server error."}
     assert "secret internals" not in response.text
+    assert len(response.headers["x-request-id"]) == 32
 
 
 def test_unexpected_errors_render_the_html_error_page_on_web_paths(monkeypatch):

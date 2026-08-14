@@ -1,5 +1,6 @@
 """Citation-safe presentation envelopes for a future optional model interface."""
 
+import logging
 from dataclasses import dataclass
 
 from app.domain.canonical_settings import CanonicalClassificationView, VendorEquivalentName
@@ -13,6 +14,7 @@ from app.domain.interface_contract import (
 from app.domain.refusal_gaps import NearestCanonicalMatch, ReferralPointerView
 from app.domain.system_context import SystemContext
 from app.normalization.interface_contract import INTERFACE_CONTRACT_VERSION
+from app.observability import log_event, metrics
 
 
 @dataclass(frozen=True)
@@ -130,6 +132,12 @@ def build_resolved_envelope(
     draft = build_deterministic_draft(explanation)
     validation = validate_draft(explanation, draft)
     if not validation.valid:
+        metrics.increment("citation_validation_failures_total", boundary="deterministic_packet")
+        log_event(
+            logging.getLogger(__name__),
+            "deterministic_citation_validation_failed",
+            level=logging.CRITICAL,
+        )
         raise RuntimeError("Deterministic presentation packet failed its own contract.")
     statements = tuple(
         PresentationFact(

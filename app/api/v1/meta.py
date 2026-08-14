@@ -1,12 +1,16 @@
 """API v1 service metadata."""
 
+import logging
+
 from fastapi import APIRouter, Response
 
 from app import config
 from app.api.v1.deps import SessionDep
 from app.api.v1.schemas import HealthOut, ReadinessOut, ReleaseReadinessOut
+from app.auth.deps import AdministratorPrincipal
 from app.domain import readiness, release_readiness
 from app.extraction.settings_parser import PARSER_VERSION
+from app.observability import log_event, metrics
 
 router = APIRouter(tags=["meta"])
 
@@ -28,8 +32,21 @@ def health() -> HealthOut:
 )
 def ready(session: SessionDep, response: Response) -> ReadinessOut:
     result = readiness.check(session)
+    for check, passed in result.checks.items():
+        metrics.increment(
+            "readiness_checks_total", check=check, status="pass" if passed else "fail"
+        )
     if result.status != "ready":
         response.status_code = 503
+        metrics.increment("readiness_failures_total")
+        log_event(
+            logging.getLogger(__name__),
+            "readiness_failed",
+            level=logging.ERROR,
+            failed_checks=",".join(
+                check for check, passed in result.checks.items() if not passed
+            ),
+        )
     return ReadinessOut(
         status=result.status,
         app_version=config.APP_VERSION,
@@ -37,6 +54,14 @@ def ready(session: SessionDep, response: Response) -> ReadinessOut:
         authentication_initialized=result.authentication_initialized,
         checks=result.checks,
     )
+
+
+@router.get(
+    "/operations/metrics",
+    summary="Get process-local privacy-safe operational metrics",
+)
+def operational_metrics(_administrator: AdministratorPrincipal) -> dict[str, object]:
+    return metrics.snapshot()
 
 
 @router.get(

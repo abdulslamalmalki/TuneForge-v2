@@ -9,9 +9,12 @@ def test_readiness_reports_schema_storage_and_first_run_state(db_session):
     assert result.authentication_initialized is False
     assert result.checks == {
         "database": True,
+        "database_integrity": True,
+        "foreign_keys": True,
         "schema": True,
         "uploads_storage": True,
         "evidence_storage": True,
+        "backups_storage": True,
     }
 
 
@@ -28,3 +31,16 @@ def test_readiness_reports_initialized_authentication(db_session):
     assert result.status == "ready"
     assert result.authentication_initialized is True
     assert all(result.checks.values())
+
+
+def test_readiness_requires_real_file_creation_not_only_access_bits(db_session, monkeypatch):
+    monkeypatch.setattr(
+        readiness.tempfile, "NamedTemporaryFile", lambda **_kwargs: _raise_oserror()
+    )
+    result = readiness.check(db_session)
+    assert result.status == "unavailable"
+    assert not result.checks["uploads_storage"]
+
+
+def _raise_oserror():
+    raise OSError("simulated read-only filesystem")

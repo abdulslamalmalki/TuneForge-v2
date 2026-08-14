@@ -97,11 +97,15 @@ LLM_PROVIDER_IDS = frozenset({"openai", "anthropic", "gemini", "openai_compatibl
 # has no usable text layer (scanned/image-only) and the run fails.
 MIN_EXTRACTABLE_TEXT_CHARS = 200
 
-LOG_LEVEL = "INFO"
+LOG_LEVEL = os.environ.get("TUNEFORGE_LOG_LEVEL", "INFO").strip().upper()
+LOG_FORMAT = os.environ.get(
+    "TUNEFORGE_LOG_FORMAT", "json" if ENVIRONMENT == "production" else "text"
+).strip().lower()
 
 
 def ensure_data_dirs() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
     UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
     EVIDENCE_SOURCES_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -110,6 +114,10 @@ def validate_runtime_config() -> None:
     """Fail startup before serving with an unsafe or malformed configuration."""
     if ENVIRONMENT not in {"development", "production", "test"}:
         raise RuntimeError("TUNEFORGE_ENVIRONMENT must be development, production, or test.")
+    if LOG_LEVEL not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+        raise RuntimeError("TUNEFORGE_LOG_LEVEL is invalid.")
+    if LOG_FORMAT not in {"text", "json"}:
+        raise RuntimeError("TUNEFORGE_LOG_FORMAT must be text or json.")
     if AUTH_MODE not in {"required", "disabled"}:
         raise RuntimeError("TUNEFORGE_AUTH_MODE must be required or disabled.")
     if not 1 <= AUTH_SESSION_HOURS <= 168:

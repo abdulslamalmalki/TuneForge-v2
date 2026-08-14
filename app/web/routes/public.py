@@ -18,6 +18,7 @@ from app.domain import (
 from app.domain import system_context as system_context_domain
 from app.domain.errors import GuidanceReadError, SystemContextError
 from app.llm.runtime import configured_provider
+from app.observability import metrics
 from app.research import trusted_web as trusted_web_research
 from app.web.templating import templates
 
@@ -144,6 +145,15 @@ def _render_answer(
             generation = interface_generation.generate_presentation(
                 presentation, configured_provider() if allow_external else None
             )
+            if presentation.outcome != "supported":
+                metrics.increment(
+                    "answer_refusals_total", reason=presentation.resolution_status
+                )
+            if presentation.recommendation_status == "not_available":
+                metrics.increment(
+                    "recommendation_refusals_total",
+                    reason=presentation.resolution_status,
+                )
     except SystemContextError as exception:
         error = exception.message
         status_code = 400

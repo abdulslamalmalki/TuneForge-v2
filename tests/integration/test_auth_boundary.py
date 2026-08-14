@@ -41,6 +41,7 @@ def test_public_product_stays_open_while_curator_surfaces_require_setup(monkeypa
         recommendation_api = client.get("/api/v1/recommendation-claims")
         recommendation_page = client.get("/recommendation-claims", follow_redirects=False)
         release_api = client.get("/api/v1/release-readiness")
+        metrics_api = client.get("/api/v1/operations/metrics")
         interface_api = client.get("/api/v1/interface/questions")
         library_page = client.get("/library")
         library_api = client.get("/api/v1/library/settings")
@@ -59,6 +60,7 @@ def test_public_product_stays_open_while_curator_surfaces_require_setup(monkeypa
     assert recommendation_page.status_code == 303
     assert recommendation_page.headers["location"].startswith("/setup?next=")
     assert release_api.status_code == 503
+    assert metrics_api.status_code == 503
     assert interface_api.status_code == 200
     assert library_page.status_code == 200
     assert library_api.status_code == 200

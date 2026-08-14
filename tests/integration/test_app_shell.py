@@ -36,13 +36,16 @@ def test_public_readiness_reports_head_schema_and_storage(client):
         "app_version": "1.33.0",
         "database_revision": "0027",
         "authentication_initialized": False,
-        "checks": {
-            "database": True,
-            "schema": True,
-            "uploads_storage": True,
-            "evidence_storage": True,
-        },
-    }
+            "checks": {
+                "database": True,
+                "database_integrity": True,
+                "foreign_keys": True,
+                "schema": True,
+                "uploads_storage": True,
+                "evidence_storage": True,
+                "backups_storage": True,
+            },
+        }
 
 
 def test_manuals_page_shows_empty_state():

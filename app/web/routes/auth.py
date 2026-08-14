@@ -1,5 +1,6 @@
 """First-run setup, curator sessions, and administrator account management."""
 
+import logging
 from typing import Annotated
 from urllib.parse import quote, urlsplit
 
@@ -11,6 +12,7 @@ from app import config
 from app.auth.deps import AdministratorPrincipal
 from app.db.session import get_session
 from app.domain import auth
+from app.observability import log_event, metrics
 from app.web.templating import templates
 
 router = APIRouter()
@@ -94,6 +96,13 @@ def login_submit(
     destination = _safe_next(next)
     user = auth.authenticate(session, username, password)
     if user is None:
+        metrics.increment("auth_failures_total", reason="invalid_credentials")
+        log_event(
+            logging.getLogger(__name__),
+            "authentication_failed",
+            level=logging.WARNING,
+            reason="invalid_credentials",
+        )
         return templates.TemplateResponse(
             request,
             "auth_login.html",
@@ -105,6 +114,7 @@ def login_submit(
             status_code=400,
         )
     token = auth.create_session(session, user)
+    metrics.increment("auth_successes_total")
     response = RedirectResponse(destination, status_code=303)
     _set_session_cookie(response, token)
     return response

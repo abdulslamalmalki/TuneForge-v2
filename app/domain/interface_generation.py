@@ -1,6 +1,7 @@
 """Fail-closed orchestration around an optional provider-neutral model."""
 
 import json
+import logging
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -15,6 +16,7 @@ from app.domain.interface_contract import (
 from app.domain.interface_presentation import PresentationEnvelope
 from app.llm.models import ModelProviderError, ModelRequest
 from app.llm.providers.base import ModelProvider
+from app.observability import log_event, metrics
 
 GENERATION_CONTRACT_VERSION = "1.0"
 MODE_DETERMINISTIC = "deterministic"
@@ -179,6 +181,8 @@ def generate_presentation(
         )
     validation = validate_expected_draft(expected, draft)
     if not validation.valid:
+        _record_provider_failure(provider.provider_id, "provider_output_failed_validation")
+        metrics.increment("citation_validation_failures_total", boundary="provider_output")
         return InterfaceGenerationResult(
             mode=MODE_DETERMINISTIC_FALLBACK,
             draft=expected,
@@ -188,6 +192,7 @@ def generate_presentation(
             fallback_reason="provider_output_failed_validation",
             validation=validation,
         )
+    metrics.increment("provider_presentations_total", provider=provider.provider_id, status="valid")
     return InterfaceGenerationResult(
         mode=MODE_PROVIDER_VALIDATED,
         draft=draft,
@@ -265,6 +270,7 @@ def _fallback(
     *,
     model_id: str | None = None,
 ) -> InterfaceGenerationResult:
+    _record_provider_failure(provider_id, reason)
     return InterfaceGenerationResult(
         mode=MODE_DETERMINISTIC_FALLBACK,
         draft=expected,
@@ -282,6 +288,22 @@ def _fallback(
                 ),
             ),
         ),
+    )
+
+
+def _record_provider_failure(provider_id: str, reason: str) -> None:
+    metrics.increment(
+        "provider_presentations_total",
+        provider=provider_id,
+        status="fallback",
+        reason=reason,
+    )
+    log_event(
+        logging.getLogger(__name__),
+        "provider_presentation_fallback",
+        level=logging.WARNING,
+        provider=provider_id,
+        reason=reason,
     )
 
 

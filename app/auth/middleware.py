@@ -1,5 +1,6 @@
 """Application-wide identity, route policy, and browser security headers."""
 
+import logging
 from urllib.parse import quote, urlsplit
 
 from fastapi import Request
@@ -10,6 +11,7 @@ from app import config
 from app.auth.context import reset_actor, set_actor
 from app.db.session import SessionLocal
 from app.domain import auth
+from app.observability import log_event, metrics
 from app.security import rate_limit
 
 _PUBLIC_GET_EXACT = {
@@ -107,16 +109,19 @@ class AuthBoundaryMiddleware(BaseHTTPMiddleware):
             return None
         path = request.url.path
         if request.method in _UNSAFE_METHODS and not _same_origin(request):
+            self._record_boundary_denial("same_origin")
             return self._forbidden(request, "Same-origin confirmation is required.")
         if self._is_public(request.method, path):
             return None
         if setup_required:
+            self._record_boundary_denial("setup_required")
             if path.startswith("/api/"):
                 return JSONResponse(
                     {"detail": "Authentication setup is required."}, status_code=503
                 )
             return RedirectResponse(url=f"/setup?next={_next_path(request)}", status_code=303)
         if principal is None:
+            self._record_boundary_denial("authentication_required")
             if path.startswith("/api/"):
                 return JSONResponse(
                     {"detail": "Authentication required."},
@@ -125,6 +130,16 @@ class AuthBoundaryMiddleware(BaseHTTPMiddleware):
                 )
             return RedirectResponse(url=f"/login?next={_next_path(request)}", status_code=303)
         return None
+
+    @staticmethod
+    def _record_boundary_denial(reason: str) -> None:
+        metrics.increment("auth_boundary_denials_total", reason=reason)
+        log_event(
+            logging.getLogger(__name__),
+            "auth_boundary_denied",
+            level=logging.WARNING,
+            reason=reason,
+        )
 
     @staticmethod
     def _is_public(method: str, path: str) -> bool:

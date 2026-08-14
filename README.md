@@ -677,6 +677,14 @@ client, emit retry metadata, avoid storing user content or secrets, and are
 mandatory in production while remaining disabled for local development by
 default. See `docs/v1.33-rate-limiting.md`.
 
+Production Observability in v1.33 adds validated request IDs, JSON or text
+structured events, a protected administrator metrics endpoint, provider/research/
+extraction/auth/refusal/rate-limit counters, an isolated error-reporting hook,
+and readiness checks for SQLite integrity, foreign keys, schema, and real writes
+to every durable storage directory. User questions, credentials, tokens, API
+keys, provider payloads, and uploaded content are excluded from logs and metric
+labels. See `docs/v1.33-observability.md`.
+
 The Conservative Canonicalization Backlog in v1.3 evaluates every approved,
 unmapped Source Setting against reviewed canonical identities using normalized
 names, descriptions, vendor aliases, mapped precedents, official provenance,

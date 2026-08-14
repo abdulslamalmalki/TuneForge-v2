@@ -17,6 +17,13 @@ from app.auth.middleware import AuthBoundaryMiddleware
 from app.db.session import SessionLocal
 from app.domain import evidence_sources as evidence_sources_domain
 from app.domain import extraction_runs
+from app.observability import (
+    JsonLogFormatter,
+    RequestIdFilter,
+    RequestObservabilityMiddleware,
+    metrics,
+    report_exception,
+)
 from app.web.routes import (
     acceptance,
     admin_dashboard,
@@ -45,14 +52,30 @@ from app.web.routes import (
 from app.web.templating import templates
 
 logger = logging.getLogger(__name__)
+_logging_configured = False
 
 
 def configure_logging() -> None:
+    global _logging_configured
+    if _logging_configured:
+        logging.getLogger().setLevel(getattr(logging, config.LOG_LEVEL))
+        return
     logging.basicConfig(
         stream=sys.stderr,
-        level=config.LOG_LEVEL,
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        level=getattr(logging, config.LOG_LEVEL),
+        format="%(asctime)s %(levelname)s %(name)s request_id=%(request_id)s %(message)s",
     )
+    formatter = (
+        JsonLogFormatter()
+        if config.LOG_FORMAT == "json"
+        else logging.Formatter(
+            "%(asctime)s %(levelname)s %(name)s request_id=%(request_id)s %(message)s"
+        )
+    )
+    for handler in logging.getLogger().handlers:
+        handler.addFilter(RequestIdFilter())
+        handler.setFormatter(formatter)
+    _logging_configured = True
 
 
 @asynccontextmanager
@@ -131,6 +154,7 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(AuthBoundaryMiddleware)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(config.TRUSTED_HOSTS))
+    app.add_middleware(RequestObservabilityMiddleware)
     app.mount(
         "/static",
         StaticFiles(directory=Path(__file__).parent / "web" / "static"),
@@ -185,11 +209,27 @@ def create_app() -> FastAPI:
     @app.exception_handler(Exception)
     async def render_unexpected_error(request: Request, exc: Exception) -> Response:
         # Last-resort handler (NFR-4): log the traceback, never expose it.
-        logger.exception("unhandled error on %s %s", request.method, request.url.path)
+        metrics.increment("unhandled_errors_total", method=request.method)
+        report_exception(
+            exc,
+            request_id=getattr(request.state, "request_id", "-"),
+            method=request.method,
+            path=request.url.path,
+        )
+        logger.exception(
+            "unhandled error on %s %s",
+            request.method,
+            request.url.path,
+            extra={"request_id": getattr(request.state, "request_id", "-")},
+        )
         if _is_api_request(request):
-            return JSONResponse({"detail": "Internal server error."}, status_code=500)
+            response = JSONResponse({"detail": "Internal server error."}, status_code=500)
+            response.headers["X-Request-ID"] = getattr(request.state, "request_id", "-")
+            return response
         context = {"status_code": 500, "message": "Something went wrong."}
-        return templates.TemplateResponse(request, "error.html", context, status_code=500)
+        response = templates.TemplateResponse(request, "error.html", context, status_code=500)
+        response.headers["X-Request-ID"] = getattr(request.state, "request_id", "-")
+        return response
 
     return app
 
