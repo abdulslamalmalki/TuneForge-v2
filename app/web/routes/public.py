@@ -11,11 +11,13 @@ from app.domain import (
     assistant_retrieval,
     guidance_read,
     guided_answers,
+    interface_generation,
     interface_lookup,
     question_routing,
 )
 from app.domain import system_context as system_context_domain
 from app.domain.errors import GuidanceReadError, SystemContextError
+from app.llm.runtime import configured_provider
 from app.research import trusted_web as trusted_web_research
 from app.web.templating import templates
 
@@ -50,6 +52,7 @@ def public_answer(
     status_code = 200
     library_matches = None
     web_research = None
+    generation = None
     try:
         context = system_context_domain.resolve_optional(
             session,
@@ -89,6 +92,9 @@ def public_answer(
                     web_research = trusted_web_research.research(
                         session, routing.original_query
                     )
+            generation = interface_generation.generate_presentation(
+                presentation, configured_provider()
+            )
     except SystemContextError as exception:
         error = exception.message
         status_code = 400
@@ -116,6 +122,7 @@ def public_answer(
             "trusted_web": trusted_web == "1",
             "library_matches": library_matches,
             "web_research": web_research,
+            "generation": generation,
         },
         status_code=status_code,
     )

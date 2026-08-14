@@ -198,10 +198,14 @@ def test_request_contains_only_safe_envelope_and_exact_required_draft():
     payload = json.loads(request.input_json)
     assert request.operation == "present_citation_first_envelope"
     assert request.temperature == 0.0
-    assert payload["presentation"]["statements"][0]["text"] == (
+    assert payload["evidence_statements"][0]["text"] == (
         "PBO can operate up to motherboard limits."
     )
     assert payload["required_draft"]["statements"][0]["citation_passage_ids"] == [101]
+    assert "presentation" not in payload
+    assert "query" not in request.input_json
+    assert "system_context" not in request.input_json
+    assert "referral_pointers" not in request.input_json
     assert "passage_text" not in request.input_json
     assert "review_note" not in request.input_json
 

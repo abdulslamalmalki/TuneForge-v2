@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from urllib.parse import urlsplit
 
 COMPONENT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -67,6 +68,19 @@ TRUSTED_WEB_TIMEOUT_SECONDS = float(
 TRUSTED_WEB_MAX_SEARCH_BYTES = 1_000_000
 TRUSTED_WEB_MAX_PAGE_BYTES = 2_000_000
 TRUSTED_WEB_MAX_RESULTS = 5
+
+# Optional presentation-model connection. TuneForge remains fully functional when
+# this is empty: reviewed retrieval and deterministic rendering are the product
+# authority, and a configured model is only an untrusted presentation component.
+LLM_PROVIDER = os.environ.get("TUNEFORGE_LLM_PROVIDER", "").strip().lower()
+LLM_MODEL = os.environ.get("TUNEFORGE_LLM_MODEL", "").strip()
+LLM_API_KEY = os.environ.get("TUNEFORGE_LLM_API_KEY", "").strip()
+LLM_BASE_URL = os.environ.get("TUNEFORGE_LLM_BASE_URL", "").strip()
+LLM_TIMEOUT_SECONDS = float(os.environ.get("TUNEFORGE_LLM_TIMEOUT_SECONDS", "20"))
+LLM_MAX_RESPONSE_BYTES = int(
+    os.environ.get("TUNEFORGE_LLM_MAX_RESPONSE_BYTES", str(256 * 1024))
+)
+LLM_PROVIDER_IDS = frozenset({"openai", "anthropic", "gemini", "openai_compatible"})
 # FR-10 / plan section 10: cumulative extracted text below this means the PDF
 # has no usable text layer (scanned/image-only) and the run fails.
 MIN_EXTRACTABLE_TEXT_CHARS = 200
@@ -90,6 +104,33 @@ def validate_runtime_config() -> None:
         raise RuntimeError("TUNEFORGE_AUTH_SESSION_HOURS must be between 1 and 168.")
     if not TRUSTED_HOSTS:
         raise RuntimeError("TUNEFORGE_TRUSTED_HOSTS must contain at least one hostname.")
+    if LLM_PROVIDER and LLM_PROVIDER not in LLM_PROVIDER_IDS:
+        raise RuntimeError(
+            "TUNEFORGE_LLM_PROVIDER must be openai, anthropic, gemini, "
+            "openai_compatible, or empty."
+        )
+    if LLM_PROVIDER and not LLM_MODEL:
+        raise RuntimeError("TUNEFORGE_LLM_MODEL is required when a model provider is selected.")
+    if LLM_PROVIDER in {"openai", "anthropic", "gemini"} and not LLM_API_KEY:
+        raise RuntimeError(
+            "TUNEFORGE_LLM_API_KEY is required for the selected official model provider."
+        )
+    if LLM_PROVIDER != "openai_compatible" and LLM_BASE_URL:
+        raise RuntimeError(
+            "TUNEFORGE_LLM_BASE_URL is supported only for openai_compatible providers."
+        )
+    if LLM_PROVIDER == "openai_compatible" and not LLM_BASE_URL:
+        raise RuntimeError(
+            "TUNEFORGE_LLM_BASE_URL is required for an openai_compatible provider."
+        )
+    if LLM_BASE_URL:
+        _validate_llm_base_url(LLM_BASE_URL)
+    if not 1 <= LLM_TIMEOUT_SECONDS <= 120:
+        raise RuntimeError("TUNEFORGE_LLM_TIMEOUT_SECONDS must be between 1 and 120.")
+    if not 16 * 1024 <= LLM_MAX_RESPONSE_BYTES <= 2 * 1024 * 1024:
+        raise RuntimeError(
+            "TUNEFORGE_LLM_MAX_RESPONSE_BYTES must be between 16384 and 2097152."
+        )
     if ENVIRONMENT == "production":
         if AUTH_MODE != "required":
             raise RuntimeError("Production requires TUNEFORGE_AUTH_MODE=required.")
@@ -97,3 +138,17 @@ def validate_runtime_config() -> None:
             raise RuntimeError("Production requires TUNEFORGE_AUTH_COOKIE_SECURE=1.")
         if any(host == "*" for host in TRUSTED_HOSTS):
             raise RuntimeError("Production does not allow a wildcard trusted host.")
+
+
+def _validate_llm_base_url(base_url: str) -> None:
+    value = urlsplit(base_url)
+    if value.scheme not in {"http", "https"} or not value.hostname:
+        raise RuntimeError("TUNEFORGE_LLM_BASE_URL must be an absolute HTTP(S) URL.")
+    if value.username or value.password or value.query or value.fragment:
+        raise RuntimeError(
+            "TUNEFORGE_LLM_BASE_URL cannot contain credentials, query parameters, or fragments."
+        )
+    if value.scheme == "http" and value.hostname not in {"localhost", "127.0.0.1", "::1"}:
+        raise RuntimeError(
+            "Plain HTTP model endpoints are permitted only on localhost or a loopback address."
+        )

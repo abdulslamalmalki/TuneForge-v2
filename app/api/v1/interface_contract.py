@@ -15,6 +15,7 @@ from app.api.v1.schemas import (
 from app.domain import guided_answers, interface_lookup, question_routing
 from app.domain import system_context as system_context_domain
 from app.domain.errors import GuidanceReadError, GuidedAnswerError, SystemContextError
+from app.llm.runtime import connected_provider_ids
 from app.normalization.interface_contract import interface_contract
 from app.research import trusted_web
 
@@ -27,7 +28,7 @@ router = APIRouter(tags=["interface contract"])
     summary="Get the provider-neutral LLM presentation and validation policy",
 )
 def get_interface_contract() -> InterfaceContractOut:
-    return InterfaceContractOut.model_validate(interface_contract())
+    return InterfaceContractOut.model_validate(interface_contract(connected_provider_ids()))
 
 
 @router.get(

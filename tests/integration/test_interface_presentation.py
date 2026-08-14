@@ -12,6 +12,7 @@ from app.db.models import (
 )
 from app.db.session import SessionLocal
 from app.domain import canonical_settings, review
+from app.llm.models import ModelResponse
 
 SOURCE_DATA = {
     "publisher_id": "amd",
@@ -357,6 +358,48 @@ def test_public_setting_answer_uses_safe_envelope_not_raw_passage(client, pdf_by
     assert "Immutable evidence passage" not in page.text
     assert "TuneForge source record" not in page.text
     assert "/evidence-sources/" not in page.text
+
+
+def test_public_answer_invokes_optional_provider_and_displays_only_validated_output(
+    client, pdf_bytes_factory, monkeypatch
+):
+    canonical_id, _, _, claim_text = _seed_supported_claim(client, pdf_bytes_factory)
+
+    class ExactEchoProvider:
+        provider_id = "mocked"
+
+        def generate(self, request):
+            required = json.loads(request.input_json)["required_draft"]
+            return ModelResponse(
+                provider_id=self.provider_id,
+                model_id="mocked-model",
+                output_text=json.dumps(required),
+            )
+
+    monkeypatch.setattr(
+        "app.web.routes.public.configured_provider", lambda: ExactEchoProvider()
+    )
+    page = client.get("/answer", params={"setting": canonical_id})
+    assert page.status_code == 200
+    assert "Optional AI presentation passed" in page.text
+    assert page.text.count(claim_text) == 1
+
+    class UnsafeProvider:
+        provider_id = "mocked"
+
+        def generate(self, request):
+            return ModelResponse(
+                provider_id=self.provider_id,
+                model_id="unsafe-model",
+                output_text='{"unsupported":"invented BIOS fact"}',
+            )
+
+    monkeypatch.setattr("app.web.routes.public.configured_provider", lambda: UnsafeProvider())
+    fallback = client.get("/answer", params={"setting": canonical_id})
+    assert fallback.status_code == 200
+    assert "optional AI response did not pass validation" in fallback.text
+    assert "invented BIOS fact" not in fallback.text
+    assert fallback.text.count(claim_text) == 1
 
 
 def test_public_question_routes_to_focused_guided_answer(client, pdf_bytes_factory):

@@ -532,7 +532,8 @@ bypass models, while malformed output, provider failures, identity mismatches,
 or any change to claims, citations, order, scope, or notices is discarded in
 favor of deterministic core output. The included fake adapter is test-only;
 there are no credentials, external calls, model-backed routes, migrations, or
-production data changes. See `docs/provider-neutral-model-boundary.md`.
+production data changes. See `docs/v1.33-grounded-llm-providers.md` for the
+current extension of this boundary.
 
 The Public AM5 Experience in v0.33 replaces the reviewer redirect at `/` with
 a simple TuneForge homepage and adds `/answer` for exact reviewed setting and
@@ -625,6 +626,18 @@ events, source URL, retrieval time, result kind, exact excerpt when safely
 available, and page hash. The feature needs no paid model provider; an optional
 provider can still be added later behind the existing exact-output contract. See
 `docs/v1.32-grounded-assistant-trusted-web.md`.
+
+Grounded Model Providers in v1.33 connects the existing optional presentation
+boundary to OpenAI Responses, Anthropic Messages, Google Gemini
+`generateContent`, and configurable OpenAI-compatible endpoints. The connection
+is disabled by default and TuneForge remains fully usable without a paid model.
+When enabled, `/answer` sends only retrieved reviewed claim packets and citation
+metadata—not the query, system profile, referral links, or unreviewed research.
+Refusals bypass the provider. Output is untrusted and must preserve every claim,
+citation, notice, and ordering byte-for-byte or TuneForge discards it and renders
+the deterministic answer. Mocked transport coverage validates all adapters; no
+live provider call has been claimed without credentials. Configuration is
+documented in `.env.example` and `docs/v1.33-grounded-llm-providers.md`.
 
 The Conservative Canonicalization Backlog in v1.3 evaluates every approved,
 unmapped Source Setting against reviewed canonical identities using normalized

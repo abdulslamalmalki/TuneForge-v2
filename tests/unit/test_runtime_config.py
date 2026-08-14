@@ -27,3 +27,27 @@ def test_session_duration_is_bounded(monkeypatch):
     monkeypatch.setattr(config, "AUTH_SESSION_HOURS", 0)
     with pytest.raises(RuntimeError, match="between 1 and 168"):
         config.validate_runtime_config()
+
+
+def test_official_model_provider_requires_model_and_key(monkeypatch):
+    monkeypatch.setattr(config, "LLM_PROVIDER", "openai")
+    monkeypatch.setattr(config, "LLM_MODEL", "")
+    monkeypatch.setattr(config, "LLM_API_KEY", "")
+    with pytest.raises(RuntimeError, match="LLM_MODEL"):
+        config.validate_runtime_config()
+
+    monkeypatch.setattr(config, "LLM_MODEL", "gpt-test")
+    with pytest.raises(RuntimeError, match="LLM_API_KEY"):
+        config.validate_runtime_config()
+
+
+def test_compatible_model_provider_requires_safe_base_url(monkeypatch):
+    monkeypatch.setattr(config, "LLM_PROVIDER", "openai_compatible")
+    monkeypatch.setattr(config, "LLM_MODEL", "local-model")
+    monkeypatch.setattr(config, "LLM_API_KEY", "")
+    monkeypatch.setattr(config, "LLM_BASE_URL", "http://model.example/v1")
+    with pytest.raises(RuntimeError, match="loopback"):
+        config.validate_runtime_config()
+
+    monkeypatch.setattr(config, "LLM_BASE_URL", "http://127.0.0.1:11434/v1")
+    config.validate_runtime_config()

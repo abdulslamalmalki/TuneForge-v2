@@ -23,10 +23,12 @@ MODE_DETERMINISTIC_FALLBACK = "deterministic_fallback"
 MAX_PROVIDER_OUTPUT_CHARS = 100_000
 
 _SYSTEM_INSTRUCTION = """You are an optional formatting component inside TuneForge.
-Return one JSON object matching the supplied schema. Copy every supplied statement and notice
-exactly. Do not paraphrase, add, omit, merge, reorder, rank, infer, recommend, browse, or use
-model memory. Citation passage IDs must remain complete and in their supplied order. Return JSON
-only, with no Markdown fences or commentary."""
+Use only the supplied TuneForge evidence. Do not use pretrained BIOS knowledge or browse. Never
+add unsupported values, defaults, compatibility, safety limits, or recommendations. Incomplete or
+conflicting evidence must remain visibly incomplete or conflicting. Return one JSON object matching
+the supplied schema. Copy every supplied statement and notice exactly; do not paraphrase, add,
+omit, merge, reorder, rank, infer, or reconcile. Preserve every claim ID and every citation passage
+ID in its supplied order. Return JSON only, with no Markdown fences or commentary."""
 
 _OUTPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -106,7 +108,10 @@ def build_model_request(envelope: PresentationEnvelope) -> ModelRequest:
 
     payload = {
         "contract_version": envelope.contract_version,
-        "presentation": asdict(envelope),
+        # Data minimization: the optional provider needs only retrieved reviewed
+        # facts and their citation/scope metadata. It never receives the user's
+        # query, system profile, aliases, suggestions, or referral pointers.
+        "evidence_statements": [asdict(statement) for statement in envelope.statements],
         "required_draft": asdict(build_expected_draft(envelope)),
     }
     return ModelRequest(

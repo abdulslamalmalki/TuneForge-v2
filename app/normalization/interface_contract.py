@@ -27,7 +27,9 @@ PROHIBITED_CAPABILITIES = (
 VALIDATION_FAILURE_ACTION = "discard_model_draft_use_deterministic_packet"
 
 
-def interface_contract() -> dict[str, object]:
+def interface_contract(
+    connected_provider_ids: tuple[str, ...] = (),
+) -> dict[str, object]:
     return {
         "version": INTERFACE_CONTRACT_VERSION,
         "outcomes": list(OUTCOMES),
@@ -38,8 +40,8 @@ def interface_contract() -> dict[str, object]:
         "referral_pointer_role": "navigation_only_not_evidence",
         "validation_failure_action": VALIDATION_FAILURE_ACTION,
         "natural_language_routing_status": "limited_deterministic",
-        "model_provider_status": "not_connected",
+        "model_provider_status": "connected" if connected_provider_ids else "not_connected",
         "provider_abstraction_status": "available",
-        "connected_provider_ids": [],
+        "connected_provider_ids": list(connected_provider_ids),
         "deterministic_fallback_status": "required",
     }

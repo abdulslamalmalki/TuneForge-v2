@@ -47,6 +47,11 @@
 {% endif %}
 
 {% if presentation %}
+  {% if generation and generation.mode == 'provider_validated' %}
+  <p class="public-routing-note">Optional AI presentation passed TuneForge’s exact claim-and-citation validation.</p>
+  {% elif generation and generation.provider_attempted and generation.mode == 'deterministic_fallback' %}
+  <p class="public-routing-note">The optional AI response did not pass validation. TuneForge used the deterministic reviewed answer.</p>
+  {% endif %}
   {% if presentation.outcome == 'supported' %}
   <article class="answer-result">
     <p><span class="fact-type">{{ presentation.answer_state }}</span></p>
