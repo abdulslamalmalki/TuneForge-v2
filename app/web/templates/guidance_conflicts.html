@@ -1,0 +1,24 @@
+{% extends "layout.html" %}
+
+{% block title %}Knowledge Conflicts — Knowledge Builder{% endblock %}
+
+{% block content %}
+<h1>Knowledge Conflicts</h1>
+<p>Possible disagreements between approved claims. Detection creates review candidates only; it never decides which source is correct.</p>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<form action="/guidance-conflicts/scan" method="post"><button type="submit">Scan approved claims</button></form>
+
+<nav class="filter-tabs" aria-label="Conflict status">
+  {% for name, count in counts.items() %}<a href="/guidance-conflicts?status={{ name }}"{% if status_filter == name %} aria-current="page"{% endif %}>{{ name|replace('_', ' ') }} ({{ count }})</a>{% endfor %}
+</nav>
+
+{% for row in rows %}
+<article class="candidate-row{% if row.conflict.status == 'confirmed' %} has-conflict{% endif %}">
+  <h2><a href="/guidance-conflicts/{{ row.conflict.id }}">Claims {{ row.left_claim.id }} ↔ {{ row.right_claim.id }}</a></h2>
+  <p>{{ row.left_claim.claim_text }}</p><p>{{ row.right_claim.claim_text }}</p>
+  <p><span class="status">{{ row.conflict.hardware_relationship|replace('_', ' ') }}</span> <span class="status">BIOS {{ row.conflict.bios_relationship|replace('_', ' ') }}</span></p>
+  <small>{{ row.conflict.detection_reason }}</small>
+</article>
+{% else %}<p class="empty-state">No conflicts in this status.</p>{% endfor %}
+{% endblock %}

@@ -91,6 +91,7 @@
     <summary>Answer scope and limitations</summary>
     <p>{{ answer.presentation.scope_notice }}</p>
     <p>{{ answer.presentation.recommendation_notice }}</p>
+    {% if answer.presentation.knowledge_conflicts %}<p class="warning"><strong>Reviewed source differences:</strong> TuneForge preserves {{ answer.presentation.knowledge_conflicts|length }} reviewed disagreement(s) and does not silently reconcile them.</p>{% endif %}
   </details>
 
   {% if answer.presentation.referral_pointers %}

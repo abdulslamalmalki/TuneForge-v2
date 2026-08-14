@@ -284,6 +284,8 @@ def _clean_state(_create_schema):
         GuidanceClaim,
         GuidanceClaimApplicabilityTarget,
         GuidanceClaimBiosScope,
+        GuidanceClaimConflict,
+        GuidanceClaimConflictEvent,
         GuidanceClaimEvent,
         GuidanceClaimEvidence,
         GuidanceClaimSetting,
@@ -323,6 +325,8 @@ def _clean_state(_create_schema):
         session.query(GuidanceCandidateEvent).delete()
         session.query(GuidanceCandidate).delete()
         session.query(GuidanceClaimEvent).delete()
+        session.query(GuidanceClaimConflictEvent).delete()
+        session.query(GuidanceClaimConflict).delete()
         session.query(GuidanceClaimBiosScope).delete()
         session.query(GuidanceClaimApplicabilityTarget).delete()
         session.query(GuidanceClaimEvidence).delete()

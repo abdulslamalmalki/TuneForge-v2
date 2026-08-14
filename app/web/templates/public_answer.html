@@ -108,6 +108,14 @@
       {% endfor %}
     </section>
 
+    {% if presentation.knowledge_conflicts %}
+    <section class="vendor-equivalence" aria-labelledby="answer-conflicts">
+      <p class="eyebrow">Reviewed differences</p><h3 id="answer-conflicts">Sources do not fully agree</h3>
+      <p>TuneForge preserves both reviewed claims and does not silently choose one.</p>
+      {% for item in presentation.knowledge_conflicts %}<p><strong>{{ item.status|replace('_', ' ') }}</strong> · claims {{ item.left_claim_id }} and {{ item.right_claim_id }} · {{ item.reviewer_note }}</p>{% endfor %}
+    </section>
+    {% endif %}
+
     <details class="answer-limits">
       <summary>What this answer does not claim</summary>
       {% if presentation.classification %}<p><strong>Risk classification:</strong> {{ presentation.classification.risk_rationale }}</p>{% endif %}

@@ -18,6 +18,7 @@ from app.db.models import (
     GuidanceCandidate,
     GuidanceCandidateEvent,
     GuidanceClaim,
+    GuidanceClaimConflict,
     GuidanceClaimEvent,
     GuidanceClaimSetting,
     ManualEvent,
@@ -131,6 +132,11 @@ def build_dashboard(session: Session) -> AdminDashboard:
         GuidanceClaim.applicability_scope == "reviewed_hardware",
     )
     draft_claim_count = _count(session, GuidanceClaim, GuidanceClaim.status == "draft")
+    pending_knowledge_conflict_count = _count(
+        session,
+        GuidanceClaimConflict,
+        GuidanceClaimConflict.status == "pending",
+    )
     pending_candidate_count = _count(
         session, GuidanceCandidate, GuidanceCandidate.status == "pending"
     )
@@ -294,6 +300,15 @@ def build_dashboard(session: Session) -> AdminDashboard:
             "/guidance-claims?status=draft",
             "Review claims",
             "attention" if draft_claim_count else "clear",
+        ),
+        DashboardTask(
+            "knowledge-conflicts",
+            "Knowledge conflicts",
+            pending_knowledge_conflict_count,
+            "Possible approved-claim disagreements waiting for scope-aware review.",
+            "/guidance-conflicts?status=pending",
+            "Review disagreements",
+            "attention" if pending_knowledge_conflict_count else "clear",
         ),
         DashboardTask(
             "canonical-assessments",

@@ -20,7 +20,7 @@ from app.db.models import (
     Manual,
     Setting,
 )
-from app.domain import canonical_settings, guidance_claims
+from app.domain import canonical_settings, guidance_claims, guidance_conflicts
 from app.domain.canonical_settings import CanonicalClassificationView, VendorEquivalentName
 from app.domain.errors import GuidanceReadError
 from app.domain.guidance_claims import GuidanceApplicabilityTarget, GuidanceBiosScope
@@ -89,6 +89,7 @@ class GuidanceExplanation:
     scope_notice: str
     recommendation_status: str
     recommendation_notice: str
+    knowledge_conflicts: tuple[guidance_conflicts.ConflictOverview, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -332,6 +333,13 @@ def _explanation_for_identity(
             )
         )
     facts.sort(key=lambda item: (CLAIM_TYPE_ORDER[item.claim_type], item.claim_id))
+    knowledge_conflicts = guidance_conflicts.public_conflicts_for_claims(session, claim_ids)
+    scope_notice = _scope_notice(facts)
+    if knowledge_conflicts:
+        scope_notice += (
+            f" {len(knowledge_conflicts)} reviewed knowledge difference(s) are attached; "
+            "TuneForge preserves both claims and does not silently reconcile them."
+        )
     return GuidanceExplanation(
         canonical_id=identity.canonical_id,
         canonical_name=identity.canonical_name,
@@ -346,8 +354,9 @@ def _explanation_for_identity(
             session, (identity.canonical_id,)
         )[identity.canonical_id],
         facts=tuple(facts),
+        knowledge_conflicts=knowledge_conflicts,
         answer_mode=ANSWER_MODE,
-        scope_notice=_scope_notice(facts),
+        scope_notice=scope_notice,
         recommendation_status=RECOMMENDATION_STATUS,
         recommendation_notice=RECOMMENDATION_NOTICE,
     )

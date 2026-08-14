@@ -27,6 +27,7 @@ from app.web.routes import (
     evidence_sources,
     guidance_candidates,
     guidance_claims,
+    guidance_conflicts,
     guidance_read,
     guided_answers,
     library,
@@ -144,6 +145,7 @@ def create_app() -> FastAPI:
     app.include_router(evidence_sources.router, include_in_schema=False)
     app.include_router(guidance_candidates.router, include_in_schema=False)
     app.include_router(guidance_claims.router, include_in_schema=False)
+    app.include_router(guidance_conflicts.router, include_in_schema=False)
     app.include_router(guidance_read.router, include_in_schema=False)
     app.include_router(guided_answers.router, include_in_schema=False)
     app.include_router(library.router, include_in_schema=False)

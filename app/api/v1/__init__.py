@@ -10,6 +10,7 @@ from app.api.v1 import (
     canonicalization,
     evidence_sources,
     guidance_claims,
+    guidance_conflicts,
     guidance_read,
     hardware,
     interface_contract,
@@ -33,6 +34,7 @@ router.include_router(canonical_settings.router)
 router.include_router(canonicalization.router)
 router.include_router(evidence_sources.router)
 router.include_router(guidance_claims.router)
+router.include_router(guidance_conflicts.router)
 router.include_router(guidance_read.router)
 router.include_router(refusal_gaps.router)
 router.include_router(interface_contract.router)

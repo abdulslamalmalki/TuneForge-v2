@@ -77,6 +77,18 @@
 <p class="warning">{{ explanation.scope_notice }}</p>
 <p class="warning">{{ explanation.recommendation_notice }}</p>
 
+{% if explanation.knowledge_conflicts %}
+<section class="vendor-equivalence" aria-labelledby="knowledge-conflicts">
+  <h2 id="knowledge-conflicts">Reviewed knowledge differences</h2>
+  <p class="warning">TuneForge preserves these reviewed disagreements or scope differences instead of silently choosing one claim.</p>
+  <ul>
+    {% for item in explanation.knowledge_conflicts %}
+    <li><strong>{{ item.conflict.status|replace('_', ' ') }}</strong> · claims {{ item.conflict.left_claim_id }} and {{ item.conflict.right_claim_id }} · hardware {{ item.conflict.hardware_relationship|replace('_', ' ') }} · BIOS {{ item.conflict.bios_relationship|replace('_', ' ') }}<br><small>{{ item.conflict.reviewer_note }}</small></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
 {% for claim_type, facts in groups %}
 <h2>{{ claim_type | capitalize }}</h2>
 {% for fact in facts %}

@@ -39,6 +39,17 @@ class PresentationFact:
 
 
 @dataclass(frozen=True)
+class PresentationConflict:
+    conflict_id: int
+    left_claim_id: int
+    right_claim_id: int
+    status: str
+    hardware_relationship: str
+    bios_relationship: str
+    reviewer_note: str
+
+
+@dataclass(frozen=True)
 class PresentationReferral:
     pointer_id: int
     publisher_id: str
@@ -70,6 +81,7 @@ class PresentationEnvelope:
     recommendation_notice: str
     refusal_message: str | None
     referral_pointers: tuple[PresentationReferral, ...]
+    knowledge_conflicts: tuple[PresentationConflict, ...] = ()
 
 
 def build_resolved_envelope(
@@ -122,6 +134,18 @@ def build_resolved_envelope(
         context_notice=explanation.context_notice,
         equivalent_vendor_names=explanation.equivalent_vendor_names,
         statements=statements,
+        knowledge_conflicts=tuple(
+            PresentationConflict(
+                conflict_id=item.conflict.id,
+                left_claim_id=item.conflict.left_claim_id,
+                right_claim_id=item.conflict.right_claim_id,
+                status=item.conflict.status,
+                hardware_relationship=item.conflict.hardware_relationship,
+                bios_relationship=item.conflict.bios_relationship,
+                reviewer_note=item.conflict.reviewer_note or "",
+            )
+            for item in explanation.knowledge_conflicts
+        ),
         scope_notice=explanation.scope_notice,
         recommendation_status=explanation.recommendation_status,
         recommendation_notice=explanation.recommendation_notice,
@@ -151,6 +175,7 @@ def build_unresolved_envelope(
         context_notice=None,
         equivalent_vendor_names=(),
         statements=(),
+        knowledge_conflicts=(),
         scope_notice="No reviewed canonical identity was resolved for this lookup.",
         recommendation_status="not_available",
         recommendation_notice=(
@@ -192,6 +217,7 @@ def build_capability_refusal_envelope(
         context_notice=context_notice,
         equivalent_vendor_names=equivalent_vendor_names,
         statements=(),
+        knowledge_conflicts=(),
         scope_notice=refusal_message,
         recommendation_status="not_available",
         recommendation_notice=(

@@ -1,0 +1,40 @@
+{% extends "layout.html" %}
+
+{% block title %}Knowledge Conflict {{ detail.conflict.id }} — Knowledge Builder{% endblock %}
+
+{% block content %}
+{% set row = detail.conflict %}
+<h1>Knowledge Conflict {{ row.id }}</h1>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+<p><span class="status status-{{ row.status }}">{{ row.status|replace('_', ' ') }}</span></p>
+<p>{{ row.detection_reason }}</p>
+<dl>
+  <dt>Canonical settings</dt><dd>{{ detail.canonical_ids|join(', ') }}</dd>
+  <dt>Hardware relationship</dt><dd>{{ row.hardware_relationship|replace('_', ' ') }}</dd>
+  <dt>BIOS relationship</dt><dd>{{ row.bios_relationship|replace('_', ' ') }}</dd>
+</dl>
+
+<div class="compare-grid">
+  <section><h2>Claim {{ detail.left_claim.id }}</h2><p><strong>{{ detail.left_claim.claim_text }}</strong></p><p>Evidence strength: {{ row.left_evidence_strength|replace('_', ' ') }}</p><p><a href="/guidance-claims/{{ detail.left_claim.id }}">Open claim and citations</a></p></section>
+  <section><h2>Claim {{ detail.right_claim.id }}</h2><p><strong>{{ detail.right_claim.claim_text }}</strong></p><p>Evidence strength: {{ row.right_evidence_strength|replace('_', ' ') }}</p><p><a href="/guidance-claims/{{ detail.right_claim.id }}">Open claim and citations</a></p></section>
+</div>
+
+<h2>Scope analysis</h2>
+<p>Left hardware targets: {% for item in detail.left_hardware_targets %}{{ item.canonical_name }}{% if not loop.last %}, {% endif %}{% else %}none reviewed{% endfor %}</p>
+<p>Right hardware targets: {% for item in detail.right_hardware_targets %}{{ item.canonical_name }}{% if not loop.last %}, {% endif %}{% else %}none reviewed{% endfor %}</p>
+<p>Left BIOS scopes: {% for item in detail.left_bios_scopes %}{{ item.context_name }} {{ item.bios_version_exact or item.valid_from or item.introduced_in }}{% if not loop.last %}, {% endif %}{% else %}none reviewed{% endfor %}</p>
+<p>Right BIOS scopes: {% for item in detail.right_bios_scopes %}{{ item.context_name }} {{ item.bios_version_exact or item.valid_from or item.introduced_in }}{% if not loop.last %}, {% endif %}{% else %}none reviewed{% endfor %}</p>
+
+{% if row.status == 'pending' %}
+<h2>Reviewer decision</h2>
+<form action="/guidance-conflicts/{{ row.id }}/review" method="post">
+  <label for="note">Reviewer analysis</label><textarea id="note" name="note" rows="5" required></textarea>
+  <button class="danger" name="decision" value="confirmed">Confirm true contradiction</button>
+  <button name="decision" value="resolved_scope"{% if row.hardware_relationship != 'disjoint' %} disabled{% endif %}>Resolve as hardware-scope difference</button>
+  <button name="decision" value="resolved_version"{% if row.bios_relationship not in ('version_difference', 'disjoint_context') %} disabled{% endif %}>Resolve as BIOS-version difference</button>
+  <button name="decision" value="dismissed">Dismiss false signal</button>
+</form>
+{% else %}<h2>Review decision</h2><p><strong>{{ row.reviewer }}</strong>: {{ row.reviewer_note }}</p>{% endif %}
+
+<h2>Audit history</h2><table><thead><tr><th>Time</th><th>Action</th><th>Actor</th></tr></thead><tbody>{% for event in detail.events %}<tr><td>{{ event.created_at }}</td><td>{{ event.action }}</td><td>{{ event.actor }}</td></tr>{% endfor %}</tbody></table>
+{% endblock %}

@@ -518,6 +518,83 @@ class GuidanceClaimEvent(Base):
     created_at: Mapped[str] = mapped_column(Text)
 
 
+class GuidanceClaimConflict(Base):
+    """A possible disagreement between two approved claims, pending human resolution."""
+
+    __tablename__ = "guidance_claim_conflicts"
+    __table_args__ = (
+        CheckConstraint("left_claim_id < right_claim_id", name="ck_guidance_conflict_ordered_pair"),
+        CheckConstraint(
+            "hardware_relationship IN ('overlap', 'disjoint', 'unknown')",
+            name="ck_guidance_conflict_hardware_relationship",
+        ),
+        CheckConstraint(
+            "bios_relationship IN "
+            "('overlap', 'version_difference', 'disjoint_context', 'unknown')",
+            name="ck_guidance_conflict_bios_relationship",
+        ),
+        CheckConstraint(
+            "left_evidence_strength IN "
+            "('primary_official', 'official_manual', 'mixed_official') AND "
+            "right_evidence_strength IN "
+            "('primary_official', 'official_manual', 'mixed_official')",
+            name="ck_guidance_conflict_evidence_strength",
+        ),
+        CheckConstraint(
+            "status IN "
+            "('pending', 'confirmed', 'resolved_scope', 'resolved_version', 'dismissed')",
+            name="ck_guidance_conflict_status",
+        ),
+        CheckConstraint(
+            "length(detection_reason) BETWEEN 1 AND 1000",
+            name="ck_guidance_conflict_reason_length",
+        ),
+        CheckConstraint(
+            "reviewer_note IS NULL OR length(reviewer_note) BETWEEN 1 AND 2000",
+            name="ck_guidance_conflict_note_length",
+        ),
+        Index("ux_guidance_claim_conflict_pair", "left_claim_id", "right_claim_id", unique=True),
+        Index("ix_guidance_claim_conflicts_status", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    left_claim_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("guidance_claims.id", ondelete="RESTRICT")
+    )
+    right_claim_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("guidance_claims.id", ondelete="RESTRICT")
+    )
+    detection_reason: Mapped[str] = mapped_column(Text)
+    hardware_relationship: Mapped[str] = mapped_column(Text)
+    bios_relationship: Mapped[str] = mapped_column(Text)
+    left_evidence_strength: Mapped[str] = mapped_column(Text)
+    right_evidence_strength: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text)
+    reviewer_note: Mapped[str | None] = mapped_column(Text)
+    reviewer: Mapped[str | None] = mapped_column(Text)
+    reviewed_at: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[str] = mapped_column(Text)
+
+
+class GuidanceClaimConflictEvent(Base):
+    """Append-only history for conflict detection and reviewer decisions."""
+
+    __tablename__ = "guidance_claim_conflict_events"
+    __table_args__ = (
+        Index("ix_guidance_claim_conflict_events_conflict", "conflict_id", "id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    conflict_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("guidance_claim_conflicts.id", ondelete="RESTRICT")
+    )
+    action: Mapped[str] = mapped_column(Text)
+    actor: Mapped[str] = mapped_column(Text)
+    detail: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(Text)
+
+
 class GuidanceCandidate(Base):
     """Automated or edited candidate; never public until separately claim-approved."""
 

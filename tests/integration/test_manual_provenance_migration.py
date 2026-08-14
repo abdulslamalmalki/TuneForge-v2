@@ -212,12 +212,14 @@ def test_upgrade_backfills_existing_manual_provenance(tmp_path):
                     'guidance_claims', 'guidance_claim_evidence',
                     'guidance_claim_settings', 'guidance_claim_events',
                     'guidance_claim_applicability_targets',
-                    'guidance_claim_bios_scopes'
+                    'guidance_claim_bios_scopes',
+                    'guidance_claim_conflicts',
+                    'guidance_claim_conflict_events'
                 )
                 """
             )
         }
-        assert len(guidance_tables) == 6
+        assert len(guidance_tables) == 8
         guidance_candidate_tables = {
             row[0]
             for row in connection.execute(
@@ -283,7 +285,7 @@ def test_upgrade_backfills_existing_manual_provenance(tmp_path):
             )
         }
         assert len(research_tables) == 5
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0025",)
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0026",)
 
 
 def test_hardware_migration_backfill_matches_phase1_scope_rules(tmp_path):

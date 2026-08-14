@@ -35,6 +35,7 @@ from app.domain.guidance_claims import (
     GuidanceClaimDetail,
     GuidanceClaimOverview,
 )
+from app.domain.guidance_conflicts import ConflictDetail, ConflictOverview, ConflictScanReport
 from app.domain.guidance_read import GuidanceCoverageRow, GuidanceExplanation
 from app.domain.guided_answers import GuidedAnswer, GuidedQuestion
 from app.domain.hardware import ApplicabilityView
@@ -506,6 +507,119 @@ class GuidanceClaimDetailOut(BaseModel):
         )
 
 
+class RegisterGuidanceConflictIn(BaseModel):
+    left_claim_id: int
+    right_claim_id: int
+    detection_reason: str = ""
+
+
+class ReviewGuidanceConflictIn(BaseModel):
+    decision: str = ""
+    note: str = ""
+
+
+class GuidanceConflictOverviewOut(BaseModel):
+    id: int
+    left_claim_id: int
+    left_claim_text: str
+    right_claim_id: int
+    right_claim_text: str
+    canonical_ids: list[str]
+    detection_reason: str
+    hardware_relationship: str
+    bios_relationship: str
+    left_evidence_strength: str
+    right_evidence_strength: str
+    status: str
+    reviewer_note: str | None
+    reviewer: str | None
+    reviewed_at: str | None
+    created_at: str
+    updated_at: str
+
+    @classmethod
+    def from_overview(cls, value: ConflictOverview) -> "GuidanceConflictOverviewOut":
+        row = value.conflict
+        return cls(
+            id=row.id,
+            left_claim_id=row.left_claim_id,
+            left_claim_text=value.left_claim.claim_text,
+            right_claim_id=row.right_claim_id,
+            right_claim_text=value.right_claim.claim_text,
+            canonical_ids=list(value.canonical_ids),
+            detection_reason=row.detection_reason,
+            hardware_relationship=row.hardware_relationship,
+            bios_relationship=row.bios_relationship,
+            left_evidence_strength=row.left_evidence_strength,
+            right_evidence_strength=row.right_evidence_strength,
+            status=row.status,
+            reviewer_note=row.reviewer_note,
+            reviewer=row.reviewer,
+            reviewed_at=row.reviewed_at,
+            created_at=row.created_at,
+            updated_at=row.updated_at,
+        )
+
+
+class GuidanceConflictEventOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    action: str
+    actor: str
+    detail: str
+    created_at: str
+
+
+class GuidanceConflictDetailOut(GuidanceConflictOverviewOut):
+    left_hardware_targets: list[GuidanceApplicabilityTargetOut]
+    right_hardware_targets: list[GuidanceApplicabilityTargetOut]
+    left_bios_scopes: list[GuidanceBiosScopeOut]
+    right_bios_scopes: list[GuidanceBiosScopeOut]
+    events: list[GuidanceConflictEventOut]
+
+    @classmethod
+    def from_detail(cls, value: ConflictDetail) -> "GuidanceConflictDetailOut":
+        overview = GuidanceConflictOverviewOut.from_overview(
+            ConflictOverview(
+                value.conflict,
+                value.left_claim,
+                value.right_claim,
+                value.canonical_ids,
+            )
+        ).model_dump()
+        return cls(
+            **overview,
+            left_hardware_targets=[
+                GuidanceApplicabilityTargetOut.model_validate(item, from_attributes=True)
+                for item in value.left_hardware_targets
+            ],
+            right_hardware_targets=[
+                GuidanceApplicabilityTargetOut.model_validate(item, from_attributes=True)
+                for item in value.right_hardware_targets
+            ],
+            left_bios_scopes=[
+                GuidanceBiosScopeOut.model_validate(item, from_attributes=True)
+                for item in value.left_bios_scopes
+            ],
+            right_bios_scopes=[
+                GuidanceBiosScopeOut.model_validate(item, from_attributes=True)
+                for item in value.right_bios_scopes
+            ],
+            events=[GuidanceConflictEventOut.model_validate(item) for item in value.events],
+        )
+
+
+class GuidanceConflictScanOut(BaseModel):
+    compared_pairs: int
+    detected_pairs: int
+    existing_pairs: int
+
+    @classmethod
+    def from_report(cls, value: ConflictScanReport) -> "GuidanceConflictScanOut":
+        return cls.model_validate(value, from_attributes=True)
+
+
 class CitationFirstCitationOut(BaseModel):
     passage_id: int | None
     source_id: int
@@ -532,6 +646,19 @@ class CitationFirstFactOut(BaseModel):
     bios_scopes: list[GuidanceBiosScopeOut]
     bios_match_status: str
     citations: list[CitationFirstCitationOut]
+
+
+class KnowledgeConflictOut(BaseModel):
+    id: int
+    left_claim_id: int
+    right_claim_id: int
+    status: str
+    detection_reason: str
+    hardware_relationship: str
+    bios_relationship: str
+    left_evidence_strength: str
+    right_evidence_strength: str
+    reviewer_note: str
 
 
 class CitationFirstClassificationOut(BaseModel):
@@ -785,6 +912,7 @@ class CitationFirstExplanationOut(BaseModel):
     context_notice: str | None
     equivalent_vendor_names: list[VendorEquivalentNameOut]
     facts: list[CitationFirstFactOut]
+    knowledge_conflicts: list[KnowledgeConflictOut]
     answer_mode: str
     scope_notice: str
     recommendation_status: str
@@ -846,6 +974,21 @@ class CitationFirstExplanationOut(BaseModel):
                 )
                 for fact in explanation.facts
             ],
+            knowledge_conflicts=[
+                KnowledgeConflictOut(
+                    id=item.conflict.id,
+                    left_claim_id=item.conflict.left_claim_id,
+                    right_claim_id=item.conflict.right_claim_id,
+                    status=item.conflict.status,
+                    detection_reason=item.conflict.detection_reason,
+                    hardware_relationship=item.conflict.hardware_relationship,
+                    bios_relationship=item.conflict.bios_relationship,
+                    left_evidence_strength=item.conflict.left_evidence_strength,
+                    right_evidence_strength=item.conflict.right_evidence_strength,
+                    reviewer_note=item.conflict.reviewer_note or "",
+                )
+                for item in explanation.knowledge_conflicts
+            ],
             answer_mode=explanation.answer_mode,
             scope_notice=explanation.scope_notice,
             recommendation_status=explanation.recommendation_status,
@@ -888,6 +1031,18 @@ class InterfaceStatementOut(BaseModel):
     citations: list[InterfaceCitationOut]
 
 
+class InterfaceConflictOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    conflict_id: int
+    left_claim_id: int
+    right_claim_id: int
+    status: str
+    hardware_relationship: str
+    bios_relationship: str
+    reviewer_note: str
+
+
 class InterfaceReferralOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -915,6 +1070,7 @@ class InterfacePresentationOut(BaseModel):
     context_notice: str | None
     equivalent_vendor_names: list[VendorEquivalentNameOut]
     statements: list[InterfaceStatementOut]
+    knowledge_conflicts: list[InterfaceConflictOut]
     scope_notice: str
     recommendation_status: str
     recommendation_notice: str
@@ -952,6 +1108,10 @@ class InterfacePresentationOut(BaseModel):
             statements=[
                 InterfaceStatementOut.model_validate(item, from_attributes=True)
                 for item in envelope.statements
+            ],
+            knowledge_conflicts=[
+                InterfaceConflictOut.model_validate(item, from_attributes=True)
+                for item in envelope.knowledge_conflicts
             ],
             scope_notice=envelope.scope_notice,
             recommendation_status=envelope.recommendation_status,
