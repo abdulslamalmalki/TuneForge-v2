@@ -312,6 +312,92 @@ button.danger {
   justify-content: center;
 }
 
+.trusted-web-toggle {
+  align-items: flex-start;
+  background: var(--public-mint);
+  border: 1px solid var(--public-line);
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  gap: 0.7rem;
+  margin-top: 0.8rem;
+  padding: 0.8rem 0.9rem;
+}
+
+.trusted-web-toggle input { margin-top: 0.2rem; }
+.trusted-web-toggle span { display: grid; gap: 0.15rem; }
+.trusted-web-toggle small { color: var(--public-muted); font-weight: 400; }
+
+.resolved-identity-card,
+.assistant-discovery,
+.trusted-research-panel,
+.research-action {
+  background: var(--public-card);
+  border: 1px solid var(--public-line);
+  border-radius: 18px;
+  margin-top: 1rem;
+  padding: 1.25rem;
+}
+
+.compact-equivalence { margin: 1rem 0; }
+.assistant-boundary-note,
+.trusted-research-warning { color: var(--public-muted); }
+.assistant-match-grid,
+.trusted-source-list { display: grid; gap: 0.85rem; }
+
+.assistant-match-card,
+.trusted-source-card {
+  background: #f8faf9;
+  border: 1px solid var(--public-line);
+  border-radius: 14px;
+  padding: 1rem;
+}
+
+.assistant-match-card > div:first-child,
+.trusted-source-meta,
+.trusted-research-heading,
+.research-action {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.source-badge,
+.trusted-source-meta span,
+.trusted-research-heading > span {
+  background: var(--public-mint);
+  border-radius: 999px;
+  color: var(--public-green-dark);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.25rem 0.55rem;
+  text-transform: uppercase;
+}
+
+.assistant-match-card h3,
+.trusted-source-card h3 { margin: 0.65rem 0 0.4rem; }
+.assistant-match-card p { color: var(--public-muted); margin: 0.35rem 0; }
+.canonical-match-link { display: inline-block; margin-top: 0.6rem; }
+
+.trusted-research-panel {
+  border-color: #d6a84a;
+  box-shadow: inset 4px 0 0 #d6a84a;
+}
+
+.trusted-research-panel.status-failed,
+.trusted-research-panel.status-refused { border-color: var(--public-line); box-shadow: none; }
+.trusted-source-card blockquote { border-left: 3px solid #d6a84a; color: var(--public-ink); margin: 0.8rem 0; padding-left: 0.9rem; }
+.trusted-source-card > small { color: var(--public-muted); overflow-wrap: anywhere; }
+.research-action div { display: grid; gap: 0.2rem; }
+.research-action span { color: var(--public-muted); }
+
+@media (max-width: 700px) {
+  .trusted-research-heading,
+  .research-action { align-items: flex-start; flex-direction: column; }
+}
+
 .brand-mark {
   height: 2rem;
   width: 2rem;

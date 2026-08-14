@@ -47,6 +47,7 @@ from app.domain.refusal_gaps import (
 )
 from app.domain.review import DraftQueueRow, effective_description, effective_name
 from app.domain.system_context import ContextApplicabilityMatch, SystemContext
+from app.research.trusted_web import TrustedWebResearchView, TrustedWebSourceView
 from app.search.query import SearchResult
 
 
@@ -843,6 +844,39 @@ class InterfacePresentationOut(BaseModel):
                 InterfaceReferralOut.model_validate(item, from_attributes=True)
                 for item in envelope.referral_pointers
             ],
+        )
+
+
+class TrustedWebSourceOut(BaseModel):
+    publisher_id: str
+    publisher_name: str
+    title: str
+    source_url: str
+    evidence_kind: str
+    excerpt_text: str | None
+    content_sha256: str | None
+    retrieved_at: str
+
+    @classmethod
+    def from_view(cls, view: TrustedWebSourceView) -> "TrustedWebSourceOut":
+        return cls.model_validate(view, from_attributes=True)
+
+
+class TrustedWebResearchOut(BaseModel):
+    run_id: int
+    query: str
+    status: str
+    notice: str
+    sources: list[TrustedWebSourceOut]
+
+    @classmethod
+    def from_view(cls, view: TrustedWebResearchView) -> "TrustedWebResearchOut":
+        return cls(
+            run_id=view.run_id,
+            query=view.query,
+            status=view.status,
+            notice=view.notice,
+            sources=[TrustedWebSourceOut.from_view(source) for source in view.sources],
         )
 
 

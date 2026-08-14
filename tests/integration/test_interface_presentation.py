@@ -368,6 +368,19 @@ def test_public_setting_answer_refuses_unknown_input_without_guessing(client):
     assert gap["reason"] == "no_exact_guidance_match"
 
 
+def test_public_question_falls_back_to_approved_library_discovery(client, pdf_bytes_factory):
+    canonical_id = _create_identity(client)
+    _mark_canonical_observed_in_am5(client, pdf_bytes_factory, canonical_id)
+
+    page = client.get("/answer", params={"setting": "automatic boost behavior"})
+
+    assert page.status_code == 200
+    assert "TuneForge cannot verify this answer yet" in page.text
+    assert "Related reviewed source settings" in page.text
+    assert "Precision Boost Overdrive" in page.text
+    assert "discovery results, not a generated recommendation" in page.text
+
+
 def test_unknown_guided_question_fails_closed(client):
     api = client.get("/api/v1/interface/questions/not-a-question/answer")
     assert api.status_code == 404

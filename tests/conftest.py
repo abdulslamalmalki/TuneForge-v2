@@ -269,6 +269,9 @@ def _clean_state(_create_schema):
         SettingMenuContext,
         SettingMenuContextCitation,
         SettingMenuContextEvent,
+        TrustedWebResearchEvent,
+        TrustedWebResearchResult,
+        TrustedWebResearchRun,
         UnansweredLookup,
         UserAccount,
     )
@@ -282,6 +285,9 @@ def _clean_state(_create_schema):
         session.query(ReferralPointerSetting).delete()
         session.query(ReferralPointer).delete()
         session.query(UnansweredLookup).delete()
+        session.query(TrustedWebResearchEvent).delete()
+        session.query(TrustedWebResearchResult).delete()
+        session.query(TrustedWebResearchRun).delete()
         session.query(GuidanceClaimEvent).delete()
         session.query(GuidanceClaimEvidence).delete()
         session.query(GuidanceClaimSetting).delete()

@@ -33,8 +33,8 @@ def test_public_readiness_reports_head_schema_and_storage(client):
     assert response.status_code == 200
     assert response.json() == {
         "status": "ready",
-        "app_version": "1.31.0",
-        "database_revision": "0019",
+        "app_version": "1.32.0",
+        "database_revision": "0020",
         "authentication_initialized": False,
         "checks": {
             "database": True,

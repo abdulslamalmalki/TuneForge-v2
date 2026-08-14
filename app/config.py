@@ -6,7 +6,7 @@ from pathlib import Path
 COMPONENT_ROOT = Path(__file__).resolve().parent.parent
 
 # Single source for the version shown in OpenAPI and /api/v1/health.
-APP_VERSION = "1.31.0"
+APP_VERSION = "1.32.0"
 
 # Authentication is required by default. Tests explicitly opt into the legacy
 # local-only bypass so existing domain and HTTP regression tests stay focused
@@ -23,7 +23,7 @@ TRUSTED_HOSTS = tuple(
     )
     if host.strip()
 )
-EXPECTED_DATABASE_REVISION = "0019"
+EXPECTED_DATABASE_REVISION = "0020"
 
 # Overridable so tests can run against a temporary data directory (NFR-6).
 DATA_DIR = Path(os.environ.get("KNOWLEDGE_BUILDER_DATA_DIR", str(COMPONENT_ROOT / "data")))
@@ -51,13 +51,22 @@ MAX_GUIDANCE_CLAIM_CHARS = 1000
 MAX_GUIDANCE_REVIEW_NOTE_LENGTH = 5000
 MAX_PUBLIC_QUESTION_LENGTH = 300
 PROVENANCE_SEARCH_ENDPOINT = os.environ.get(
-    "TUNEFORGE_PROVENANCE_SEARCH_ENDPOINT", "https://html.duckduckgo.com/html/"
+    "TUNEFORGE_PROVENANCE_SEARCH_ENDPOINT", "https://lite.duckduckgo.com/lite/"
 )
 PROVENANCE_SEARCH_TIMEOUT_SECONDS = float(
     os.environ.get("TUNEFORGE_PROVENANCE_SEARCH_TIMEOUT_SECONDS", "8")
 )
 PROVENANCE_MAX_SEARCH_BYTES = 1_000_000
 PROVENANCE_MAX_CANDIDATES = 5
+TRUSTED_WEB_SEARCH_ENDPOINT = os.environ.get(
+    "TUNEFORGE_TRUSTED_WEB_SEARCH_ENDPOINT", PROVENANCE_SEARCH_ENDPOINT
+)
+TRUSTED_WEB_TIMEOUT_SECONDS = float(
+    os.environ.get("TUNEFORGE_TRUSTED_WEB_TIMEOUT_SECONDS", "8")
+)
+TRUSTED_WEB_MAX_SEARCH_BYTES = 1_000_000
+TRUSTED_WEB_MAX_PAGE_BYTES = 2_000_000
+TRUSTED_WEB_MAX_RESULTS = 5
 # FR-10 / plan section 10: cumulative extracted text below this means the PDF
 # has no usable text layer (scanned/image-only) and the run fails.
 MIN_EXTRACTABLE_TEXT_CHARS = 200

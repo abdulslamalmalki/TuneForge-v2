@@ -451,6 +451,86 @@ class ReferralPointerEvent(Base):
     created_at: Mapped[str] = mapped_column(Text)
 
 
+class TrustedWebResearchRun(Base):
+    """One immutable-query, append-audited live official-web research attempt."""
+
+    __tablename__ = "trusted_web_research_runs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('running', 'succeeded', 'refused', 'failed')",
+            name="ck_trusted_web_research_run_status",
+        ),
+        CheckConstraint(
+            "length(query_text) BETWEEN 1 AND 300",
+            name="ck_trusted_web_research_query_length",
+        ),
+        Index("ix_trusted_web_research_runs_created_at", "created_at"),
+        Index("ix_trusted_web_research_runs_status", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    query_text: Mapped[str] = mapped_column(Text)
+    normalized_query: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text)
+    policy_version: Mapped[str] = mapped_column(Text)
+    result_count: Mapped[int] = mapped_column(Integer, server_default="0")
+    reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(Text)
+    finished_at: Mapped[str | None] = mapped_column(Text)
+
+
+class TrustedWebResearchResult(Base):
+    """Source snapshot from an official domain; never reviewed KB evidence."""
+
+    __tablename__ = "trusted_web_research_results"
+    __table_args__ = (
+        CheckConstraint(
+            "evidence_kind IN ('official_page_excerpt', 'official_link_only')",
+            name="ck_trusted_web_research_result_kind",
+        ),
+        Index(
+            "ux_trusted_web_research_results_run_ordinal",
+            "run_id",
+            "ordinal",
+            unique=True,
+        ),
+        Index("ix_trusted_web_research_results_publisher_id", "publisher_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("trusted_web_research_runs.id", ondelete="RESTRICT"),
+        index=True,
+    )
+    ordinal: Mapped[int] = mapped_column(Integer)
+    publisher_id: Mapped[str] = mapped_column(Text)
+    publisher_name: Mapped[str] = mapped_column(Text)
+    title: Mapped[str] = mapped_column(Text)
+    source_url: Mapped[str] = mapped_column(Text)
+    evidence_kind: Mapped[str] = mapped_column(Text)
+    excerpt_text: Mapped[str | None] = mapped_column(Text)
+    content_sha256: Mapped[str | None] = mapped_column(Text)
+    retrieved_at: Mapped[str] = mapped_column(Text)
+
+
+class TrustedWebResearchEvent(Base):
+    """Append-only lifecycle history for live research."""
+
+    __tablename__ = "trusted_web_research_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("trusted_web_research_runs.id", ondelete="RESTRICT"),
+        index=True,
+    )
+    action: Mapped[str] = mapped_column(Text)
+    actor: Mapped[str] = mapped_column(Text)
+    detail: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(Text)
+
+
 class ChipsetFamily(Base):
     __tablename__ = "chipset_families"
 

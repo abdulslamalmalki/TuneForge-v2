@@ -25,6 +25,7 @@ _PUBLIC_EXACT = {
     "/api/v1/interface/presentation",
     "/api/v1/interface/questions",
     "/api/v1/interface/route",
+    "/api/v1/interface/trusted-web-research",
 }
 _PUBLIC_PREFIXES = (
     "/static/",

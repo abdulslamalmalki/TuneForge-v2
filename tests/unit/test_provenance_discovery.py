@@ -9,7 +9,12 @@ from app.provenance.official_sources import (
     is_official_vendor_url,
     support_page_error,
 )
-from app.provenance.search import build_query, discover_support_pages
+from app.provenance.search import (
+    SearchUnavailableError,
+    build_query,
+    discover_support_pages,
+    search_raw_results,
+)
 
 
 @pytest.mark.parametrize(
@@ -114,6 +119,30 @@ def test_search_filters_nonofficial_and_ranks_official_candidate():
     assert [candidate.url for candidate in candidates] == [official]
     assert candidates[0].confidence >= 80
     assert "official vendor domain" in candidates[0].evidence
+
+
+def test_raw_search_parser_supports_duckduckgo_lite_markup():
+    body = """
+    <a class='result-link'
+       href='//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.amd.com%2Fen%2Fpbo'>
+       AMD PBO Documentation
+    </a>
+    <td class='result-snippet'>Official Precision Boost information.</td>
+    """
+
+    results = search_raw_results("https://search.invalid", fetch=lambda _url: body)
+
+    assert len(results) == 1
+    assert results[0].title == "AMD PBO Documentation"
+    assert results[0].url == "https://www.amd.com/en/pbo"
+    assert results[0].snippet == "Official Precision Boost information."
+
+
+def test_raw_search_parser_reports_interactive_challenge_as_unavailable():
+    body = '<div data-testid="anomaly-modal">Interactive challenge</div>'
+
+    with pytest.raises(SearchUnavailableError):
+        search_raw_results("https://search.invalid", fetch=lambda _url: body)
 
 
 def test_generic_series_query_uses_document_title():

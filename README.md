@@ -84,6 +84,9 @@ The current release includes:
   diagnostics, container packaging, and verified database-plus-source backups
 - Deterministic question routing for the twelve reviewed AM5 questions and
   transparent setting-name wrappers, with no fuzzy matching or generated text
+- Approved-library discovery for broader BIOS questions plus opt-in live research
+  over a strict official-domain allowlist, with separate unreviewed labeling,
+  exact source excerpts or links, content hashes, and append-only run history
 - A read-only v1 launch gate that separates product completion from deployment
   safety, appears in the admin dashboard, and has a protected JSON endpoint
 - Evidence-reviewed cross-vendor expansion with 331 canonical identities and
@@ -91,7 +94,7 @@ The current release includes:
   power-recovery, graphics-power, UMA, Intel performance, and rail-specific
   DRAM PMIC switching-frequency records in the v1.30 Wave 25 batch
 
-This tree is the **TuneForge 1.30 focused BIOS settings platform release**. The
+This tree is the **TuneForge 1.32 focused BIOS settings platform release**. The
 public product is limited to BIOS Settings, Compare Vendors, Ask TuneForge, and
 Upload Manual. Guided question acceptance, exact-system validation, ingestion,
 provenance, and review operations remain protected administrator tools. See
@@ -586,6 +589,18 @@ hardware applicability, canonical classification, vendor-equivalence citations,
 and accepted evidence claims without exposing drafts, rejections, reviewer
 notes, audit actors, or raw passages. No schema migration or duplicated
 knowledge store is introduced. See `docs/public-bios-settings-library.md`.
+
+Grounded Assistant and Trusted-Web Research in v1.32 broadens `/answer` without
+weakening the accepted-claim contract. When an accepted answer is unavailable,
+TuneForge can show keyword-related approved Source Settings as discovery records.
+Users may explicitly request a separate live search over allowlisted official
+hardware-vendor and standards domains. Live results are never called verified,
+never become Evidence Sources or Guidance Claims automatically, and never produce
+tuning recommendations. Each run stores its query, policy version, lifecycle
+events, source URL, retrieval time, result kind, exact excerpt when safely
+available, and page hash. The feature needs no paid model provider; an optional
+provider can still be added later behind the existing exact-output contract. See
+`docs/v1.32-grounded-assistant-trusted-web.md`.
 
 The Conservative Canonicalization Backlog in v1.3 evaluates every approved,
 unmapped Source Setting against reviewed canonical identities using normalized

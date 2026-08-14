@@ -241,7 +241,20 @@ def test_upgrade_backfills_existing_manual_provenance(tmp_path):
             )
         }
         assert len(auth_tables) == 3
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0019",)
+        research_tables = {
+            row[0]
+            for row in connection.execute(
+                """
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name IN (
+                    'trusted_web_research_runs', 'trusted_web_research_results',
+                    'trusted_web_research_events'
+                )
+                """
+            )
+        }
+        assert len(research_tables) == 3
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0020",)
 
 
 def test_hardware_migration_backfill_matches_phase1_scope_rules(tmp_path):

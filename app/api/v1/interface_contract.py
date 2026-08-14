@@ -10,11 +10,13 @@ from app.api.v1.schemas import (
     InterfaceContractOut,
     InterfacePresentationOut,
     QuestionRouteOut,
+    TrustedWebResearchOut,
 )
 from app.domain import guided_answers, interface_lookup, question_routing
 from app.domain import system_context as system_context_domain
 from app.domain.errors import GuidanceReadError, GuidedAnswerError, SystemContextError
 from app.normalization.interface_contract import interface_contract
+from app.research import trusted_web
 
 router = APIRouter(tags=["interface contract"])
 
@@ -81,6 +83,23 @@ def get_interface_presentation(
     except GuidanceReadError as error:
         raise HTTPException(status_code=400, detail=error.message) from None
     return InterfacePresentationOut.from_envelope(presentation)
+
+
+@router.get(
+    "/interface/trusted-web-research",
+    response_model=TrustedWebResearchOut,
+    summary="Run opt-in BIOS research over allowlisted official websites",
+    responses={400: {"model": ErrorOut, "description": "Question validation failed"}},
+)
+def get_trusted_web_research(
+    session: SessionDep,
+    question: str = Query(min_length=1, max_length=300),
+) -> TrustedWebResearchOut:
+    try:
+        result = trusted_web.research(session, question)
+    except trusted_web.TrustedWebResearchError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from None
+    return TrustedWebResearchOut.from_view(result)
 
 
 @router.get(

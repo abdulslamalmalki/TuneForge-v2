@@ -17,6 +17,10 @@
       <input id="answer-setting" name="setting" type="search" value="{{ setting }}" list="answer-covered-settings" placeholder="What does PBO Scalar do?" autocomplete="off" required maxlength="300">
       <button type="submit">Ask verified sources</button>
     </div>
+    <label class="trusted-web-toggle">
+      <input type="checkbox" name="trusted_web" value="1"{% if trusted_web %} checked{% endif %}>
+      <span><strong>Also research official websites if TuneForge cannot verify an answer</strong><small>Opt-in live research is shown separately and is never labeled as reviewed knowledge.</small></span>
+    </label>
     <datalist id="answer-covered-settings">
       {% for row in covered_settings %}<option value="{{ row.canonical_name }}"></option>{% endfor %}
       {% for question in guided_questions %}<option value="{{ question.question }}"></option>{% endfor %}
@@ -119,6 +123,21 @@
     <h2>TuneForge cannot verify this answer yet.</h2>
     <p>{{ presentation.refusal_message }}</p>
     <p class="refusal-explanation">TuneForge will not guess from model memory or unreviewed sources.</p>
+    {% if presentation.canonical_name %}
+    <section class="resolved-identity-card">
+      <p class="eyebrow">Verified identity found</p>
+      <h3>{{ presentation.canonical_name }}</h3>
+      {% if presentation.canonical_description %}<p>{{ presentation.canonical_description }}</p>{% endif %}
+      {% if presentation.equivalent_vendor_names %}
+      <div class="equivalence-grid compact-equivalence">
+        {% for equivalent in presentation.equivalent_vendor_names %}
+        <div class="equivalence-card"><span>{{ equivalent.vendor_name }}</span><strong>{{ equivalent.setting_name }}</strong></div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <a href="/library/canonical/{{ presentation.canonical_id }}">Open the complete reviewed setting record →</a>
+    </section>
+    {% endif %}
     {% if presentation.referral_pointers %}
     <section class="public-referrals">
       <h3>Official places to continue</h3>
@@ -130,11 +149,62 @@
     {% endif %}
   </article>
   {% endif %}
+
+  {% if library_matches and library_matches.results %}
+  <section class="assistant-discovery" aria-labelledby="approved-library-matches">
+    <div class="subsection-heading">
+      <div><p class="eyebrow">Approved TuneForge library</p><h2 id="approved-library-matches">Related reviewed source settings</h2></div>
+      <span>{{ library_matches.results | length }} matches</span>
+    </div>
+    <p class="assistant-boundary-note">These are approved manual records that match your keywords. They are discovery results, not a generated recommendation.</p>
+    <div class="assistant-match-grid">
+      {% for match in library_matches.results %}
+      <article class="assistant-match-card">
+        <div><span class="source-badge">{{ match.vendor_id | upper if match.vendor_id else 'SOURCE' }}</span><small>{{ match.manual_label }} · Page {{ match.page_number }}</small></div>
+        <h3><a href="/library/source/{{ match.setting_id }}">{{ match.effective_name }}</a></h3>
+        <p>{{ match.snippet }}</p>
+        {% if match.canonical_name %}<a class="canonical-match-link" href="/library/canonical/{{ match.canonical_id }}">Canonical: {{ match.canonical_name }}</a>{% endif %}
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if web_research %}
+  <section class="trusted-research-panel status-{{ web_research.status }}" aria-labelledby="trusted-research-heading">
+    <div class="trusted-research-heading">
+      <div><p class="eyebrow">Live trusted-source research</p><h2 id="trusted-research-heading">Official website results</h2></div>
+      <span>Not reviewed by TuneForge</span>
+    </div>
+    <p class="trusted-research-warning">{{ web_research.notice }}</p>
+    {% if web_research.sources %}
+    <div class="trusted-source-list">
+      {% for source in web_research.sources %}
+      <article class="trusted-source-card">
+        <div class="trusted-source-meta"><strong>{{ source.publisher_name }}</strong><span>{% if source.evidence_kind == 'official_page_excerpt' %}Page retrieved{% else %}Official link only{% endif %}</span></div>
+        <h3><a href="{{ source.source_url }}" target="_blank" rel="noreferrer">{{ source.title }} <span aria-hidden="true">↗</span></a></h3>
+        {% if source.excerpt_text %}<blockquote>{{ source.excerpt_text }}</blockquote>{% else %}<p>TuneForge verified the official domain but could not safely extract page text. Open the source to review it directly.</p>{% endif %}
+        <small>Retrieved {{ source.retrieved_at }}{% if source.content_sha256 %} · Snapshot SHA-256 {{ source.content_sha256[:12] }}…{% endif %}</small>
+      </article>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </section>
+  {% elif presentation.outcome != 'supported' and not trusted_web %}
+  <form class="research-action" action="/answer" method="get">
+    <input type="hidden" name="setting" value="{{ setting }}">
+    {% if motherboard_model_id %}<input type="hidden" name="motherboard_model_id" value="{{ motherboard_model_id }}">{% endif %}
+    {% if cpu_model_id %}<input type="hidden" name="cpu_model_id" value="{{ cpu_model_id }}">{% endif %}
+    <input type="hidden" name="trusted_web" value="1">
+    <div><strong>Need more places to investigate?</strong><span>Search only allowlisted official hardware and standards websites.</span></div>
+    <button type="submit">Research official websites</button>
+  </form>
+  {% endif %}
 {% elif not error %}
 <section class="answer-welcome">
   <div class="answer-welcome-mark" aria-hidden="true">T</div>
   <h2>Ask a BIOS settings question.</h2>
-  <p>TuneForge retrieves only accepted facts, cites the exact official pages behind them, and refuses questions its verified knowledge cannot support.</p>
+  <p>TuneForge starts with accepted facts and approved manual records. Optional live research is always separated from reviewed knowledge.</p>
   <div class="example-links">
     <span>Try:</span>
     <a href="/answer?setting=Precision%20Boost%20Overdrive">Precision Boost Overdrive</a>

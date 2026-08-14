@@ -56,17 +56,19 @@ class _DuckDuckGoParser(HTMLParser):
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         values = dict(attrs)
         classes = set((values.get("class") or "").split())
-        if tag == "a" and "result__a" in classes:
+        if tag == "a" and classes.intersection({"result__a", "result-link"}):
             self._flush()
             self._current_url = _unwrap_result_url(values.get("href") or "")
             self._in_title = True
-        elif tag in {"a", "div"} and "result__snippet" in classes:
+        elif tag in {"a", "div", "td"} and classes.intersection(
+            {"result__snippet", "result-snippet"}
+        ):
             self._in_snippet = True
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "a" and self._in_title:
             self._in_title = False
-        if tag in {"a", "div"} and self._in_snippet:
+        if tag in {"a", "div", "td"} and self._in_snippet:
             self._in_snippet = False
 
     def handle_data(self, data: str) -> None:
@@ -106,15 +108,9 @@ def discover_support_pages(
         return "", []
     query = build_query(metadata)
     search_url = f"{config.PROVENANCE_SEARCH_ENDPOINT}?{urllib.parse.urlencode({'q': query})}"
-    try:
-        body = (fetch or _fetch_search_html)(search_url)
-    except Exception as error:
-        raise SearchUnavailableError("The support-page search service was unavailable.") from error
-    parser = _DuckDuckGoParser()
-    parser.feed(body)
-    parser.close()
+    results = search_raw_results(search_url, fetch=fetch)
     candidates: dict[str, SupportPageCandidate] = {}
-    for result in parser.results:
+    for result in results:
         if not is_official_support_page(metadata.vendor, result.url):
             continue
         normalized_url = normalize_support_url(result.url)
@@ -124,6 +120,25 @@ def discover_support_pages(
             candidates[normalized_url] = candidate
     ranked = sorted(candidates.values(), key=lambda item: (-item.confidence, item.url))
     return query, ranked[: config.PROVENANCE_MAX_CANDIDATES]
+
+
+def search_raw_results(
+    search_url: str,
+    *,
+    fetch: Callable[[str], str] | None = None,
+) -> tuple[RawSearchResult, ...]:
+    """Return parsed search results without assigning trust to any result URL."""
+
+    try:
+        body = (fetch or _fetch_search_html)(search_url)
+    except Exception as error:
+        raise SearchUnavailableError("The support-page search service was unavailable.") from error
+    parser = _DuckDuckGoParser()
+    parser.feed(body)
+    parser.close()
+    if not parser.results and 'data-testid="anomaly-modal"' in body:
+        raise SearchUnavailableError("The search service requested an interactive challenge.")
+    return tuple(parser.results)
 
 
 def build_query(metadata: MetadataSuggestion) -> str:
