@@ -42,6 +42,25 @@
   {% endfor %}
 </section>
 
+<section class="admin-panel coverage-panel" aria-labelledby="coverage-title">
+  <header class="admin-panel-heading">
+    <div><p class="admin-eyebrow">Trust pipeline</p><h2 id="coverage-title">Knowledge coverage</h2></div>
+    <span class="queue-count">Reviewed data only</span>
+  </header>
+  <div class="coverage-grid">
+    {% for item in dashboard.coverages %}
+    <a class="coverage-card coverage-{{ item.coverage_id }}" href="{{ item.href }}">
+      <div><strong>{{ item.label }}</strong><span>{{ item.percent }}%</span></div>
+      <progress value="{{ item.numerator }}" max="{{ item.denominator or 1 }}" aria-label="{{ item.numerator }} of {{ item.denominator }} {{ item.label|lower }}"></progress>
+      <small><b>{{ '{:,}'.format(item.numerator) }}</b> / {{ '{:,}'.format(item.denominator) }} · {{ item.detail }}</small>
+    </a>
+    {% endfor %}
+  </div>
+  <div class="coverage-footprint" aria-label="Knowledge footprint">
+    {% for item in dashboard.footprint %}<div><strong>{{ item.value }}</strong><span>{{ item.label }}</span><small>{{ item.detail }}</small></div>{% endfor %}
+  </div>
+</section>
+
 <div class="admin-dashboard-grid">
   <section class="admin-panel work-panel" aria-labelledby="work-queue-title">
     <header class="admin-panel-heading">
@@ -52,14 +71,30 @@
       <span class="queue-count">{{ dashboard.active_task_count }} active queues</span>
     </header>
     <div class="admin-task-list">
-      {% for task in dashboard.tasks %}
+      {% for task in dashboard.active_tasks %}
       <a class="admin-task task-{{ task.severity }}" href="{{ task.href }}">
         <span class="task-state" aria-hidden="true">{% if task.count %}{{ task.count }}{% else %}✓{% endif %}</span>
         <span class="task-copy"><strong>{{ task.label }}</strong><small>{{ task.detail }}</small></span>
         <span class="task-action">{{ task.action }} <span aria-hidden="true">→</span></span>
       </a>
+      {% else %}
+      <p class="admin-empty queue-empty">No active reviewer queues.</p>
       {% endfor %}
     </div>
+    {% if dashboard.clear_tasks %}
+    <details class="clear-queue-list">
+      <summary>{{ dashboard.clear_tasks|length }} clear queues</summary>
+      <div class="admin-task-list">
+        {% for task in dashboard.clear_tasks %}
+        <a class="admin-task task-clear" href="{{ task.href }}">
+          <span class="task-state" aria-hidden="true">✓</span>
+          <span class="task-copy"><strong>{{ task.label }}</strong><small>{{ task.detail }}</small></span>
+          <span class="task-action">{{ task.action }} <span aria-hidden="true">→</span></span>
+        </a>
+        {% endfor %}
+      </div>
+    </details>
+    {% endif %}
   </section>
 
   <aside class="admin-side-column">

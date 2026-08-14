@@ -2179,6 +2179,132 @@ button.danger {
   margin-top: 1rem;
 }
 
+.coverage-panel {
+  margin-top: 1rem;
+}
+
+.coverage-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.coverage-card {
+  border: 1px solid var(--admin-line);
+  border-radius: 0.6rem;
+  color: var(--admin-ink);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.8rem;
+  text-decoration: none;
+}
+
+.coverage-card:hover,
+.coverage-card:focus {
+  background: #f7faf8;
+  border-color: #9bbdb5;
+  text-decoration: none;
+}
+
+.coverage-card > div {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.coverage-card strong {
+  font-size: 0.72rem;
+}
+
+.coverage-card > div span {
+  color: var(--admin-green-dark);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.coverage-card progress {
+  appearance: none;
+  background: #e7eeeb;
+  border: 0;
+  border-radius: 999px;
+  height: 0.36rem;
+  overflow: hidden;
+  width: 100%;
+}
+
+.coverage-card progress::-webkit-progress-bar {
+  background: #e7eeeb;
+}
+
+.coverage-card progress::-webkit-progress-value,
+.coverage-card progress::-moz-progress-bar {
+  background: var(--admin-green);
+  border-radius: 999px;
+}
+
+.coverage-card small {
+  color: var(--admin-muted);
+  font-size: 0.61rem;
+  line-height: 1.4;
+}
+
+.coverage-card small b {
+  color: var(--admin-ink);
+}
+
+.coverage-footprint {
+  border-top: 1px solid var(--admin-line);
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+
+.coverage-footprint > div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.45rem;
+}
+
+.coverage-footprint strong {
+  color: var(--admin-green-dark);
+  font-size: 1.15rem;
+  grid-row: 1 / 3;
+}
+
+.coverage-footprint span {
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+
+.coverage-footprint small {
+  color: var(--admin-muted);
+  font-size: 0.58rem;
+  line-height: 1.3;
+}
+
+.clear-queue-list {
+  margin-top: 0.8rem;
+}
+
+.clear-queue-list summary {
+  color: var(--admin-muted);
+  cursor: pointer;
+  font-size: 0.66rem;
+  font-weight: 750;
+}
+
+.clear-queue-list .admin-task-list {
+  margin-top: 0.6rem;
+}
+
+.queue-empty {
+  margin: 0;
+  padding: 1rem;
+}
+
 .admin-side-column {
   display: grid;
   gap: 1rem;
@@ -2483,6 +2609,10 @@ button.danger {
     grid-template-columns: 1fr;
   }
 
+  .coverage-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .admin-side-column {
     grid-template-columns: 1fr 1fr;
   }
@@ -2491,6 +2621,11 @@ button.danger {
 @media (max-width: 760px) {
   .admin-shell {
     display: block;
+  }
+
+  .coverage-grid,
+  .coverage-footprint {
+    grid-template-columns: 1fr;
   }
 
   .admin-sidebar {

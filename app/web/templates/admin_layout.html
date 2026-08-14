@@ -42,6 +42,7 @@
           <a{% if request.url.path.startswith('/trusted-web-research') %} class="active" aria-current="page"{% endif %} href="/trusted-web-research"><span aria-hidden="true">W</span>Research leads</a>
           <a{% if request.url.path.startswith('/guidance-candidates') %} class="active" aria-current="page"{% endif %} href="/guidance-candidates"><span aria-hidden="true">G</span>Guidance candidates</a>
           <a{% if request.url.path.startswith('/guidance-claims') %} class="active" aria-current="page"{% endif %} href="/guidance-claims"><span aria-hidden="true">K</span>Guidance claims</a>
+          <a{% if request.url.path.startswith('/guidance-conflicts') %} class="active" aria-current="page"{% endif %} href="/guidance-conflicts"><span aria-hidden="true">!</span>Knowledge conflicts</a>
           <a{% if request.url.path.startswith('/recommendation-claims') %} class="active" aria-current="page"{% endif %} href="/recommendation-claims"><span aria-hidden="true">A</span>Recommendations</a>
           <a{% if request.url.path.startswith('/refusal-gaps') %} class="active" aria-current="page"{% endif %} href="/refusal-gaps"><span aria-hidden="true">G</span>Refusal gaps</a>
         </div>

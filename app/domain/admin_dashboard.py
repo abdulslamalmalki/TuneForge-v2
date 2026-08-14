@@ -18,9 +18,14 @@ from app.db.models import (
     GuidanceCandidate,
     GuidanceCandidateEvent,
     GuidanceClaim,
+    GuidanceClaimApplicabilityTarget,
+    GuidanceClaimBiosScope,
     GuidanceClaimConflict,
     GuidanceClaimEvent,
     GuidanceClaimSetting,
+    GuidanceClaimSourceSetting,
+    Manual,
+    ManualApplicabilityTarget,
     ManualEvent,
     RecommendationClaim,
     RecommendationClaimEvent,
@@ -29,6 +34,7 @@ from app.db.models import (
     ResearchEvidenceIntakeEvent,
     ReviewEvent,
     Setting,
+    SettingCanonicalMapping,
     TrustedWebResearchResult,
     UnansweredLookup,
 )
@@ -56,6 +62,24 @@ class DashboardTask:
 
 
 @dataclass(frozen=True)
+class DashboardCoverage:
+    coverage_id: str
+    label: str
+    numerator: int
+    denominator: int
+    percent: float
+    detail: str
+    href: str
+
+
+@dataclass(frozen=True)
+class DashboardFootprint:
+    label: str
+    value: int
+    detail: str
+
+
+@dataclass(frozen=True)
 class DashboardActivity:
     kind: str
     subject: str
@@ -76,7 +100,11 @@ class DashboardHealth:
 class AdminDashboard:
     health: DashboardHealth
     metrics: tuple[DashboardMetric, ...]
+    coverages: tuple[DashboardCoverage, ...]
+    footprint: tuple[DashboardFootprint, ...]
     tasks: tuple[DashboardTask, ...]
+    active_tasks: tuple[DashboardTask, ...]
+    clear_tasks: tuple[DashboardTask, ...]
     activities: tuple[DashboardActivity, ...]
     active_task_count: int
     am5_expansion_status: str
@@ -94,7 +122,18 @@ def build_dashboard(session: Session) -> AdminDashboard:
     approved_setting_count = _count(session, Setting, Setting.status == "approved")
     draft_setting_count = _count(session, Setting, Setting.status == "draft")
     failed_extraction_count = _count(session, ExtractionRun, ExtractionRun.status == "failed")
-    canonical_count = _count(session, CanonicalSetting)
+    canonical_count = _count(session, CanonicalSetting, CanonicalSetting.status == "active")
+    mapped_approved_setting_count = int(
+        session.scalar(
+            select(func.count(distinct(SettingCanonicalMapping.setting_id)))
+            .join(Setting, Setting.id == SettingCanonicalMapping.setting_id)
+            .where(Setting.status == "approved")
+        )
+        or 0
+    )
+    unmapped_approved_setting_count = max(
+        approved_setting_count - mapped_approved_setting_count, 0
+    )
     pending_suggestion_count = _count(
         session,
         CanonicalMappingSuggestion,
@@ -170,9 +209,60 @@ def build_dashboard(session: Session) -> AdminDashboard:
         session.scalar(
             select(func.count(distinct(GuidanceClaimSetting.canonical_id)))
             .join(GuidanceClaim, GuidanceClaim.id == GuidanceClaimSetting.claim_id)
-            .where(GuidanceClaim.status == "approved")
+            .join(
+                CanonicalSetting,
+                CanonicalSetting.canonical_id == GuidanceClaimSetting.canonical_id,
+            )
+            .where(
+                GuidanceClaim.status == "approved",
+                CanonicalSetting.status == "active",
+            )
         )
         or 0
+    )
+    directly_evidenced_setting_count = _distinct_approved_claim_link_count(
+        session,
+        GuidanceClaimSourceSetting.setting_id,
+        Setting,
+        Setting.id == GuidanceClaimSourceSetting.setting_id,
+        Setting.status == "approved",
+    )
+    hardware_scoped_approved_claim_count = _distinct_approved_claim_link_count(
+        session,
+        GuidanceClaimApplicabilityTarget.claim_id,
+    )
+    bios_scoped_approved_claim_count = _distinct_approved_claim_link_count(
+        session,
+        GuidanceClaimBiosScope.claim_id,
+    )
+    recommendation_canonical_count = int(
+        session.scalar(
+            select(func.count(distinct(RecommendationClaim.canonical_id)))
+            .select_from(RecommendationClaim)
+            .join(
+                CanonicalSetting,
+                CanonicalSetting.canonical_id == RecommendationClaim.canonical_id,
+            )
+            .where(
+                RecommendationClaim.status == "approved",
+                CanonicalSetting.status == "active",
+            )
+        )
+        or 0
+    )
+    vendor_coverage_count = int(
+        session.scalar(
+            select(func.count(distinct(Manual.vendor_id)))
+            .join(Setting, Setting.manual_id == Manual.id)
+            .where(Setting.status == "approved", Manual.vendor_id.is_not(None))
+        )
+        or 0
+    )
+    platform_coverage_count = _approved_setting_target_count(
+        session, ManualApplicabilityTarget.platform_id
+    )
+    chipset_coverage_count = _approved_setting_target_count(
+        session, ManualApplicabilityTarget.chipset_id
     )
 
     gap_worklist = refusal_gaps.list_gap_worklist(session)
@@ -241,6 +331,78 @@ def build_dashboard(session: Session) -> AdminDashboard:
             "recommendations",
         ),
     )
+    coverages = (
+        _coverage(
+            "canonical",
+            "Canonical mapping",
+            mapped_approved_setting_count,
+            approved_setting_count,
+            f"{unmapped_approved_setting_count:,} approved settings remain in the backlog.",
+            "/canonicalization/assessments",
+        ),
+        _coverage(
+            "guidance",
+            "Verified guidance",
+            covered_canonical_count,
+            canonical_count,
+            "Active canonical identities with at least one approved factual claim.",
+            "/guidance-candidates",
+        ),
+        _coverage(
+            "evidence",
+            "Direct source evidence",
+            directly_evidenced_setting_count,
+            approved_setting_count,
+            "Approved Source Settings directly bound to an approved claim.",
+            "/guidance-claims?status=approved",
+        ),
+        _coverage(
+            "hardware",
+            "Hardware scope",
+            hardware_scoped_approved_claim_count,
+            approved_claim_count,
+            "Approved claims with an explicit reviewed hardware target.",
+            "/guidance-claims?status=approved",
+        ),
+        _coverage(
+            "bios",
+            "BIOS-version scope",
+            bios_scoped_approved_claim_count,
+            approved_claim_count,
+            "Approved claims with an explicit reviewed firmware boundary.",
+            "/guidance-claims?status=approved",
+        ),
+        _coverage(
+            "recommendation",
+            "Safe recommendations",
+            recommendation_canonical_count,
+            canonical_count,
+            "Active canonical identities with an approved recommendation claim.",
+            "/recommendation-claims?status=approved",
+        ),
+    )
+    footprint = (
+        DashboardFootprint(
+            "Vendors",
+            vendor_coverage_count,
+            "represented by approved Source Settings",
+        ),
+        DashboardFootprint(
+            "Platforms",
+            platform_coverage_count,
+            "normalized targets represented by approved settings",
+        ),
+        DashboardFootprint(
+            "Chipsets",
+            chipset_coverage_count,
+            "exact normalized targets represented by approved settings",
+        ),
+        DashboardFootprint(
+            "Open conflicts",
+            pending_knowledge_conflict_count,
+            "scope-aware claim disagreements awaiting review",
+        ),
+    )
     tasks = (
         DashboardTask(
             "manual-provenance",
@@ -289,6 +451,24 @@ def build_dashboard(session: Session) -> AdminDashboard:
             "/evidence-sources",
             "Review evidence",
             "attention" if pending_source_count else "clear",
+        ),
+        DashboardTask(
+            "canonical-mapping-backlog",
+            "Canonical mapping backlog",
+            unmapped_approved_setting_count,
+            "Approved Source Settings investigated but not yet mapped to a verified identity.",
+            "/canonicalization/assessments",
+            "Review canonicalization",
+            "normal" if unmapped_approved_setting_count else "clear",
+        ),
+        DashboardTask(
+            "needs-guidance",
+            "Canonical settings needing guidance",
+            max(canonical_count - covered_canonical_count, 0),
+            "Active canonical identities without an approved factual Guidance Claim.",
+            "/guidance-candidates",
+            "Build verified guidance",
+            "normal" if canonical_count > covered_canonical_count else "clear",
         ),
         DashboardTask(
             "guidance-candidates",
@@ -366,12 +546,18 @@ def build_dashboard(session: Session) -> AdminDashboard:
             "normal" if gap_worklist else "clear",
         ),
     )
+    active_tasks = tuple(task for task in tasks if task.count > 0)
+    clear_tasks = tuple(task for task in tasks if task.count == 0)
     return AdminDashboard(
         health=health,
         metrics=metrics,
+        coverages=coverages,
+        footprint=footprint,
         tasks=tasks,
+        active_tasks=active_tasks,
+        clear_tasks=clear_tasks,
         activities=_recent_activity(session),
-        active_task_count=sum(task.count > 0 for task in tasks),
+        active_task_count=len(active_tasks),
         am5_expansion_status=coverage.summary.expansion_status,
         am5_gate_count=len(coverage.gates),
         am5_passed_gate_count=passed_gate_count,
@@ -383,6 +569,58 @@ def _count(session: Session, model: type, *conditions: object) -> int:
     if conditions:
         query = query.where(*conditions)
     return session.scalar(query) or 0
+
+
+def _coverage(
+    coverage_id: str,
+    label: str,
+    numerator: int,
+    denominator: int,
+    detail: str,
+    href: str,
+) -> DashboardCoverage:
+    percent = round((numerator / denominator * 100) if denominator else 0.0, 1)
+    return DashboardCoverage(
+        coverage_id=coverage_id,
+        label=label,
+        numerator=numerator,
+        denominator=denominator,
+        percent=percent,
+        detail=detail,
+        href=href,
+    )
+
+
+def _distinct_approved_claim_link_count(
+    session: Session,
+    identity_column,
+    joined_model: type | None = None,
+    join_condition: object | None = None,
+    joined_condition: object | None = None,
+) -> int:
+    query = (
+        select(func.count(distinct(identity_column)))
+        .select_from(identity_column.class_)
+        .join(GuidanceClaim, GuidanceClaim.id == identity_column.class_.claim_id)
+        .where(GuidanceClaim.status == "approved")
+    )
+    if joined_model is not None and join_condition is not None:
+        query = query.join(joined_model, join_condition)
+    if joined_condition is not None:
+        query = query.where(joined_condition)
+    return int(session.scalar(query) or 0)
+
+
+def _approved_setting_target_count(session: Session, target_column) -> int:
+    return int(
+        session.scalar(
+            select(func.count(distinct(target_column)))
+            .select_from(ManualApplicabilityTarget)
+            .join(Setting, Setting.manual_id == ManualApplicabilityTarget.manual_id)
+            .where(Setting.status == "approved", target_column.is_not(None))
+        )
+        or 0
+    )
 
 
 def _health(*, failed_count: int, expansion_status: str) -> DashboardHealth:

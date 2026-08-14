@@ -57,6 +57,10 @@ def test_admin_dashboard_is_a_clear_read_only_operations_home(client):
     assert response.status_code == 200
     assert "Knowledge operations" in response.text
     assert "Work queue" in response.text
+    assert "Knowledge coverage" in response.text
+    assert "Canonical mapping" in response.text
+    assert "BIOS-version scope" in response.text
+    assert "Knowledge footprint" in response.text
     assert "AM5 validation" in response.text
     assert "Recent activity" in response.text
     assert "Local development bypass" in response.text
@@ -107,6 +111,7 @@ def test_admin_shell_links_to_every_curator_workspace(client):
     assert 'href="/canonical-settings"' in response.text
     assert 'href="/evidence-sources"' in response.text
     assert 'href="/guidance-claims"' in response.text
+    assert 'href="/guidance-conflicts"' in response.text
     assert 'href="/recommendation-claims"' in response.text
     assert 'href="/refusal-gaps"' in response.text
     assert 'href="/admin/release-readiness"' in response.text

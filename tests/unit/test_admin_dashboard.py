@@ -190,6 +190,14 @@ def test_dashboard_projects_priority_queues_and_health_without_writes(db_session
     assert metrics["Accepted claims"].value == 0
     assert metrics["Refusal demand"].value == 1
 
+    coverages = {row.coverage_id: row for row in dashboard.coverages}
+    assert coverages["canonical"].numerator == 0
+    assert coverages["canonical"].denominator == 0
+    assert coverages["guidance"].numerator == 0
+    assert coverages["guidance"].denominator == 1
+    assert coverages["guidance"].percent == 0.0
+    assert coverages["hardware"].denominator == 0
+
     assert tasks["manual-provenance"].count == 1
     assert tasks["manual-eligibility"].count == 1
     assert tasks["extraction-failures"].count == 2
@@ -197,9 +205,14 @@ def test_dashboard_projects_priority_queues_and_health_without_writes(db_session
     assert tasks["setting-review"].count == 1
     assert tasks["evidence-review"].count == 1
     assert tasks["claim-review"].count == 1
+    assert tasks["canonical-mapping-backlog"].count == 0
+    assert tasks["needs-guidance"].count == 1
     assert tasks["mapping-suggestions"].count == 1
     assert tasks["refusal-gaps"].count == 1
-    assert dashboard.active_task_count == 8
+    assert dashboard.active_task_count == 9
+    assert len(dashboard.active_tasks) == 9
+    assert all(task.count > 0 for task in dashboard.active_tasks)
+    assert all(task.count == 0 for task in dashboard.clear_tasks)
     assert dashboard.health.status == "critical"
     assert dashboard.activities[0].subject.startswith("Manual ")
 

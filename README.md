@@ -639,6 +639,13 @@ the deterministic answer. Mocked transport coverage validates all adapters; no
 live provider call has been claimed without credentials. Configuration is
 documented in `.env.example` and `docs/v1.33-grounded-llm-providers.md`.
 
+Admin Knowledge Operations in v1.33 adds strict coverage ratios for canonical
+mapping, verified guidance, direct source evidence, hardware scope, BIOS scope,
+and reviewed recommendations, plus vendor/platform/chipset footprint metrics.
+Active work queues are shown first, clear queues are collapsed, and existing
+canonical-mapping and missing-guidance backlogs become directly visible without
+duplicating workflow state. See `docs/v1.33-admin-knowledge-operations.md`.
+
 The Conservative Canonicalization Backlog in v1.3 evaluates every approved,
 unmapped Source Setting against reviewed canonical identities using normalized
 names, descriptions, vendor aliases, mapped precedents, official provenance,
