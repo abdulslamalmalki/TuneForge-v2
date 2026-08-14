@@ -60,6 +60,13 @@ class MotherboardModelDefinition:
 
 
 @dataclass(frozen=True)
+class MotherboardFamilyDefinition:
+    family_id: str
+    vendor_id: str
+    canonical_name: str
+
+
+@dataclass(frozen=True)
 class ModelNormalization:
     raw_value: str
     normalized_key: str
@@ -325,6 +332,30 @@ MOTHERBOARD_MODELS = (
     ),
 )
 
+MOTHERBOARD_FAMILIES = (
+    MotherboardFamilyDefinition("asus-tuf-gaming", "asus", "ASUS TUF Gaming"),
+    MotherboardFamilyDefinition("asrock-steel-legend", "asrock", "ASRock Steel Legend"),
+    MotherboardFamilyDefinition("asrock-taichi", "asrock", "ASRock Taichi"),
+    MotherboardFamilyDefinition("gigabyte-aorus", "gigabyte", "GIGABYTE AORUS"),
+    MotherboardFamilyDefinition("msi-mpg", "msi", "MSI MPG"),
+)
+
+
+def motherboard_family_id(model: MotherboardModelDefinition) -> str | None:
+    name = model.canonical_name.casefold()
+    if model.vendor_id == "asus" and "tuf gaming" in name:
+        return "asus-tuf-gaming"
+    if model.vendor_id == "asrock" and "steel legend" in name:
+        return "asrock-steel-legend"
+    if model.vendor_id == "asrock" and "taichi" in name:
+        return "asrock-taichi"
+    if model.vendor_id == "gigabyte" and "aorus" in name:
+        return "gigabyte-aorus"
+    if model.vendor_id == "msi" and name.startswith("mpg "):
+        return "msi-mpg"
+    return None
+
+
 _BROAD_MODEL_PATTERNS = (
     re.compile(r"\b(?:AMD|INTEL)\s+\d{3}\s+SERIES\b", re.IGNORECASE),
     re.compile(
@@ -462,6 +493,7 @@ def contract() -> dict[str, object]:
         "platforms": [asdict(item) for item in PLATFORMS],
         "chipset_families": [asdict(item) for item in CHIPSET_FAMILIES],
         "chipsets": [asdict(item) for item in CHIPSETS],
+        "motherboard_families": [asdict(item) for item in MOTHERBOARD_FAMILIES],
         "motherboard_models": [asdict(item) for item in MOTHERBOARD_MODELS],
         "cpus": cpu_contract(),
         "applicability_scopes": [

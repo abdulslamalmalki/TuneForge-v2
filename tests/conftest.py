@@ -87,19 +87,23 @@ def _create_schema():
         CpuFamily,
         CpuModel,
         CpuModelAlias,
+        CpuVendor,
         HardwarePlatform,
+        MotherboardFamily,
         MotherboardModel,
         Vendor,
         VendorAlias,
     )
     from app.db.session import engine
     from app.normalization.canonical_settings import CATEGORIES
-    from app.normalization.cpu import CPU_ARCHITECTURES, CPU_FAMILIES, CPU_MODELS
+    from app.normalization.cpu import CPU_ARCHITECTURES, CPU_FAMILIES, CPU_MODELS, CPU_VENDORS
     from app.normalization.hardware import (
         CHIPSET_FAMILIES,
         CHIPSETS,
+        MOTHERBOARD_FAMILIES,
         MOTHERBOARD_MODELS,
         PLATFORMS,
+        motherboard_family_id,
     )
     from app.normalization.vendors import VENDORS, normalized_key
     from app.search import index as search_index
@@ -150,6 +154,22 @@ def _create_schema():
                     display_alias=alias,
                 )
         session.add_all(aliases_by_key.values())
+        session.flush()
+        for definition in CPU_VENDORS:
+            session.merge(
+                CpuVendor(
+                    vendor_id=definition.vendor_id,
+                    canonical_name=definition.canonical_name,
+                )
+            )
+        for definition in MOTHERBOARD_FAMILIES:
+            session.merge(
+                MotherboardFamily(
+                    family_id=definition.family_id,
+                    vendor_id=definition.vendor_id,
+                    canonical_name=definition.canonical_name,
+                )
+            )
         session.flush()
         for definition in PLATFORMS:
             session.merge(
@@ -225,6 +245,7 @@ def _create_schema():
                     model_id=definition.model_id,
                     vendor_id=definition.vendor_id,
                     canonical_name=definition.canonical_name,
+                    family_id=motherboard_family_id(definition),
                     chipset_id=definition.chipset_id,
                     platform_id=definition.platform_id,
                 )
@@ -261,6 +282,7 @@ def _clean_state(_create_schema):
         GuidanceCandidate,
         GuidanceCandidateEvent,
         GuidanceClaim,
+        GuidanceClaimApplicabilityTarget,
         GuidanceClaimEvent,
         GuidanceClaimEvidence,
         GuidanceClaimSetting,
@@ -300,6 +322,7 @@ def _clean_state(_create_schema):
         session.query(GuidanceCandidateEvent).delete()
         session.query(GuidanceCandidate).delete()
         session.query(GuidanceClaimEvent).delete()
+        session.query(GuidanceClaimApplicabilityTarget).delete()
         session.query(GuidanceClaimEvidence).delete()
         session.query(GuidanceClaimSourceSetting).delete()
         session.query(GuidanceClaimSetting).delete()

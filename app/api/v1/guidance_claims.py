@@ -54,6 +54,11 @@ def create_guidance_claim(
             canonical_ids=body.canonical_ids,
             applicability_scope=body.applicability_scope,
             cpu_model_id=body.cpu_model_id,
+            applicability_targets=(
+                tuple(target.to_domain() for target in body.applicability_targets)
+                if body.applicability_targets
+                else None
+            ),
         )
     except GuidanceClaimError as error:
         raise HTTPException(status_code=400, detail=error.message) from None
@@ -93,6 +98,11 @@ def edit_guidance_claim(
             canonical_ids=body.canonical_ids,
             applicability_scope=body.applicability_scope,
             cpu_model_id=body.cpu_model_id,
+            applicability_targets=(
+                tuple(target.to_domain() for target in body.applicability_targets)
+                if body.applicability_targets
+                else None
+            ),
         )
     except GuidanceClaimError as error:
         raise HTTPException(status_code=400, detail=error.message) from None

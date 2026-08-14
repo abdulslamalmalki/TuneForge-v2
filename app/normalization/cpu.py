@@ -10,6 +10,12 @@ CPU_NORMALIZATION_VERSION = "1.0"
 
 
 @dataclass(frozen=True)
+class CpuVendorDefinition:
+    vendor_id: str
+    canonical_name: str
+
+
+@dataclass(frozen=True)
 class CpuArchitectureDefinition:
     architecture_id: str
     vendor_name: str
@@ -34,6 +40,11 @@ class CpuModelDefinition:
     is_x3d: bool
     aliases: tuple[str, ...]
 
+
+CPU_VENDORS = (
+    CpuVendorDefinition("amd", "AMD"),
+    CpuVendorDefinition("intel", "Intel"),
+)
 
 CPU_ARCHITECTURES = (CpuArchitectureDefinition("amd-zen-5", "AMD", "AMD Zen 5"),)
 
@@ -76,6 +87,7 @@ def normalize_cpu_model(value: str | None) -> CpuModelDefinition | None:
 def cpu_contract() -> dict[str, object]:
     return {
         "version": CPU_NORMALIZATION_VERSION,
+        "vendors": [asdict(item) for item in CPU_VENDORS],
         "architectures": [asdict(item) for item in CPU_ARCHITECTURES],
         "families": [asdict(item) for item in CPU_FAMILIES],
         "models": [asdict(item) for item in CPU_MODELS],

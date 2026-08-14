@@ -141,17 +141,17 @@ def test_upgrade_backfills_existing_manual_provenance(tmp_path):
                 SELECT name FROM sqlite_master
                 WHERE type='table' AND name IN (
                     'hardware_platforms', 'chipset_families', 'chipsets',
-                    'motherboard_models', 'manual_applicability',
+                    'motherboard_models', 'motherboard_families', 'manual_applicability',
                     'manual_applicability_targets'
                 )
                 """
             )
         }
-        assert len(hardware_tables) == 6
+        assert len(hardware_tables) == 7
         assert connection.execute(
-            "SELECT vendor_id, chipset_id, platform_id FROM motherboard_models "
+            "SELECT vendor_id, chipset_id, platform_id, family_id FROM motherboard_models "
             "WHERE model_id = 'asus-tuf-gaming-x870-plus-wifi'"
-        ).fetchone() == ("asus", "amd-x870", "amd-am5")
+        ).fetchone() == ("asus", "amd-x870", "amd-am5", "asus-tuf-gaming")
         cpu_tables = {
             row[0]
             for row in connection.execute(
@@ -159,12 +159,12 @@ def test_upgrade_backfills_existing_manual_provenance(tmp_path):
                 SELECT name FROM sqlite_master
                 WHERE type='table' AND name IN (
                     'cpu_architectures', 'cpu_families',
-                    'cpu_models', 'cpu_model_aliases'
+                    'cpu_models', 'cpu_model_aliases', 'cpu_vendors'
                 )
                 """
             )
         }
-        assert len(cpu_tables) == 4
+        assert len(cpu_tables) == 5
         assert connection.execute(
             "SELECT cpu_model_id, platform_id, is_x3d FROM cpu_models"
         ).fetchone() == ("amd-ryzen-7-9800x3d", "amd-am5", 1)
@@ -210,12 +210,13 @@ def test_upgrade_backfills_existing_manual_provenance(tmp_path):
                 SELECT name FROM sqlite_master
                 WHERE type='table' AND name IN (
                     'guidance_claims', 'guidance_claim_evidence',
-                    'guidance_claim_settings', 'guidance_claim_events'
+                    'guidance_claim_settings', 'guidance_claim_events',
+                    'guidance_claim_applicability_targets'
                 )
                 """
             )
         }
-        assert len(guidance_tables) == 4
+        assert len(guidance_tables) == 5
         guidance_candidate_tables = {
             row[0]
             for row in connection.execute(
@@ -281,7 +282,7 @@ def test_upgrade_backfills_existing_manual_provenance(tmp_path):
             )
         }
         assert len(research_tables) == 5
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0023",)
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0024",)
 
 
 def test_hardware_migration_backfill_matches_phase1_scope_rules(tmp_path):

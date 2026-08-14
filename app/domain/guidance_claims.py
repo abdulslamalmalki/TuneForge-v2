@@ -1,6 +1,7 @@
 """Reviewer-controlled guidance claims grounded in accepted evidence passages."""
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from sqlalchemy import delete, func, select
@@ -10,17 +11,27 @@ from app import config
 from app.auth.context import current_actor
 from app.db.models import (
     CanonicalSetting,
+    Chipset,
+    ChipsetFamily,
+    CpuArchitecture,
+    CpuFamily,
     CpuModel,
+    CpuVendor,
     EvidencePassage,
     EvidenceSource,
     GuidanceClaim,
+    GuidanceClaimApplicabilityTarget,
     GuidanceClaimEvent,
     GuidanceClaimEvidence,
     GuidanceClaimSetting,
     GuidanceClaimSourceSetting,
+    HardwarePlatform,
     Manual,
+    MotherboardFamily,
+    MotherboardModel,
     Setting,
     SettingCanonicalMapping,
+    Vendor,
 )
 from app.domain import canonicalization
 from app.domain.errors import GuidanceClaimError
@@ -34,6 +45,63 @@ STATUSES = (STATUS_DRAFT, STATUS_APPROVED, STATUS_REJECTED)
 CLAIM_TYPES = ("definition", "behavior", "constraint", "safety")
 APPLICABILITY_SOURCE_SCOPE = "source_scope"
 APPLICABILITY_CPU_MODEL = "cpu_model"
+APPLICABILITY_REVIEWED_HARDWARE = "reviewed_hardware"
+
+TARGET_CPU_MODEL = "cpu_model"
+TARGET_CPU_FAMILY = "cpu_family"
+TARGET_CPU_ARCHITECTURE = "cpu_architecture"
+TARGET_MOTHERBOARD_MODEL = "motherboard_model"
+TARGET_CHIPSET = "chipset"
+TARGET_CHIPSET_FAMILY = "chipset_family"
+TARGET_PLATFORM = "platform"
+TARGET_VENDOR = "vendor"
+TARGET_CPU_VENDOR = "cpu_vendor"
+TARGET_MOTHERBOARD_FAMILY = "motherboard_family"
+TARGET_TYPES = (
+    TARGET_CPU_MODEL,
+    TARGET_CPU_FAMILY,
+    TARGET_CPU_ARCHITECTURE,
+    TARGET_MOTHERBOARD_MODEL,
+    TARGET_CHIPSET,
+    TARGET_CHIPSET_FAMILY,
+    TARGET_PLATFORM,
+    TARGET_VENDOR,
+    TARGET_CPU_VENDOR,
+    TARGET_MOTHERBOARD_FAMILY,
+)
+
+_TARGET_DEFINITIONS = {
+    TARGET_CPU_MODEL: (CpuModel, "cpu_model_id", "cpu_model_id", "exact_cpu"),
+    TARGET_CPU_FAMILY: (CpuFamily, "family_id", "cpu_family_id", "family"),
+    TARGET_CPU_ARCHITECTURE: (
+        CpuArchitecture,
+        "architecture_id",
+        "cpu_architecture_id",
+        "architecture",
+    ),
+    TARGET_MOTHERBOARD_MODEL: (
+        MotherboardModel,
+        "model_id",
+        "motherboard_model_id",
+        "exact_model",
+    ),
+    TARGET_CHIPSET: (Chipset, "chipset_id", "chipset_id", "exact_chipset"),
+    TARGET_CHIPSET_FAMILY: (
+        ChipsetFamily,
+        "family_id",
+        "chipset_family_id",
+        "family",
+    ),
+    TARGET_PLATFORM: (HardwarePlatform, "platform_id", "platform_id", "platform"),
+    TARGET_VENDOR: (Vendor, "vendor_id", "vendor_id", "vendor"),
+    TARGET_CPU_VENDOR: (CpuVendor, "vendor_id", "cpu_vendor_id", "vendor"),
+    TARGET_MOTHERBOARD_FAMILY: (
+        MotherboardFamily,
+        "family_id",
+        "motherboard_family_id",
+        "family",
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -46,6 +114,22 @@ class GuidanceCitation:
 class GuidanceSourceSettingCitation:
     setting: Setting
     manual: Manual
+
+
+@dataclass(frozen=True)
+class ApplicabilityTargetInput:
+    target_type: str
+    target_id: str
+    evidence_basis: str
+
+
+@dataclass(frozen=True)
+class GuidanceApplicabilityTarget:
+    target_type: str
+    target_id: str
+    canonical_name: str
+    evidence_level: str
+    evidence_basis: str
 
 
 @dataclass(frozen=True)
@@ -62,6 +146,7 @@ class GuidanceClaimDetail:
     source_settings: tuple[GuidanceSourceSettingCitation, ...]
     settings: tuple[CanonicalSetting, ...]
     cpu_model: CpuModel | None
+    applicability_targets: tuple[GuidanceApplicabilityTarget, ...]
     events: tuple[GuidanceClaimEvent, ...]
 
 
@@ -75,6 +160,7 @@ def create_claim(
     canonical_ids: tuple[str, ...] | list[str],
     applicability_scope: str = APPLICABILITY_SOURCE_SCOPE,
     cpu_model_id: str | None = None,
+    applicability_targets: Sequence[ApplicabilityTargetInput] | None = None,
     actor: str | None = None,
     commit: bool = True,
 ) -> GuidanceClaim:
@@ -88,6 +174,7 @@ def create_claim(
         canonical_ids=canonical_ids,
         applicability_scope=applicability_scope,
         cpu_model_id=cpu_model_id,
+        applicability_targets=applicability_targets,
     )
     duplicate = session.scalar(
         select(GuidanceClaim.id).where(
@@ -120,6 +207,7 @@ def create_claim(
         source_setting_ids=values["source_setting_ids"],
         canonical_ids=values["canonical_ids"],
     )
+    _replace_applicability_targets(session, claim.id, values["applicability_targets"])
     session.add(
         GuidanceClaimEvent(
             claim_id=claim.id,
@@ -200,6 +288,19 @@ def get_claim(session: Session, claim_id: int) -> GuidanceClaim | None:
     return session.get(GuidanceClaim, claim_id)
 
 
+def list_applicability_targets(
+    session: Session, claim_id: int
+) -> tuple[GuidanceApplicabilityTarget, ...]:
+    return tuple(
+        _applicability_target_view(session, row)
+        for row in session.scalars(
+            select(GuidanceClaimApplicabilityTarget)
+            .where(GuidanceClaimApplicabilityTarget.claim_id == claim_id)
+            .order_by(GuidanceClaimApplicabilityTarget.ordinal)
+        )
+    )
+
+
 def get_detail(session: Session, claim_id: int) -> GuidanceClaimDetail | None:
     claim = session.get(GuidanceClaim, claim_id)
     if claim is None:
@@ -242,6 +343,7 @@ def get_detail(session: Session, claim_id: int) -> GuidanceClaimDetail | None:
         )
     )
     cpu_model = session.get(CpuModel, claim.cpu_model_id) if claim.cpu_model_id else None
+    applicability_targets = list_applicability_targets(session, claim_id)
     events = tuple(
         session.scalars(
             select(GuidanceClaimEvent)
@@ -255,6 +357,7 @@ def get_detail(session: Session, claim_id: int) -> GuidanceClaimDetail | None:
         source_settings=source_settings,
         settings=settings,
         cpu_model=cpu_model,
+        applicability_targets=applicability_targets,
         events=events,
     )
 
@@ -270,6 +373,7 @@ def edit_claim(
     canonical_ids: tuple[str, ...] | list[str],
     applicability_scope: str = APPLICABILITY_SOURCE_SCOPE,
     cpu_model_id: str | None = None,
+    applicability_targets: Sequence[ApplicabilityTargetInput] | None = None,
 ) -> bool:
     if claim.status != STATUS_DRAFT:
         raise GuidanceClaimError("Only draft guidance claims can be edited.")
@@ -282,6 +386,7 @@ def edit_claim(
         canonical_ids=canonical_ids,
         applicability_scope=applicability_scope,
         cpu_model_id=cpu_model_id,
+        applicability_targets=applicability_targets,
     )
     detail = get_detail(session, claim.id)
     if detail is None:
@@ -295,6 +400,7 @@ def edit_claim(
         "passage_ids": list(values["passage_ids"]),
         "source_setting_ids": list(values["source_setting_ids"]),
         "canonical_ids": list(values["canonical_ids"]),
+        "applicability_targets": list(values["applicability_targets"]),
     }
     if before == after:
         return False
@@ -321,6 +427,7 @@ def edit_claim(
         source_setting_ids=values["source_setting_ids"],
         canonical_ids=values["canonical_ids"],
     )
+    _replace_applicability_targets(session, claim.id, values["applicability_targets"])
     session.add(
         GuidanceClaimEvent(
             claim_id=claim.id,
@@ -364,17 +471,21 @@ def review_claim(
         if any(citation.source.status != "approved" for citation in detail.evidence):
             raise GuidanceClaimError("All supporting evidence sources must be approved.")
         for citation in detail.source_settings:
-            reasons = canonicalization.source_trust_reasons(
-                citation.setting, citation.manual
-            )
+            reasons = canonicalization.source_trust_reasons(citation.setting, citation.manual)
             if reasons:
                 raise GuidanceClaimError(
                     "All supporting manual settings must remain trusted and approved."
                 )
-        if claim.applicability_scope != APPLICABILITY_SOURCE_SCOPE:
+        if claim.applicability_scope == APPLICABILITY_REVIEWED_HARDWARE and not (
+            detail.applicability_targets
+        ):
             raise GuidanceClaimError(
-                "CPU-model-specific guidance is not enabled in the 0.20 pilot."
+                "Reviewed-hardware applicability requires at least one reviewed target."
             )
+        if claim.applicability_scope == APPLICABILITY_CPU_MODEL and not (
+            detail.applicability_targets
+        ):
+            raise GuidanceClaimError("CPU-model applicability has no reviewed target.")
     now = utc_now_iso()
     claim.status = decision
     claim.review_note = note
@@ -406,6 +517,7 @@ def _validate_claim_values(
     canonical_ids: tuple[str, ...] | list[str],
     applicability_scope: str,
     cpu_model_id: str | None,
+    applicability_targets: Sequence[ApplicabilityTargetInput] | None,
 ) -> dict[str, object]:
     claim_text = " ".join(claim_text.split())
     if not claim_text:
@@ -422,11 +534,30 @@ def _validate_claim_values(
     if applicability_scope == APPLICABILITY_CPU_MODEL:
         if cpu_model_id is None or session.get(CpuModel, cpu_model_id) is None:
             raise GuidanceClaimError("Choose a known CPU model for CPU-model applicability.")
-        raise GuidanceClaimError("CPU-model-specific guidance is not enabled in the 0.20 pilot.")
-    if applicability_scope != APPLICABILITY_SOURCE_SCOPE or cpu_model_id is not None:
         raise GuidanceClaimError(
-            "The 0.20 pilot accepts source-scope claims without inferred CPU applicability."
+            "Legacy CPU-model scope is not accepted without an evidence basis; use "
+            "reviewed_hardware with an explicit cpu_model target."
         )
+    elif applicability_scope == APPLICABILITY_REVIEWED_HARDWARE:
+        if cpu_model_id is not None:
+            raise GuidanceClaimError(
+                "Reviewed-hardware scope uses normalized targets, not the legacy CPU field."
+            )
+        if not applicability_targets:
+            raise GuidanceClaimError(
+                "Reviewed-hardware scope requires at least one normalized target."
+            )
+    elif applicability_scope != APPLICABILITY_SOURCE_SCOPE or cpu_model_id is not None:
+        raise GuidanceClaimError(
+            "Choose source_scope, cpu_model, or reviewed_hardware applicability."
+        )
+    elif applicability_targets:
+        raise GuidanceClaimError(
+            "Source-scope claims cannot carry exact reviewed hardware targets."
+        )
+    clean_applicability_targets = _validate_applicability_targets(
+        session, applicability_targets or ()
+    )
     clean_passage_ids = tuple(sorted(dict.fromkeys(int(value) for value in passage_ids)))
     evidence_rows = session.execute(
         select(EvidencePassage.id, EvidenceSource.status)
@@ -454,9 +585,7 @@ def _validate_claim_values(
     if len(source_rows) != len(clean_source_setting_ids):
         raise GuidanceClaimError("One or more source settings were not found.")
     if not clean_passage_ids and not clean_source_setting_ids:
-        raise GuidanceClaimError(
-            "Select at least one evidence passage or approved source setting."
-        )
+        raise GuidanceClaimError("Select at least one evidence passage or approved source setting.")
     clean_canonical_ids = tuple(
         sorted(dict.fromkeys(value.strip() for value in canonical_ids if value.strip()))
     )
@@ -488,6 +617,7 @@ def _validate_claim_values(
         "passage_ids": clean_passage_ids,
         "source_setting_ids": clean_source_setting_ids,
         "canonical_ids": clean_canonical_ids,
+        "applicability_targets": clean_applicability_targets,
     }
 
 
@@ -501,9 +631,7 @@ def _replace_links(
 ) -> None:
     session.execute(delete(GuidanceClaimEvidence).where(GuidanceClaimEvidence.claim_id == claim_id))
     session.execute(
-        delete(GuidanceClaimSourceSetting).where(
-            GuidanceClaimSourceSetting.claim_id == claim_id
-        )
+        delete(GuidanceClaimSourceSetting).where(GuidanceClaimSourceSetting.claim_id == claim_id)
     )
     session.execute(delete(GuidanceClaimSetting).where(GuidanceClaimSetting.claim_id == claim_id))
     session.add_all(
@@ -511,13 +639,168 @@ def _replace_links(
         for value in passage_ids
     )
     session.add_all(
-        GuidanceClaimSourceSetting(
-            claim_id=claim_id, setting_id=value, relation="supports"
-        )
+        GuidanceClaimSourceSetting(claim_id=claim_id, setting_id=value, relation="supports")
         for value in source_setting_ids
     )
     session.add_all(
         GuidanceClaimSetting(claim_id=claim_id, canonical_id=value) for value in canonical_ids
+    )
+
+
+def _validate_applicability_targets(
+    session: Session,
+    targets: Sequence[ApplicabilityTargetInput],
+) -> tuple[dict[str, str], ...]:
+    clean: list[dict[str, str]] = []
+    identities: list[tuple[str, object]] = []
+    seen: set[tuple[str, str]] = set()
+    for target in targets:
+        target_type = target.target_type.strip().casefold()
+        target_id = target.target_id.strip().casefold()
+        evidence_basis = " ".join(target.evidence_basis.split())
+        definition = _TARGET_DEFINITIONS.get(target_type)
+        if definition is None:
+            raise GuidanceClaimError(
+                f"Applicability target type must be one of: {', '.join(TARGET_TYPES)}."
+            )
+        if not target_id:
+            raise GuidanceClaimError("Every applicability target requires an ID.")
+        model, _identity_column, _row_column, evidence_level = definition
+        identity = session.get(model, target_id)
+        if identity is None:
+            raise GuidanceClaimError(
+                f"Unknown {target_type.replace('_', ' ')} applicability target: {target_id}."
+            )
+        if not evidence_basis:
+            raise GuidanceClaimError(
+                "Every reviewed applicability target requires an evidence basis."
+            )
+        if len(evidence_basis) > config.MAX_GUIDANCE_REVIEW_NOTE_LENGTH:
+            raise GuidanceClaimError("Applicability evidence basis is too long.")
+        key = (target_type, target_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        identities.append((target_type, identity))
+        clean.append(
+            {
+                "target_type": target_type,
+                "target_id": target_id,
+                "evidence_level": evidence_level,
+                "evidence_basis": evidence_basis,
+            }
+        )
+    _validate_target_coherence(identities)
+    return tuple(clean)
+
+
+def _validate_target_coherence(identities: Sequence[tuple[str, object]]) -> None:
+    platform_ids: set[str] = set()
+    architecture_ids: set[str] = set()
+    vendor_ids: set[str] = set()
+    cpu_vendor_ids: set[str] = set()
+    for target_type, identity in identities:
+        if target_type == TARGET_PLATFORM:
+            platform_ids.add(identity.platform_id)
+        elif getattr(identity, "platform_id", None):
+            platform_ids.add(identity.platform_id)
+        if target_type == TARGET_CPU_ARCHITECTURE:
+            architecture_ids.add(identity.architecture_id)
+        elif getattr(identity, "architecture_id", None):
+            architecture_ids.add(identity.architecture_id)
+        if target_type == TARGET_CPU_VENDOR:
+            cpu_vendor_ids.add(identity.vendor_id)
+        elif target_type == TARGET_CPU_ARCHITECTURE:
+            cpu_vendor_ids.add(identity.vendor_name.casefold())
+        elif target_type in {TARGET_CPU_MODEL, TARGET_CPU_FAMILY, TARGET_PLATFORM}:
+            platform_id = identity.platform_id
+            if platform_id.startswith("amd-"):
+                cpu_vendor_ids.add("amd")
+            elif platform_id.startswith("intel-"):
+                cpu_vendor_ids.add("intel")
+        if target_type == TARGET_VENDOR:
+            vendor_ids.add(identity.vendor_id)
+        elif target_type in {TARGET_MOTHERBOARD_MODEL, TARGET_MOTHERBOARD_FAMILY}:
+            vendor_ids.add(identity.vendor_id)
+    if len(platform_ids) > 1:
+        raise GuidanceClaimError(
+            "Reviewed applicability targets span incompatible hardware platforms."
+        )
+    if len(architecture_ids) > 1:
+        raise GuidanceClaimError(
+            "Reviewed applicability targets span incompatible CPU architectures."
+        )
+    if len(vendor_ids) > 1:
+        raise GuidanceClaimError(
+            "Reviewed applicability targets span incompatible motherboard vendors."
+        )
+    if len(cpu_vendor_ids) > 1:
+        raise GuidanceClaimError("Reviewed applicability targets span incompatible CPU vendors.")
+
+
+def _replace_applicability_targets(
+    session: Session,
+    claim_id: int,
+    targets: tuple[dict[str, str], ...],
+) -> None:
+    session.execute(
+        delete(GuidanceClaimApplicabilityTarget).where(
+            GuidanceClaimApplicabilityTarget.claim_id == claim_id
+        )
+    )
+    rows = []
+    for ordinal, target in enumerate(targets):
+        _model, _identity_column, column, _evidence_level = _TARGET_DEFINITIONS[
+            target["target_type"]
+        ]
+        values = {
+            "claim_id": claim_id,
+            "ordinal": ordinal,
+            "cpu_model_id": None,
+            "cpu_family_id": None,
+            "cpu_architecture_id": None,
+            "motherboard_model_id": None,
+            "chipset_id": None,
+            "chipset_family_id": None,
+            "platform_id": None,
+            "vendor_id": None,
+            "cpu_vendor_id": None,
+            "motherboard_family_id": None,
+            "evidence_level": target["evidence_level"],
+            "evidence_basis": target["evidence_basis"],
+        }
+        values[column] = target["target_id"]
+        rows.append(GuidanceClaimApplicabilityTarget(**values))
+    session.add_all(rows)
+
+
+def _applicability_target_view(
+    session: Session,
+    row: GuidanceClaimApplicabilityTarget,
+) -> GuidanceApplicabilityTarget:
+    for target_type, (
+        model,
+        _identity_column,
+        column,
+        _evidence_level,
+    ) in _TARGET_DEFINITIONS.items():
+        target_id = getattr(row, column)
+        if target_id is None:
+            continue
+        identity = session.get(model, target_id)
+        if identity is None:
+            raise RuntimeError(
+                f"Guidance applicability target {row.claim_id}/{row.ordinal} is orphaned."
+            )
+        return GuidanceApplicabilityTarget(
+            target_type=target_type,
+            target_id=target_id,
+            canonical_name=identity.canonical_name,
+            evidence_level=row.evidence_level,
+            evidence_basis=row.evidence_basis,
+        )
+    raise RuntimeError(
+        f"Guidance applicability target {row.claim_id}/{row.ordinal} has no identity."
     )
 
 
@@ -530,6 +813,7 @@ def _claim_snapshot(claim: GuidanceClaim, values: dict[str, object]) -> dict[str
         "passage_ids": list(values["passage_ids"]),
         "source_setting_ids": list(values["source_setting_ids"]),
         "canonical_ids": list(values["canonical_ids"]),
+        "applicability_targets": list(values["applicability_targets"]),
     }
 
 
@@ -540,8 +824,15 @@ def _detail_snapshot(detail: GuidanceClaimDetail) -> dict[str, object]:
         "applicability_scope": detail.claim.applicability_scope,
         "cpu_model_id": detail.claim.cpu_model_id,
         "passage_ids": [citation.passage.id for citation in detail.evidence],
-        "source_setting_ids": [
-            citation.setting.id for citation in detail.source_settings
-        ],
+        "source_setting_ids": [citation.setting.id for citation in detail.source_settings],
         "canonical_ids": [setting.canonical_id for setting in detail.settings],
+        "applicability_targets": [
+            {
+                "target_type": target.target_type,
+                "target_id": target.target_id,
+                "evidence_level": target.evidence_level,
+                "evidence_basis": target.evidence_basis,
+            }
+            for target in detail.applicability_targets
+        ],
     }

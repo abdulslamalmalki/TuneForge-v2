@@ -23,7 +23,7 @@ TRUSTED_HOSTS = tuple(
     )
     if host.strip()
 )
-EXPECTED_DATABASE_REVISION = "0023"
+EXPECTED_DATABASE_REVISION = "0024"
 
 # Overridable so tests can run against a temporary data directory (NFR-6).
 DATA_DIR = Path(os.environ.get("KNOWLEDGE_BUILDER_DATA_DIR", str(COMPONENT_ROOT / "data")))

@@ -38,6 +38,8 @@
   <div class="resolved-heading"><span class="context-icon" aria-hidden="true">✓</span><div><p class="eyebrow">Identity resolved</p><h2 id="resolved-system">{{ system_context.vendor_name }} {{ system_context.motherboard_model_name }}</h2><p>{{ system_context.cpu_model_name }}</p></div></div>
   <dl class="system-details">
     <div><dt>Chipset</dt><dd>{{ system_context.chipset_name }}</dd></div>
+    <div><dt>Motherboard family</dt><dd>{{ system_context.motherboard_family_name or 'Not normalized' }}</dd></div>
+    <div><dt>CPU family</dt><dd>{{ system_context.cpu_family_name }}</dd></div>
     <div><dt>Platform</dt><dd>{{ system_context.platform_name }}</dd></div>
     <div><dt>Coverage</dt><dd>{{ system_context.coverage_status | replace('_', ' ') | capitalize }}</dd></div>
     <div><dt>BIOS version</dt><dd>{{ system_context.bios_version_status | replace('_', ' ') | capitalize }}</dd></div>

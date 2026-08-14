@@ -110,7 +110,7 @@ def test_api_guidance_claim_acceptance_workflow(client, pdf_bytes_factory):
     assert summary["setting_count"] == 1
 
 
-def test_cpu_specific_scope_and_recommendation_type_are_disabled(client, pdf_bytes_factory):
+def test_hardware_scope_requires_explicit_evidence_basis(client, pdf_bytes_factory):
     passage_id = _approved_evidence_and_setting(client, pdf_bytes_factory)
     scoped = client.post(
         "/api/v1/guidance-claims",
@@ -124,7 +124,126 @@ def test_cpu_specific_scope_and_recommendation_type_are_disabled(client, pdf_byt
         },
     )
     assert scoped.status_code == 400
-    assert "not enabled" in scoped.json()["detail"]
+    assert "without an evidence basis" in scoped.json()["detail"]
+
+    reviewed = client.post(
+        "/api/v1/guidance-claims",
+        json={
+            "claim_text": "Official evidence explicitly scopes this fact to Ryzen 7 9800X3D.",
+            "claim_type": "constraint",
+            "passage_ids": [passage_id],
+            "canonical_ids": ["precision-boost-overdrive"],
+            "applicability_scope": "reviewed_hardware",
+            "applicability_targets": [
+                {
+                    "target_type": "cpu_model",
+                    "target_id": "amd-ryzen-7-9800x3d",
+                    "evidence_basis": (
+                        "Reviewer confirmed the cited official passage names this exact CPU."
+                    ),
+                }
+            ],
+        },
+    )
+    assert reviewed.status_code == 201
+    body = reviewed.json()
+    assert body["status"] == "draft"
+    assert body["applicability_scope"] == "reviewed_hardware"
+    assert body["applicability_targets"] == [
+        {
+            "target_type": "cpu_model",
+            "target_id": "amd-ryzen-7-9800x3d",
+            "canonical_name": "AMD Ryzen 7 9800X3D",
+            "evidence_level": "exact_cpu",
+            "evidence_basis": (
+                "Reviewer confirmed the cited official passage names this exact CPU."
+            ),
+        }
+    ]
+    approved = client.post(
+        f"/api/v1/guidance-claims/{body['id']}/review",
+        json={
+            "decision": "approved",
+            "note": "Reviewer verified the exact CPU scope against the cited passage.",
+        },
+    )
+    assert approved.status_code == 200
+    public = client.get(
+        "/api/v1/guidance/explain",
+        params={
+            "setting": "precision-boost-overdrive",
+            "motherboard_model_id": "asrock-x870e-taichi-white",
+            "cpu_model_id": "amd-ryzen-7-9800x3d",
+        },
+    )
+    assert public.status_code == 200
+    assert public.json()["facts"][0]["applicability_targets"][0]["evidence_level"] == ("exact_cpu")
+    assert "1 reviewed hardware-scoped fact(s) match" in public.json()["context_notice"]
+
+    family_scoped = client.post(
+        "/api/v1/guidance-claims",
+        json={
+            "claim_text": "Compatible family and vendor scope test.",
+            "claim_type": "constraint",
+            "passage_ids": [passage_id],
+            "canonical_ids": ["precision-boost-overdrive"],
+            "applicability_scope": "reviewed_hardware",
+            "applicability_targets": [
+                {
+                    "target_type": "cpu_vendor",
+                    "target_id": "amd",
+                    "evidence_basis": "The official evidence identifies AMD processors.",
+                },
+                {
+                    "target_type": "motherboard_family",
+                    "target_id": "asrock-taichi",
+                    "evidence_basis": "The official evidence identifies the Taichi family.",
+                },
+                {
+                    "target_type": "vendor",
+                    "target_id": "asrock",
+                    "evidence_basis": "The official evidence is published by ASRock.",
+                },
+                {
+                    "target_type": "platform",
+                    "target_id": "amd-am5",
+                    "evidence_basis": "The official evidence identifies the AM5 platform.",
+                },
+            ],
+        },
+    )
+    assert family_scoped.status_code == 201
+    assert {target["target_type"] for target in family_scoped.json()["applicability_targets"]} == {
+        "cpu_vendor",
+        "motherboard_family",
+        "vendor",
+        "platform",
+    }
+
+    incompatible = client.post(
+        "/api/v1/guidance-claims",
+        json={
+            "claim_text": "Conflicting platform target test.",
+            "claim_type": "constraint",
+            "passage_ids": [passage_id],
+            "canonical_ids": ["precision-boost-overdrive"],
+            "applicability_scope": "reviewed_hardware",
+            "applicability_targets": [
+                {
+                    "target_type": "cpu_model",
+                    "target_id": "amd-ryzen-7-9800x3d",
+                    "evidence_basis": "Exact AMD CPU named by the evidence.",
+                },
+                {
+                    "target_type": "platform",
+                    "target_id": "intel-lga1700",
+                    "evidence_basis": "Deliberately incompatible platform for validation.",
+                },
+            ],
+        },
+    )
+    assert incompatible.status_code == 400
+    assert "incompatible hardware platforms" in incompatible.json()["detail"]
 
     recommendation = client.post(
         "/api/v1/guidance-claims",

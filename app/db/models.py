@@ -92,6 +92,13 @@ class VendorAlias(Base):
     display_alias: Mapped[str] = mapped_column(Text)
 
 
+class CpuVendor(Base):
+    __tablename__ = "cpu_vendors"
+
+    vendor_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    canonical_name: Mapped[str] = mapped_column(Text, unique=True)
+
+
 class HardwarePlatform(Base):
     __tablename__ = "hardware_platforms"
 
@@ -274,7 +281,8 @@ class GuidanceClaim(Base):
         ),
         CheckConstraint(
             "(applicability_scope = 'source_scope' AND cpu_model_id IS NULL) OR "
-            "(applicability_scope = 'cpu_model' AND cpu_model_id IS NOT NULL)",
+            "(applicability_scope = 'cpu_model' AND cpu_model_id IS NOT NULL) OR "
+            "(applicability_scope = 'reviewed_hardware' AND cpu_model_id IS NULL)",
             name="ck_guidance_claim_applicability",
         ),
         Index("ix_guidance_claims_status", "status"),
@@ -331,6 +339,79 @@ class GuidanceClaimSetting(Base):
         primary_key=True,
         index=True,
     )
+
+
+class GuidanceClaimApplicabilityTarget(Base):
+    """One explicitly reviewed hardware boundary for a guidance claim."""
+
+    __tablename__ = "guidance_claim_applicability_targets"
+    __table_args__ = (
+        CheckConstraint(
+            "(cpu_model_id IS NOT NULL) + (cpu_family_id IS NOT NULL) + "
+            "(cpu_architecture_id IS NOT NULL) + (motherboard_model_id IS NOT NULL) + "
+            "(chipset_id IS NOT NULL) + (chipset_family_id IS NOT NULL) + "
+            "(platform_id IS NOT NULL) + (vendor_id IS NOT NULL) + "
+            "(cpu_vendor_id IS NOT NULL) + (motherboard_family_id IS NOT NULL) = 1",
+            name="ck_guidance_applicability_exactly_one_target",
+        ),
+        CheckConstraint(
+            "evidence_level IN ('exact_model', 'exact_cpu', 'exact_chipset', "
+            "'family', 'architecture', 'platform', 'vendor')",
+            name="ck_guidance_applicability_evidence_level",
+        ),
+        Index("ix_guidance_claim_applicability_cpu_model_id", "cpu_model_id"),
+        Index("ix_guidance_claim_applicability_cpu_family_id", "cpu_family_id"),
+        Index("ix_guidance_claim_applicability_cpu_architecture_id", "cpu_architecture_id"),
+        Index("ix_guidance_claim_applicability_motherboard_model_id", "motherboard_model_id"),
+        Index("ix_guidance_claim_applicability_chipset_id", "chipset_id"),
+        Index("ix_guidance_claim_applicability_chipset_family_id", "chipset_family_id"),
+        Index("ix_guidance_claim_applicability_platform_id", "platform_id"),
+        Index("ix_guidance_claim_applicability_vendor_id", "vendor_id"),
+        Index("ix_guidance_claim_applicability_cpu_vendor_id", "cpu_vendor_id"),
+        Index(
+            "ix_guidance_claim_applicability_motherboard_family_id",
+            "motherboard_family_id",
+        ),
+    )
+
+    claim_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("guidance_claims.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    ordinal: Mapped[int] = mapped_column(Integer, primary_key=True)
+    cpu_model_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("cpu_models.cpu_model_id", ondelete="RESTRICT")
+    )
+    cpu_family_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("cpu_families.family_id", ondelete="RESTRICT")
+    )
+    cpu_architecture_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("cpu_architectures.architecture_id", ondelete="RESTRICT")
+    )
+    motherboard_model_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("motherboard_models.model_id", ondelete="RESTRICT")
+    )
+    chipset_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("chipsets.chipset_id", ondelete="RESTRICT")
+    )
+    chipset_family_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("chipset_families.family_id", ondelete="RESTRICT")
+    )
+    platform_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("hardware_platforms.platform_id", ondelete="RESTRICT")
+    )
+    vendor_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("vendors.vendor_id", ondelete="RESTRICT")
+    )
+    cpu_vendor_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("cpu_vendors.vendor_id", ondelete="RESTRICT")
+    )
+    motherboard_family_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("motherboard_families.family_id", ondelete="RESTRICT")
+    )
+    evidence_level: Mapped[str] = mapped_column(Text)
+    evidence_basis: Mapped[str] = mapped_column(Text)
 
 
 class GuidanceClaimSourceSetting(Base):
@@ -747,12 +828,25 @@ class MotherboardModel(Base):
         Text, ForeignKey("vendors.vendor_id", ondelete="RESTRICT"), index=True
     )
     canonical_name: Mapped[str] = mapped_column(Text)
+    family_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("motherboard_families.family_id", ondelete="RESTRICT"), index=True
+    )
     chipset_id: Mapped[str] = mapped_column(
         Text, ForeignKey("chipsets.chipset_id", ondelete="RESTRICT"), index=True
     )
     platform_id: Mapped[str] = mapped_column(
         Text, ForeignKey("hardware_platforms.platform_id", ondelete="RESTRICT"), index=True
     )
+
+
+class MotherboardFamily(Base):
+    __tablename__ = "motherboard_families"
+
+    family_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    vendor_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("vendors.vendor_id", ondelete="RESTRICT"), index=True
+    )
+    canonical_name: Mapped[str] = mapped_column(Text, unique=True)
 
 
 class Manual(Base):

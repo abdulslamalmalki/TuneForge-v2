@@ -30,6 +30,7 @@ from app.domain.canonical_settings import (
 from app.domain.canonical_suggestions import SuggestionQueueRow
 from app.domain.evidence_sources import EvidenceSourceDetail, EvidenceSourceOverview
 from app.domain.guidance_claims import (
+    ApplicabilityTargetInput,
     GuidanceClaimDetail,
     GuidanceClaimOverview,
 )
@@ -279,6 +280,19 @@ class EvidenceSourceDetailOut(BaseModel):
         )
 
 
+class GuidanceApplicabilityTargetIn(BaseModel):
+    target_type: str = ""
+    target_id: str = ""
+    evidence_basis: str = ""
+
+    def to_domain(self) -> ApplicabilityTargetInput:
+        return ApplicabilityTargetInput(
+            target_type=self.target_type,
+            target_id=self.target_id,
+            evidence_basis=self.evidence_basis,
+        )
+
+
 class CreateGuidanceClaimIn(BaseModel):
     claim_text: str = ""
     claim_type: str = ""
@@ -287,6 +301,7 @@ class CreateGuidanceClaimIn(BaseModel):
     canonical_ids: list[str] = Field(default_factory=list)
     applicability_scope: str = "source_scope"
     cpu_model_id: str | None = None
+    applicability_targets: list[GuidanceApplicabilityTargetIn] = Field(default_factory=list)
 
 
 class EditGuidanceClaimIn(CreateGuidanceClaimIn):
@@ -354,6 +369,14 @@ class GuidanceSettingOut(BaseModel):
     canonical_name: str
 
 
+class GuidanceApplicabilityTargetOut(BaseModel):
+    target_type: str
+    target_id: str
+    canonical_name: str
+    evidence_level: str
+    evidence_basis: str
+
+
 class GuidanceClaimEventOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -380,6 +403,7 @@ class GuidanceClaimDetailOut(BaseModel):
     evidence: list[GuidanceCitationOut]
     source_settings: list[GuidanceSourceSettingCitationOut]
     settings: list[GuidanceSettingOut]
+    applicability_targets: list[GuidanceApplicabilityTargetOut]
     events: list[GuidanceClaimEventOut]
 
     @classmethod
@@ -417,14 +441,12 @@ class GuidanceClaimDetailOut(BaseModel):
                     setting_id=citation.setting.id,
                     manual_id=citation.manual.id,
                     source_title=(
-                        citation.manual.document_title
-                        or citation.manual.original_filename
+                        citation.manual.document_title or citation.manual.original_filename
                     ),
                     source_url=citation.manual.source_url,
                     document_version=citation.manual.document_version,
                     page_number=(
-                        citation.setting.edited_page_number
-                        or citation.setting.page_number
+                        citation.setting.edited_page_number or citation.setting.page_number
                     ),
                     passage_text=effective_description(citation.setting),
                 )
@@ -436,6 +458,10 @@ class GuidanceClaimDetailOut(BaseModel):
                     canonical_name=setting.canonical_name,
                 )
                 for setting in detail.settings
+            ],
+            applicability_targets=[
+                GuidanceApplicabilityTargetOut.model_validate(target, from_attributes=True)
+                for target in detail.applicability_targets
             ],
             events=[GuidanceClaimEventOut.model_validate(event) for event in detail.events],
         )
@@ -463,6 +489,7 @@ class CitationFirstFactOut(BaseModel):
     claim_text: str
     claim_type: str
     applicability_scope: str
+    applicability_targets: list[GuidanceApplicabilityTargetOut]
     citations: list[CitationFirstCitationOut]
 
 
@@ -478,8 +505,12 @@ class SystemContextOut(BaseModel):
     platform_name: str
     vendor_id: str
     vendor_name: str
+    cpu_vendor_id: str
+    cpu_vendor_name: str
     motherboard_model_id: str
     motherboard_model_name: str
+    motherboard_family_id: str | None
+    motherboard_family_name: str | None
     chipset_id: str
     chipset_name: str
     chipset_family_id: str
@@ -488,6 +519,8 @@ class SystemContextOut(BaseModel):
     cpu_model_name: str
     cpu_family_id: str
     cpu_family_name: str
+    cpu_architecture_id: str
+    cpu_architecture_name: str
     bios_version_status: str
     coverage_status: str
     warnings: list[str]
@@ -755,6 +788,10 @@ class CitationFirstExplanationOut(BaseModel):
                     claim_text=fact.claim_text,
                     claim_type=fact.claim_type,
                     applicability_scope=fact.applicability_scope,
+                    applicability_targets=[
+                        GuidanceApplicabilityTargetOut.model_validate(target, from_attributes=True)
+                        for target in fact.applicability_targets
+                    ],
                     citations=[
                         CitationFirstCitationOut.model_validate(citation, from_attributes=True)
                         for citation in fact.citations

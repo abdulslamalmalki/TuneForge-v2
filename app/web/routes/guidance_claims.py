@@ -55,7 +55,12 @@ def claim_detail(request: Request, claim_id: int, session: SessionDep) -> HTMLRe
     return templates.TemplateResponse(
         request,
         "guidance_claim_detail.html",
-        {"detail": detail, "claim_types": claim_domain.CLAIM_TYPES, "error": None},
+        {
+            "detail": detail,
+            "claim_types": claim_domain.CLAIM_TYPES,
+            "target_types": claim_domain.TARGET_TYPES,
+            "error": None,
+        },
     )
 
 
@@ -69,6 +74,8 @@ def edit_claim(
     passage_ids: Annotated[str, Form()] = "",
     source_setting_ids: Annotated[str, Form()] = "",
     canonical_ids: Annotated[str, Form()] = "",
+    applicability_scope: Annotated[str, Form()] = "source_scope",
+    applicability_targets: Annotated[str, Form()] = "",
 ):
     claim = claim_domain.get_claim(session, claim_id)
     if claim is None:
@@ -82,6 +89,8 @@ def edit_claim(
             passage_ids=_parse_passage_ids(passage_ids),
             source_setting_ids=_parse_passage_ids(source_setting_ids),
             canonical_ids=_parse_canonical_ids(canonical_ids),
+            applicability_scope=applicability_scope,
+            applicability_targets=_parse_applicability_targets(applicability_targets),
         )
     except GuidanceClaimError as error:
         return _detail_error(request, session, claim_id, error.message)
@@ -117,6 +126,30 @@ def _parse_canonical_ids(value: str) -> list[str]:
     return [item.strip() for item in value.replace(",", "\n").splitlines() if item.strip()]
 
 
+def _parse_applicability_targets(
+    value: str,
+) -> list[claim_domain.ApplicabilityTargetInput]:
+    targets = []
+    for line in value.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        identity, separator, basis = line.partition("|")
+        target_type, colon, target_id = identity.strip().partition(":")
+        if not separator or not colon:
+            raise GuidanceClaimError(
+                "Applicability targets must use: target_type:target_id | evidence basis."
+            )
+        targets.append(
+            claim_domain.ApplicabilityTargetInput(
+                target_type=target_type,
+                target_id=target_id,
+                evidence_basis=basis,
+            )
+        )
+    return targets
+
+
 def _detail_error(
     request: Request,
     session: Session,
@@ -129,6 +162,11 @@ def _detail_error(
     return templates.TemplateResponse(
         request,
         "guidance_claim_detail.html",
-        {"detail": detail, "claim_types": claim_domain.CLAIM_TYPES, "error": message},
+        {
+            "detail": detail,
+            "claim_types": claim_domain.CLAIM_TYPES,
+            "target_types": claim_domain.TARGET_TYPES,
+            "error": message,
+        },
         status_code=400,
     )

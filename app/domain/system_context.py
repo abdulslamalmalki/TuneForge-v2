@@ -10,9 +10,12 @@ from sqlalchemy.orm import Session
 from app.db.models import (
     Chipset,
     ChipsetFamily,
+    CpuArchitecture,
     CpuFamily,
     CpuModel,
+    CpuVendor,
     HardwarePlatform,
+    MotherboardFamily,
     MotherboardModel,
     Vendor,
 )
@@ -36,8 +39,12 @@ class SystemContext:
     platform_name: str
     vendor_id: str
     vendor_name: str
+    cpu_vendor_id: str
+    cpu_vendor_name: str
     motherboard_model_id: str
     motherboard_model_name: str
+    motherboard_family_id: str | None
+    motherboard_family_name: str | None
     chipset_id: str
     chipset_name: str
     chipset_family_id: str
@@ -46,6 +53,8 @@ class SystemContext:
     cpu_model_name: str
     cpu_family_id: str
     cpu_family_name: str
+    cpu_architecture_id: str
+    cpu_architecture_name: str
     bios_version_status: str
     coverage_status: str
     warnings: tuple[str, ...]
@@ -87,16 +96,25 @@ def resolve(
     if vendor is None or chipset is None or platform is None or cpu_family is None:
         raise RuntimeError("System context references an incomplete hardware identity graph.")
     chipset_family = session.get(ChipsetFamily, chipset.family_id)
-    if chipset_family is None:
-        raise RuntimeError("System context chipset family could not be loaded.")
+    cpu_architecture = session.get(CpuArchitecture, cpu.architecture_id)
+    cpu_vendor = session.get(CpuVendor, platform.cpu_vendor.casefold())
+    motherboard_family = (
+        session.get(MotherboardFamily, motherboard.family_id) if motherboard.family_id else None
+    )
+    if chipset_family is None or cpu_architecture is None or cpu_vendor is None:
+        raise RuntimeError("System context hardware graph could not be loaded.")
 
     return SystemContext(
         platform_id=platform.platform_id,
         platform_name=platform.canonical_name,
         vendor_id=vendor.vendor_id,
         vendor_name=vendor.canonical_name,
+        cpu_vendor_id=cpu_vendor.vendor_id,
+        cpu_vendor_name=cpu_vendor.canonical_name,
         motherboard_model_id=motherboard.model_id,
         motherboard_model_name=motherboard.canonical_name,
+        motherboard_family_id=(motherboard_family.family_id if motherboard_family else None),
+        motherboard_family_name=(motherboard_family.canonical_name if motherboard_family else None),
         chipset_id=chipset.chipset_id,
         chipset_name=chipset.canonical_name,
         chipset_family_id=chipset_family.family_id,
@@ -105,6 +123,8 @@ def resolve(
         cpu_model_name=cpu.canonical_name,
         cpu_family_id=cpu_family.family_id,
         cpu_family_name=cpu_family.canonical_name,
+        cpu_architecture_id=cpu_architecture.architecture_id,
+        cpu_architecture_name=cpu_architecture.canonical_name,
         bios_version_status=BIOS_VERSION_STATUS,
         coverage_status=COVERAGE_IDENTITY_RESOLVED,
         warnings=("BIOS-version applicability is not modeled; TuneForge will not infer it.",),

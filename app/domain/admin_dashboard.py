@@ -124,6 +124,12 @@ def build_dashboard(session: Session) -> AdminDashboard:
         GuidanceClaim,
         GuidanceClaim.status == "approved",
     )
+    hardware_scoped_claim_count = _count(
+        session,
+        GuidanceClaim,
+        GuidanceClaim.status == "approved",
+        GuidanceClaim.applicability_scope == "reviewed_hardware",
+    )
     draft_claim_count = _count(session, GuidanceClaim, GuidanceClaim.status == "draft")
     pending_candidate_count = _count(
         session, GuidanceCandidate, GuidanceCandidate.status == "pending"
@@ -195,7 +201,10 @@ def build_dashboard(session: Session) -> AdminDashboard:
         DashboardMetric(
             "Accepted claims",
             approved_claim_count,
-            f"{draft_claim_count} awaiting review",
+            (
+                f"{draft_claim_count} awaiting review · "
+                f"{hardware_scoped_claim_count} hardware-scoped"
+            ),
             "/guidance-claims",
             "claims",
         ),

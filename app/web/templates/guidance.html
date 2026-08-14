@@ -82,6 +82,7 @@
 <article class="guidance-fact">
   <p><strong>{{ fact.claim_text }}</strong></p>
   <p><span class="status">{{ fact.applicability_scope }}</span></p>
+  {% if fact.applicability_targets %}<ul class="guidance-applicability">{% for target in fact.applicability_targets %}<li>{{ target.canonical_name }} · {{ target.evidence_level|replace('_', ' ') }}<small>{{ target.evidence_basis }}</small></li>{% endfor %}</ul>{% endif %}
   {% for citation in fact.citations %}
   <details class="evidence-passage">
     <summary>

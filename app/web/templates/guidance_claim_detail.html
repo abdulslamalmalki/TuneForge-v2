@@ -13,6 +13,17 @@
 </p>
 <p><strong>{{ claim.claim_text }}</strong></p>
 
+<h2>Reviewed hardware applicability</h2>
+{% if detail.applicability_targets %}
+<ul>
+  {% for target in detail.applicability_targets %}
+  <li><strong>{{ target.canonical_name }}</strong> · {{ target.target_type|replace('_', ' ') }} · {{ target.evidence_level|replace('_', ' ') }}<br><small>{{ target.evidence_basis }}</small></li>
+  {% endfor %}
+</ul>
+{% else %}
+<p>This claim retains broad source scope. It is not verified for an exact CPU, motherboard, chipset, or platform.</p>
+{% endif %}
+
 <h2>Canonical settings</h2>
 <ul>
   {% for setting in detail.settings %}
@@ -61,6 +72,15 @@
   <label for="canonical_ids">Canonical setting IDs, one per line</label>
   <textarea id="canonical_ids" name="canonical_ids" rows="5" required>{% for setting in detail.settings %}{{ setting.canonical_id }}{% if not loop.last %}
 {% endif %}{% endfor %}</textarea>
+  <label for="applicability_scope">Applicability scope</label>
+  <select id="applicability_scope" name="applicability_scope">
+    <option value="source_scope" {% if claim.applicability_scope == 'source_scope' %}selected{% endif %}>Broad source scope</option>
+    <option value="reviewed_hardware" {% if claim.applicability_scope == 'reviewed_hardware' %}selected{% endif %}>Reviewed normalized hardware targets</option>
+  </select>
+  <label for="applicability_targets">Reviewed targets, one per line</label>
+  <textarea id="applicability_targets" name="applicability_targets" rows="6" placeholder="motherboard_model:asus-example | Exact board named by official evidence">{% for target in detail.applicability_targets %}{{ target.target_type }}:{{ target.target_id }} | {{ target.evidence_basis }}{% if not loop.last %}
+{% endif %}{% endfor %}</textarea>
+  <small>Supported target types: {{ target_types|join(', ') }}. Broad source scope must not include targets.</small>
   <button type="submit">Save draft</button>
 </form>
 

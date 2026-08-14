@@ -20,9 +20,10 @@ from app.db.models import (
     Manual,
     Setting,
 )
-from app.domain import canonical_settings
+from app.domain import canonical_settings, guidance_claims
 from app.domain.canonical_settings import CanonicalClassificationView, VendorEquivalentName
 from app.domain.errors import GuidanceReadError
+from app.domain.guidance_claims import GuidanceApplicabilityTarget
 from app.domain.review import effective_description
 from app.domain.system_context import SystemContext
 from app.normalization.canonical_settings import normalize_alias
@@ -61,6 +62,7 @@ class GuidanceReadFact:
     claim_type: str
     applicability_scope: str
     citations: tuple[GuidanceReadCitation, ...]
+    applicability_targets: tuple[GuidanceApplicabilityTarget, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -315,6 +317,7 @@ def _explanation_for_identity(
                 claim_text=claim.claim_text,
                 claim_type=claim.claim_type,
                 applicability_scope=claim.applicability_scope,
+                applicability_targets=guidance_claims.list_applicability_targets(session, claim.id),
                 citations=citations,
             )
         )
@@ -328,7 +331,7 @@ def _explanation_for_identity(
         matched_alias=matched_alias,
         classification=canonical_settings.get_classification(session, identity.canonical_id),
         system_context=system_context,
-        context_notice=_context_notice(system_context),
+        context_notice=_context_notice(system_context, facts),
         equivalent_vendor_names=canonical_settings.list_vendor_equivalences(
             session, (identity.canonical_id,)
         )[identity.canonical_id],
@@ -357,6 +360,13 @@ def _scope_notice(facts: Sequence[GuidanceReadFact]) -> str:
             seen_sources.add(source_key)
             source_labels.append(f"{citation.publisher_name} — {citation.source_title}")
     sources = "; ".join(source_labels)
+    reviewed_target_count = sum(bool(fact.applicability_targets) for fact in facts)
+    if reviewed_target_count:
+        return (
+            f"{reviewed_target_count} accepted fact(s) carry explicit reviewed hardware "
+            f"targets; other facts, if shown, retain source scope. Sources: {sources}. "
+            "TuneForge does not generalize any target beyond its recorded identity."
+        )
     if any(fact.applicability_scope == "source_scope" for fact in facts):
         return (
             f"Accepted facts retain source-scope applicability from: {sources}. "
@@ -368,11 +378,52 @@ def _scope_notice(facts: Sequence[GuidanceReadFact]) -> str:
     )
 
 
-def _context_notice(context: SystemContext | None) -> str | None:
+def _context_notice(
+    context: SystemContext | None,
+    facts: Sequence[GuidanceReadFact],
+) -> str | None:
     if context is None:
         return None
-    return (
+    targeted = [fact for fact in facts if fact.applicability_targets]
+    matched = sum(_targets_match_context(context, fact.applicability_targets) for fact in targeted)
+    broad = len(facts) - len(targeted)
+    incompatible = len(targeted) - matched
+    summary = (
         f"System identity resolved as {context.motherboard_model_name} with "
-        f"{context.cpu_model_name}. Current accepted guidance remains source-scoped and is "
-        "not validated for this exact motherboard, CPU, or BIOS version."
+        f"{context.cpu_model_name}. "
+    )
+    if not targeted:
+        return summary + (
+            "Current accepted guidance remains source-scoped and is not validated for "
+            "this exact motherboard, CPU, or BIOS version."
+        )
+    return summary + (
+        f"{matched} reviewed hardware-scoped fact(s) match this context, "
+        f"{incompatible} target-scoped fact(s) do not, and {broad} fact(s) remain broad. "
+        "BIOS-version applicability is still unverified."
+    )
+
+
+def _targets_match_context(
+    context: SystemContext,
+    targets: Sequence[GuidanceApplicabilityTarget],
+) -> bool:
+    context_ids = {
+        guidance_claims.TARGET_CPU_MODEL: context.cpu_model_id,
+        guidance_claims.TARGET_CPU_FAMILY: context.cpu_family_id,
+        guidance_claims.TARGET_CPU_ARCHITECTURE: context.cpu_architecture_id,
+        guidance_claims.TARGET_MOTHERBOARD_MODEL: context.motherboard_model_id,
+        guidance_claims.TARGET_CHIPSET: context.chipset_id,
+        guidance_claims.TARGET_CHIPSET_FAMILY: context.chipset_family_id,
+        guidance_claims.TARGET_PLATFORM: context.platform_id,
+        guidance_claims.TARGET_VENDOR: context.vendor_id,
+        guidance_claims.TARGET_CPU_VENDOR: context.cpu_vendor_id,
+        guidance_claims.TARGET_MOTHERBOARD_FAMILY: context.motherboard_family_id,
+    }
+    groups: dict[str, set[str]] = {}
+    for target in targets:
+        groups.setdefault(target.target_type, set()).add(target.target_id)
+    return all(
+        context_ids[target_type] is not None and context_ids[target_type] in target_ids
+        for target_type, target_ids in groups.items()
     )
