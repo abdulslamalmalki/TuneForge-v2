@@ -69,13 +69,18 @@ def is_official_vendor_url(vendor: str | None, value: str) -> bool:
     if policy is None:
         return False
     try:
-        parsed = urlsplit(value.strip())
+        if any(ord(character) < 32 for character in value):
+            return False
+        value = value.strip()
+        if "\\" in value or any(character.isspace() for character in value):
+            return False
+        parsed = urlsplit(value)
         host = (parsed.hostname or "").rstrip(".").casefold()
     except ValueError:
         return False
     if parsed.scheme.casefold() != "https" or parsed.username or parsed.password:
         return False
-    if _safe_port(parsed) not in (None, 443):
+    if not host or _safe_port(parsed) not in (None, 443):
         return False
     return any(host == domain or host.endswith(f".{domain}") for domain in policy.domains)
 

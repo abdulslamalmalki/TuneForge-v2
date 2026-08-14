@@ -1,5 +1,6 @@
 """Single place for paths and constants (Implementation Plan section 8)."""
 
+import ipaddress
 import os
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -35,6 +36,7 @@ DATABASE_PATH = DATA_DIR / "knowledge_builder.sqlite3"
 DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
 
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # FR-3
+MAX_PDF_PAGES = int(os.environ.get("TUNEFORGE_MAX_PDF_PAGES", "5000"))
 MAX_BATCH_FILES = 50
 MAX_LABEL_LENGTH = 100  # FR-1: vendor / model_name limit
 MAX_DOCUMENT_TITLE_LENGTH = 300
@@ -102,8 +104,14 @@ def validate_runtime_config() -> None:
         raise RuntimeError("TUNEFORGE_AUTH_MODE must be required or disabled.")
     if not 1 <= AUTH_SESSION_HOURS <= 168:
         raise RuntimeError("TUNEFORGE_AUTH_SESSION_HOURS must be between 1 and 168.")
+    if not 1 <= MAX_PDF_PAGES <= 20_000:
+        raise RuntimeError("TUNEFORGE_MAX_PDF_PAGES must be between 1 and 20000.")
     if not TRUSTED_HOSTS:
         raise RuntimeError("TUNEFORGE_TRUSTED_HOSTS must contain at least one hostname.")
+    _validate_https_service_url("TUNEFORGE_PROVENANCE_SEARCH_ENDPOINT", PROVENANCE_SEARCH_ENDPOINT)
+    _validate_https_service_url(
+        "TUNEFORGE_TRUSTED_WEB_SEARCH_ENDPOINT", TRUSTED_WEB_SEARCH_ENDPOINT
+    )
     if LLM_PROVIDER and LLM_PROVIDER not in LLM_PROVIDER_IDS:
         raise RuntimeError(
             "TUNEFORGE_LLM_PROVIDER must be openai, anthropic, gemini, "
@@ -152,3 +160,29 @@ def _validate_llm_base_url(base_url: str) -> None:
         raise RuntimeError(
             "Plain HTTP model endpoints are permitted only on localhost or a loopback address."
         )
+
+
+def _validate_https_service_url(name: str, value: str) -> None:
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError:
+        raise RuntimeError(f"{name} must be an absolute public HTTPS URL.") from None
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or port not in (None, 443)
+        or parsed.query
+        or parsed.fragment
+        or "\\" in value
+        or any(character.isspace() or ord(character) < 32 for character in value)
+    ):
+        raise RuntimeError(f"{name} must be an absolute public HTTPS URL.")
+    try:
+        address = ipaddress.ip_address(parsed.hostname)
+    except ValueError:
+        return
+    if not address.is_global:
+        raise RuntimeError(f"{name} must not target a private or special-use address.")

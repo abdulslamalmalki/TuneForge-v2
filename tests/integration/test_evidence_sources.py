@@ -107,6 +107,21 @@ def test_source_intake_enforces_official_domain_and_content_deduplication(
     assert "already stored" in duplicate.json()["detail"]
 
 
+def test_source_intake_rejects_port_and_browser_url_confusion(client, pdf_bytes_factory):
+    for source_url in (
+        "https://docs.amd.com:444/r/en-US/guide",
+        "https://docs.amd.com:notaport/r/en-US/guide",
+        "https://docs.amd.com\\@evil.test/r/en-US/guide",
+    ):
+        response = client.post(
+            "/api/v1/evidence-sources",
+            files={"file": ("source.pdf", _source_pdf(pdf_bytes_factory), "application/pdf")},
+            data={**SOURCE_DATA, "source_url": source_url},
+        )
+        assert response.status_code == 400
+    assert list(config.EVIDENCE_SOURCES_DIR.glob("*")) == []
+
+
 def test_rejection_is_audited_and_does_not_create_passages(client, pdf_bytes_factory):
     created = client.post(
         "/api/v1/evidence-sources",

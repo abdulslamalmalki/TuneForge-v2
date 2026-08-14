@@ -462,6 +462,8 @@ def _heading_from_lines(lines: list[str]) -> str | None:
 
 
 def _validate_pdf(path: Path) -> int:
+    if not files.has_pdf_header(path):
+        raise EvidenceSourceError("The uploaded file could not be read as a PDF.")
     try:
         with pdfplumber.open(path) as pdf:
             page_count = len(pdf.pages)
@@ -469,6 +471,10 @@ def _validate_pdf(path: Path) -> int:
         raise EvidenceSourceError("The uploaded file could not be read as a PDF.") from None
     if page_count < 1:
         raise EvidenceSourceError("The PDF contains no pages.")
+    if page_count > config.MAX_PDF_PAGES:
+        raise EvidenceSourceError(
+            f"The PDF exceeds the maximum of {config.MAX_PDF_PAGES:,} pages."
+        )
     return page_count
 
 
@@ -533,13 +539,21 @@ def validate_official_source_url(publisher_id: str, source_url: str) -> tuple[st
     if publisher is None:
         raise EvidenceSourceError("Choose a supported official publisher.")
     publisher_name, official_domains = publisher
+    if any(ord(character) < 32 for character in source_url):
+        raise EvidenceSourceError("Source URL is invalid.")
     source_url = source_url.strip()
-    if len(source_url) > config.MAX_SOURCE_URL_LENGTH or any(
-        character.isspace() for character in source_url
+    if (
+        len(source_url) > config.MAX_SOURCE_URL_LENGTH
+        or "\\" in source_url
+        or any(character.isspace() for character in source_url)
     ):
         raise EvidenceSourceError("Source URL is invalid.")
-    parsed = urlsplit(source_url)
-    host = (parsed.hostname or "").lower().rstrip(".")
+    try:
+        parsed = urlsplit(source_url)
+        host = (parsed.hostname or "").lower().rstrip(".")
+        port = parsed.port
+    except ValueError:
+        raise EvidenceSourceError("Source URL is invalid.") from None
     if parsed.scheme.lower() != "https" or not any(
         host == domain or host.endswith(f".{domain}") for domain in official_domains
     ):
@@ -547,4 +561,6 @@ def validate_official_source_url(publisher_id: str, source_url: str) -> tuple[st
         raise EvidenceSourceError(f"Source URL must use the official HTTPS domain: {domains}.")
     if parsed.username is not None or parsed.password is not None:
         raise EvidenceSourceError("Source URL must not contain credentials.")
+    if port not in (None, 443):
+        raise EvidenceSourceError("Source URL must use the standard HTTPS port.")
     return publisher_id, publisher_name, source_url

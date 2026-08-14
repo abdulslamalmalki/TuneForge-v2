@@ -455,6 +455,10 @@ def _normalization_audit(result: VendorNormalization) -> dict[str, object]:
 
 
 def _clean_source_url(value: str) -> str | None:
+    if any(ord(character) < 32 for character in value):
+        raise ManualProvenanceError(
+            "Source URL must not contain whitespace, control characters, or backslashes."
+        )
     value = value.strip()
     if not value:
         return None
@@ -462,13 +466,24 @@ def _clean_source_url(value: str) -> str | None:
         raise ManualProvenanceError(
             f"Source URL must be {config.MAX_SOURCE_URL_LENGTH} characters or fewer."
         )
-    if any(character.isspace() for character in value):
-        raise ManualProvenanceError("Source URL must not contain whitespace.")
-    parsed = urlsplit(value)
-    if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
+    if "\\" in value or any(
+        character.isspace() for character in value
+    ):
+        raise ManualProvenanceError(
+            "Source URL must not contain whitespace, control characters, or backslashes."
+        )
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError:
+        raise ManualProvenanceError("Source URL must be a valid HTTP or HTTPS URL.") from None
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
         raise ManualProvenanceError("Source URL must be a valid HTTP or HTTPS URL.")
     if parsed.username is not None or parsed.password is not None:
         raise ManualProvenanceError("Source URL must not contain credentials.")
+    expected_port = 443 if parsed.scheme.lower() == "https" else 80
+    if port not in (None, expected_port):
+        raise ManualProvenanceError("Source URL must use the standard HTTP or HTTPS port.")
     return value
 
 
@@ -497,6 +512,10 @@ def _clean_language(value: str) -> str:
 
 def _validate_pdf(path: Path) -> int:
     """Content-based PDF validation (FR-2) and page count (FR-6)."""
+    if not files.has_pdf_header(path):
+        raise UploadRejectedError(
+            "The file could not be read as a PDF. Upload a PDF motherboard manual."
+        )
     try:
         with pdfplumber.open(path) as pdf:
             page_count = len(pdf.pages)
@@ -506,4 +525,8 @@ def _validate_pdf(path: Path) -> int:
         ) from None
     if page_count < 1:
         raise UploadRejectedError("The PDF contains no pages.")
+    if page_count > config.MAX_PDF_PAGES:
+        raise UploadRejectedError(
+            f"The PDF exceeds the maximum of {config.MAX_PDF_PAGES:,} pages."
+        )
     return page_count

@@ -2,6 +2,7 @@
 
 import hashlib
 
+import pytest
 from sqlalchemy import func, select
 
 from app.db.models import (
@@ -143,3 +144,95 @@ def test_search_with_only_nonofficial_results_refuses(db_session):
     assert view.status == "refused"
     assert view.sources == ()
     assert "No allowlisted official source" in view.notice
+
+
+def test_dns_policy_rejects_private_metadata_and_mixed_answers(monkeypatch):
+    private_answers = [
+        (0, 0, 0, "", ("169.254.169.254", 443)),
+        (0, 0, 0, "", ("10.0.0.5", 443)),
+    ]
+    monkeypatch.setattr(
+        trusted_web.socket, "getaddrinfo", lambda *_args, **_kwargs: private_answers
+    )
+    with pytest.raises(trusted_web.TrustedWebResearchError, match="public IPs"):
+        trusted_web._resolve_public_addresses("https://amd.com/example")
+
+    mixed_answers = [
+        (0, 0, 0, "", ("8.8.8.8", 443)),
+        (0, 0, 0, "", ("127.0.0.1", 443)),
+    ]
+    monkeypatch.setattr(trusted_web.socket, "getaddrinfo", lambda *_args, **_kwargs: mixed_answers)
+    with pytest.raises(trusted_web.TrustedWebResearchError, match="public IPs"):
+        trusted_web._resolve_public_addresses("https://amd.com/example")
+
+
+def test_https_fetch_connects_to_the_prevalidated_address(monkeypatch):
+    connected = []
+
+    class FakeResponse:
+        status = 200
+
+        @staticmethod
+        def getheader(name):
+            return {"Content-Type": "text/html", "Content-Length": "15"}.get(name)
+
+        @staticmethod
+        def read(_limit):
+            return b"<p>official</p>"
+
+    class FakeConnection:
+        def __init__(self, host, address):
+            connected.append((host, address))
+
+        def request(self, method, target, headers):
+            connected.append((method, target, headers["Accept-Encoding"]))
+
+        @staticmethod
+        def getresponse():
+            return FakeResponse()
+
+        @staticmethod
+        def close():
+            return None
+
+    monkeypatch.setattr(
+        trusted_web, "_resolve_public_addresses", lambda _url: ("8.8.8.8",)
+    )
+    monkeypatch.setattr(trusted_web, "_PinnedHTTPSConnection", FakeConnection)
+
+    status, _, content_type, body = trusted_web._pinned_get(
+        "https://amd.com/path?q=pbo"
+    )
+
+    assert status == 200
+    assert content_type == "text/html"
+    assert body == b"<p>official</p>"
+    assert connected[0] == ("amd.com", "8.8.8.8")
+    assert connected[1] == ("GET", "/path?q=pbo", "identity")
+
+
+def test_every_redirect_is_revalidated_before_network_access(monkeypatch):
+    calls = []
+
+    def fake_get(url):
+        calls.append(url)
+        return 302, "https://amd.com.evil.example/internal", "text/html", b""
+
+    monkeypatch.setattr(trusted_web, "_pinned_get", fake_get)
+
+    with pytest.raises(trusted_web.TrustedWebResearchError, match="allowlisted"):
+        trusted_web._fetch_official_page("https://amd.com/start")
+    assert calls == ["https://amd.com/start"]
+
+
+def test_search_redirect_cannot_leave_configured_service_host(monkeypatch):
+    monkeypatch.setattr(
+        trusted_web,
+        "_pinned_get",
+        lambda _url: (302, "https://evil.example/internal", "text/html", b""),
+    )
+
+    with pytest.raises(trusted_web.TrustedWebResearchError, match="trusted host"):
+        trusted_web._fetch_pinned_search_html(
+            "https://lite.duckduckgo.com/lite/?q=official+bios"
+        )

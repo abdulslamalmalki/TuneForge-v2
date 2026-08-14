@@ -242,8 +242,18 @@ def _render_users(
 
 def _safe_next(value: str) -> str:
     value = value.strip()
-    parsed = urlsplit(value)
-    if not value.startswith("/") or value.startswith("//") or parsed.scheme or parsed.netloc:
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return "/admin"
+    if (
+        not value.startswith("/")
+        or value.startswith("//")
+        or "\\" in value
+        or any(ord(character) < 32 for character in value)
+        or parsed.scheme
+        or parsed.netloc
+    ):
         return "/admin"
     return value
 

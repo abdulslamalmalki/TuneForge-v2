@@ -662,6 +662,14 @@ milliseconds. A read-only profiler and integration query budget protect the
 improvement without introducing a cache, schema migration, or trust-model
 change. See `docs/v1.33-performance.md`.
 
+The v1.33 Security Audit makes anonymous authorization method-aware, moves model
+and live-research execution behind explicit same-origin POST actions, closes the
+trusted-web DNS check/use race with pinned-IP TLS connections, validates every
+redirect, confines all generated storage paths, strengthens official URL and
+return-path parsing, bounds PDF page counts, and adds production HSTS and
+sensitive-page cache controls. The focused adversarial tests and dependency
+audit are documented in `docs/v1.33-security-audit.md`.
+
 The Conservative Canonicalization Backlog in v1.3 evaluates every approved,
 unmapped Source Setting against reviewed canonical identities using normalized
 names, descriptions, vendor aliases, mapped precedents, official provenance,

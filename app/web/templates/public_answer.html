@@ -9,7 +9,7 @@
     <h1>Ask TuneForge</h1>
     <p>Ask about a BIOS setting or manufacturer-specific name. Answers use only approved TuneForge knowledge and cite the original official sources.</p>
   </div>
-  <form class="public-search compact-search" action="/answer" method="get">
+  <form class="public-search compact-search" action="/answer" method="post">
     {% if motherboard_model_id %}<input type="hidden" name="motherboard_model_id" value="{{ motherboard_model_id }}">{% endif %}
     {% if cpu_model_id %}<input type="hidden" name="cpu_model_id" value="{{ cpu_model_id }}">{% endif %}
     {% if bios_version %}<input type="hidden" name="bios_version" value="{{ bios_version }}">{% endif %}
@@ -215,7 +215,7 @@
     {% endif %}
   </section>
   {% elif presentation.outcome != 'supported' and not trusted_web %}
-  <form class="research-action" action="/answer" method="get">
+  <form class="research-action" action="/answer" method="post">
     <input type="hidden" name="setting" value="{{ setting }}">
     {% if motherboard_model_id %}<input type="hidden" name="motherboard_model_id" value="{{ motherboard_model_id }}">{% endif %}
     {% if cpu_model_id %}<input type="hidden" name="cpu_model_id" value="{{ cpu_model_id }}">{% endif %}

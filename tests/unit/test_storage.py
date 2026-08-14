@@ -43,3 +43,19 @@ def test_delete_manual_file_reports_missing_file():
     )
     assert files.delete_manual_file("manual_2.pdf") is True
     assert files.delete_manual_file("manual_2.pdf") is False
+
+
+@pytest.mark.parametrize(
+    "filename",
+    ("../knowledge_builder.sqlite3", "manual_0.pdf", "manual_1.pdf.exe", "/manual_1.pdf"),
+)
+def test_server_generated_manual_paths_reject_traversal_and_invalid_names(filename):
+    with pytest.raises(ValueError, match="server-generated"):
+        files.manual_file_path(filename)
+
+
+def test_promote_rejects_a_staged_path_outside_the_upload_directory(tmp_path):
+    outside = tmp_path / "upload-attacker.tmp"
+    outside.write_bytes(b"content")
+    with pytest.raises(ValueError, match="staged upload"):
+        files.promote_upload(outside, "manual_1.pdf")

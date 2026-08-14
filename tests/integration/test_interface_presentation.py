@@ -365,10 +365,13 @@ def test_public_answer_invokes_optional_provider_and_displays_only_validated_out
 ):
     canonical_id, _, _, claim_text = _seed_supported_claim(client, pdf_bytes_factory)
 
+    calls = []
+
     class ExactEchoProvider:
         provider_id = "mocked"
 
         def generate(self, request):
+            calls.append(request)
             required = json.loads(request.input_json)["required_draft"]
             return ModelResponse(
                 provider_id=self.provider_id,
@@ -379,7 +382,16 @@ def test_public_answer_invokes_optional_provider_and_displays_only_validated_out
     monkeypatch.setattr(
         "app.web.routes.public.configured_provider", lambda: ExactEchoProvider()
     )
-    page = client.get("/answer", params={"setting": canonical_id})
+    read_only = client.get("/answer", params={"setting": canonical_id})
+    assert read_only.status_code == 200
+    assert "Optional AI presentation passed" not in read_only.text
+    assert calls == []
+
+    page = client.post(
+        "/answer",
+        data={"setting": canonical_id},
+        headers={"Origin": "http://testserver"},
+    )
     assert page.status_code == 200
     assert "Optional AI presentation passed" in page.text
     assert page.text.count(claim_text) == 1
@@ -395,7 +407,11 @@ def test_public_answer_invokes_optional_provider_and_displays_only_validated_out
             )
 
     monkeypatch.setattr("app.web.routes.public.configured_provider", lambda: UnsafeProvider())
-    fallback = client.get("/answer", params={"setting": canonical_id})
+    fallback = client.post(
+        "/answer",
+        data={"setting": canonical_id},
+        headers={"Origin": "http://testserver"},
+    )
     assert fallback.status_code == 200
     assert "optional AI response did not pass validation" in fallback.text
     assert "invented BIOS fact" not in fallback.text

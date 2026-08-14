@@ -66,6 +66,8 @@ def test_recognizes_official_support_pages(vendor, url):
         "https://user:pass@asus.com/supportonly/board/helpdesk_manual/",
         "https://asus.com:444/supportonly/board/helpdesk_manual/",
         "https://asus.com:notaport/supportonly/board/helpdesk_manual/",
+        "https://asus.com\\@evil.test/supportonly/board/helpdesk_manual/",
+        "https://asus.com/supportonly/board/helpdesk_manual/\n",
         "https://asus.com/product/board",
         "https://asus.com/motherboards-components/motherboards/tuf-gaming/board/helpdesk_download",
     ],

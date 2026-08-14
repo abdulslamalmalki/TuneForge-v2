@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -44,6 +44,55 @@ def public_answer(
     bios_version: str = "",
     use_case: str = "",
     trusted_web: str = "",
+) -> HTMLResponse:
+    return _render_answer(
+        request,
+        session,
+        setting=setting,
+        motherboard_model_id=motherboard_model_id,
+        cpu_model_id=cpu_model_id,
+        bios_version=bios_version,
+        use_case=use_case,
+        trusted_web=False,
+        allow_external=False,
+    )
+
+
+@router.post("/answer", response_class=HTMLResponse)
+def public_answer_submit(
+    request: Request,
+    session: SessionDep,
+    setting: Annotated[str, Form()] = "",
+    motherboard_model_id: Annotated[str, Form()] = "",
+    cpu_model_id: Annotated[str, Form()] = "",
+    bios_version: Annotated[str, Form()] = "",
+    use_case: Annotated[str, Form()] = "",
+    trusted_web: Annotated[str, Form()] = "",
+) -> HTMLResponse:
+    return _render_answer(
+        request,
+        session,
+        setting=setting,
+        motherboard_model_id=motherboard_model_id,
+        cpu_model_id=cpu_model_id,
+        bios_version=bios_version,
+        use_case=use_case,
+        trusted_web=trusted_web == "1",
+        allow_external=True,
+    )
+
+
+def _render_answer(
+    request: Request,
+    session: Session,
+    *,
+    setting: str,
+    motherboard_model_id: str,
+    cpu_model_id: str,
+    bios_version: str,
+    use_case: str,
+    trusted_web: bool,
+    allow_external: bool,
 ) -> HTMLResponse:
     context = None
     presentation = None
@@ -88,12 +137,12 @@ def public_answer(
                         else ""
                     ),
                 )
-                if trusted_web == "1":
+                if trusted_web and allow_external:
                     web_research = trusted_web_research.research(
                         session, routing.original_query
                     )
             generation = interface_generation.generate_presentation(
-                presentation, configured_provider()
+                presentation, configured_provider() if allow_external else None
             )
     except SystemContextError as exception:
         error = exception.message
@@ -119,7 +168,7 @@ def public_answer(
             "covered_settings": guidance_read.list_coverage(session, approved_only=True),
             "guided_questions": guided_answers.list_questions(session),
             "error": error,
-            "trusted_web": trusted_web == "1",
+            "trusted_web": trusted_web,
             "library_matches": library_matches,
             "web_research": web_research,
             "generation": generation,

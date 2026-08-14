@@ -90,7 +90,7 @@ def get_interface_presentation(
     return InterfacePresentationOut.from_envelope(presentation)
 
 
-@router.get(
+@router.post(
     "/interface/trusted-web-research",
     response_model=TrustedWebResearchOut,
     summary="Run opt-in BIOS research over allowlisted official websites",

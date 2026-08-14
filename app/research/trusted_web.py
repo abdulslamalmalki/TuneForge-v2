@@ -6,13 +6,13 @@ sources, guidance claims, or reviewed TuneForge knowledge.
 
 import hashlib
 import html
+import http.client
 import ipaddress
 import json
 import re
 import socket
-import urllib.error
+import ssl
 import urllib.parse
-import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
 from html.parser import HTMLParser
@@ -67,6 +67,8 @@ _STOP_WORDS = frozenset(
      "to", "what", "which", "with"}
 )
 _SKIP_TAGS = frozenset({"script", "style", "noscript", "svg", "nav", "header", "footer"})
+_REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
+_MAX_REDIRECTS = 5
 
 
 class TrustedWebResearchError(RuntimeError):
@@ -134,11 +136,28 @@ class _VisibleTextParser(HTMLParser):
             self.text_parts.append(value)
 
 
-class _OfficialRedirectHandler(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        _validate_official_url(newurl)
-        _assert_public_dns(newurl)
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """Connect to a prevalidated address while retaining TLS hostname checks."""
+
+    def __init__(self, host: str, address: str) -> None:
+        super().__init__(
+            host,
+            port=443,
+            timeout=config.TRUSTED_WEB_TIMEOUT_SECONDS,
+            context=ssl.create_default_context(),
+        )
+        self._pinned_address = address
+
+    def connect(self) -> None:
+        raw_socket = socket.create_connection(
+            (self._pinned_address, self.port),
+            self.timeout,
+        )
+        try:
+            self.sock = self._context.wrap_socket(raw_socket, server_hostname=self.host)
+        except Exception:
+            raw_socket.close()
+            raise
 
 
 def research(
@@ -167,7 +186,10 @@ def research(
     encoded_query = urllib.parse.urlencode({"q": search_query})
     search_url = f"{config.TRUSTED_WEB_SEARCH_ENDPOINT}?{encoded_query}"
     try:
-        raw_results = search_raw_results(search_url, fetch=search_fetch)
+        raw_results = search_raw_results(
+            search_url,
+            fetch=search_fetch or _fetch_pinned_search_html,
+        )
     except SearchUnavailableError:
         return _finish(
             session,
@@ -331,10 +353,10 @@ def _is_bios_scoped(query: str) -> bool:
 
 
 def _publisher_for_url(value: str) -> tuple[str, str] | None:
+    if any(ord(character) < 32 for character in value):
+        return None
     value = value.strip()
-    if len(value) > config.MAX_SOURCE_URL_LENGTH or any(
-        character.isspace() or ord(character) < 32 for character in value
-    ):
+    if len(value) > config.MAX_SOURCE_URL_LENGTH or any(character.isspace() for character in value):
         return None
     try:
         parsed = urllib.parse.urlsplit(value)
@@ -371,40 +393,45 @@ def _normalize_url(value: str) -> str:
     return urllib.parse.urlunsplit(("https", host, parsed.path or "/", parsed.query, ""))
 
 
-def _assert_public_dns(value: str) -> None:
+def _resolve_public_addresses(value: str) -> tuple[str, ...]:
     host = urllib.parse.urlsplit(value).hostname or ""
     try:
-        addresses = {
-            item[4][0]
-            for item in socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
-        }
+        addresses = sorted(
+            {
+                item[4][0]
+                for item in socket.getaddrinfo(
+                    host,
+                    443,
+                    type=socket.SOCK_STREAM,
+                    proto=socket.IPPROTO_TCP,
+                )
+            }
+        )
     except OSError as error:
         raise TrustedWebResearchError("Official source hostname could not be resolved.") from error
     if not addresses or any(not ipaddress.ip_address(item).is_global for item in addresses):
         raise TrustedWebResearchError("Official source did not resolve exclusively to public IPs.")
+    return tuple(addresses)
 
 
 def _fetch_official_page(url: str) -> FetchedOfficialPage:
-    _validate_official_url(url)
-    _assert_public_dns(url)
-    request = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": "TuneForge-Trusted-Web-Research/1.0",
-            "Accept": "text/html,application/xhtml+xml",
-        },
-    )
-    opener = urllib.request.build_opener(_OfficialRedirectHandler())
-    try:
-        with opener.open(request, timeout=config.TRUSTED_WEB_TIMEOUT_SECONDS) as reply:
-            final_url = reply.geturl()
-            _validate_official_url(final_url)
-            content_type = reply.headers.get_content_type()
-            if content_type not in {"text/html", "application/xhtml+xml"}:
-                raise TrustedWebResearchError("Official source is not an HTML page.")
-            body = reply.read(config.TRUSTED_WEB_MAX_PAGE_BYTES + 1)
-    except (OSError, urllib.error.URLError) as error:
-        raise TrustedWebResearchError("Official source could not be retrieved.") from error
+    final_url = _normalize_url(url)
+    body = b""
+    for redirect_count in range(_MAX_REDIRECTS + 1):
+        _validate_official_url(final_url)
+        status, location, content_type, body = _pinned_get(final_url)
+        if status in _REDIRECT_STATUSES:
+            if redirect_count == _MAX_REDIRECTS:
+                raise TrustedWebResearchError("Official source exceeded the redirect limit.")
+            if not location:
+                raise TrustedWebResearchError("Official source returned an invalid redirect.")
+            final_url = _normalize_url(urllib.parse.urljoin(final_url, location))
+            continue
+        if not 200 <= status < 300:
+            raise TrustedWebResearchError("Official source could not be retrieved.")
+        if content_type not in {"text/html", "application/xhtml+xml"}:
+            raise TrustedWebResearchError("Official source is not an HTML page.")
+        break
     if len(body) > config.TRUSTED_WEB_MAX_PAGE_BYTES:
         raise TrustedWebResearchError("Official source exceeded the safe page-size limit.")
     parser = _VisibleTextParser()
@@ -416,6 +443,85 @@ def _fetch_official_page(url: str) -> FetchedOfficialPage:
         text="\n".join(parser.text_parts),
         content_sha256=hashlib.sha256(body).hexdigest(),
     )
+
+
+def _fetch_pinned_search_html(url: str) -> str:
+    """Fetch only the configured search host through the pinned HTTPS transport."""
+
+    configured_host = urllib.parse.urlsplit(config.TRUSTED_WEB_SEARCH_ENDPOINT).hostname
+    current_url = url
+    body = b""
+    for redirect_count in range(_MAX_REDIRECTS + 1):
+        parsed = urllib.parse.urlsplit(current_url)
+        if (
+            parsed.scheme != "https"
+            or parsed.hostname != configured_host
+            or parsed.username
+            or parsed.password
+            or parsed.port not in (None, 443)
+        ):
+            raise TrustedWebResearchError("Search service redirected outside its trusted host.")
+        status, location, content_type, body = _pinned_get(current_url)
+        if status in _REDIRECT_STATUSES:
+            if redirect_count == _MAX_REDIRECTS:
+                raise TrustedWebResearchError("Search service exceeded the redirect limit.")
+            if not location:
+                raise TrustedWebResearchError("Search service returned an invalid redirect.")
+            current_url = urllib.parse.urljoin(current_url, location)
+            continue
+        if not 200 <= status < 300:
+            raise TrustedWebResearchError("Search service could not be retrieved.")
+        if content_type not in {"text/html", "application/xhtml+xml"}:
+            raise TrustedWebResearchError("Search service did not return HTML.")
+        break
+    if len(body) > config.TRUSTED_WEB_MAX_SEARCH_BYTES:
+        raise TrustedWebResearchError("Search response exceeded the safe size limit.")
+    return body.decode("utf-8", errors="replace")
+
+
+def _pinned_get(url: str) -> tuple[int, str | None, str, bytes]:
+    parsed = urllib.parse.urlsplit(url)
+    host = parsed.hostname or ""
+    target = parsed.path or "/"
+    if parsed.query:
+        target += f"?{parsed.query}"
+    last_error: Exception | None = None
+    for address in _resolve_public_addresses(url):
+        connection = _PinnedHTTPSConnection(host, address)
+        try:
+            connection.request(
+                "GET",
+                target,
+                headers={
+                    "User-Agent": "TuneForge-Trusted-Web-Research/1.0",
+                    "Accept": "text/html,application/xhtml+xml",
+                    "Accept-Encoding": "identity",
+                    "Connection": "close",
+                },
+            )
+            response = connection.getresponse()
+            content_length = response.getheader("Content-Length")
+            if content_length:
+                try:
+                    parsed_length = int(content_length)
+                    if not 0 <= parsed_length <= config.TRUSTED_WEB_MAX_PAGE_BYTES:
+                        raise TrustedWebResearchError(
+                            "Official source exceeded the safe page-size limit."
+                        )
+                except ValueError:
+                    raise TrustedWebResearchError(
+                        "Official source returned an invalid content length."
+                    ) from None
+            body = response.read(config.TRUSTED_WEB_MAX_PAGE_BYTES + 1)
+            content_type = (response.getheader("Content-Type") or "").split(";", 1)[0].lower()
+            return response.status, response.getheader("Location"), content_type, body
+        except TrustedWebResearchError:
+            raise
+        except (OSError, http.client.HTTPException) as error:
+            last_error = error
+        finally:
+            connection.close()
+    raise TrustedWebResearchError("Official source could not be retrieved.") from last_error
 
 
 def _select_excerpt(text: str, query: str) -> str | None:

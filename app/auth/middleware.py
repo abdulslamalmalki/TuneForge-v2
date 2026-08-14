@@ -11,7 +11,7 @@ from app.auth.context import reset_actor, set_actor
 from app.db.session import SessionLocal
 from app.domain import auth
 
-_PUBLIC_EXACT = {
+_PUBLIC_GET_EXACT = {
     "/",
     "/answer",
     "/compare",
@@ -25,14 +25,20 @@ _PUBLIC_EXACT = {
     "/api/v1/interface/presentation",
     "/api/v1/interface/questions",
     "/api/v1/interface/route",
-    "/api/v1/interface/trusted-web-research",
 }
-_PUBLIC_PREFIXES = (
+_PUBLIC_GET_PREFIXES = (
     "/static/",
     "/library/",
     "/api/v1/interface/questions/",
     "/api/v1/library/",
 )
+_PUBLIC_POST_EXACT = {
+    "/answer",
+    "/upload-manual",
+    "/login",
+    "/setup",
+    "/api/v1/interface/trusted-web-research",
+}
 _UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 
@@ -52,14 +58,22 @@ class AuthBoundaryMiddleware(BaseHTTPMiddleware):
 
         policy_response = self._policy_response(request, principal, setup_required)
         if policy_response is not None:
-            return self._secure(policy_response, protected=not self._is_public(request.url.path))
+            return self._secure(
+                policy_response,
+                request=request,
+                protected=not self._is_public(request.method, request.url.path),
+            )
 
         actor_token = set_actor(principal.username if principal else "anonymous")
         try:
             response = await call_next(request)
         finally:
             reset_actor(actor_token)
-        return self._secure(response, protected=not self._is_public(request.url.path))
+        return self._secure(
+            response,
+            request=request,
+            protected=not self._is_public(request.method, request.url.path),
+        )
 
     def _policy_response(
         self,
@@ -72,7 +86,7 @@ class AuthBoundaryMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         if request.method in _UNSAFE_METHODS and not _same_origin(request):
             return self._forbidden(request, "Same-origin confirmation is required.")
-        if self._is_public(path):
+        if self._is_public(request.method, path):
             return None
         if setup_required:
             if path.startswith("/api/"):
@@ -91,8 +105,10 @@ class AuthBoundaryMiddleware(BaseHTTPMiddleware):
         return None
 
     @staticmethod
-    def _is_public(path: str) -> bool:
-        return path in _PUBLIC_EXACT or path.startswith(_PUBLIC_PREFIXES)
+    def _is_public(method: str, path: str) -> bool:
+        if method == "GET":
+            return path in _PUBLIC_GET_EXACT or path.startswith(_PUBLIC_GET_PREFIXES)
+        return method == "POST" and path in _PUBLIC_POST_EXACT
 
     @staticmethod
     def _forbidden(request: Request, message: str) -> Response:
@@ -101,7 +117,7 @@ class AuthBoundaryMiddleware(BaseHTTPMiddleware):
         return Response(message, status_code=403, media_type="text/plain")
 
     @staticmethod
-    def _secure(response: Response, *, protected: bool) -> Response:
+    def _secure(response: Response, *, request: Request, protected: bool) -> Response:
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("Referrer-Policy", "same-origin")
@@ -114,7 +130,12 @@ class AuthBoundaryMiddleware(BaseHTTPMiddleware):
             "script-src 'none'; object-src 'none'; base-uri 'self'; "
             "form-action 'self'; frame-ancestors 'none'",
         )
-        if protected:
+        response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+        if config.ENVIRONMENT == "production":
+            response.headers.setdefault(
+                "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+            )
+        if protected or request.url.path in {"/answer", "/login", "/setup", "/upload-manual"}:
             response.headers.setdefault("Cache-Control", "no-store")
         return response
 

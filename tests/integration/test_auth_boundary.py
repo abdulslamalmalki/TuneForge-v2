@@ -1,9 +1,12 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from app import config
+from app.auth.middleware import AuthBoundaryMiddleware
 from app.db.models import CanonicalClassificationEvent
 from app.db.session import SessionLocal
 from app.main import create_app
+from app.web.routes.auth import _safe_next
 
 ORIGIN = {"Origin": "http://testserver"}
 PASSWORD = "this is a strong local password"
@@ -202,3 +205,35 @@ def test_unauthenticated_internal_api_is_401_after_setup(monkeypatch):
     assert response.status_code == 401
     assert response.headers["www-authenticate"] == "Cookie"
     assert unsafe.status_code == 401
+
+
+def test_public_authorization_allowlist_is_method_aware():
+    assert AuthBoundaryMiddleware._is_public("GET", "/library/canonical/example")
+    assert not AuthBoundaryMiddleware._is_public("POST", "/library/canonical/example")
+    assert AuthBoundaryMiddleware._is_public("POST", "/answer")
+    assert not AuthBoundaryMiddleware._is_public("PUT", "/answer")
+
+
+@pytest.mark.parametrize(
+    "value",
+    ("//evil.test", "/\\evil.test", "https://evil.test", "/admin\nlocation:evil"),
+)
+def test_return_path_rejects_browser_url_confusion(value):
+    assert _safe_next(value) == "/admin"
+
+
+def test_production_responses_enable_transport_and_sensitive_cache_protection(monkeypatch):
+    monkeypatch.setattr(config, "ENVIRONMENT", "production")
+    monkeypatch.setattr(config, "AUTH_MODE", "required")
+    monkeypatch.setattr(config, "AUTH_COOKIE_SECURE", True)
+    monkeypatch.setattr(config, "TRUSTED_HOSTS", ("testserver",))
+
+    with TestClient(create_app()) as client:
+        health = client.get("/api/v1/health")
+        answer = client.get("/answer")
+
+    assert health.headers["strict-transport-security"] == (
+        "max-age=31536000; includeSubDomains"
+    )
+    assert health.headers["cross-origin-opener-policy"] == "same-origin"
+    assert answer.headers["cache-control"] == "no-store"
