@@ -76,6 +76,7 @@ class LibraryFactOut(BaseModel):
     claim_text: str
     claim_type: str
     applicability_scope: str
+    bios_match_status: str
     citations: list[LibraryEvidenceCitationOut]
 
     @classmethod
@@ -85,6 +86,7 @@ class LibraryFactOut(BaseModel):
             claim_text=value.claim_text,
             claim_type=value.claim_type,
             applicability_scope=value.applicability_scope,
+            bios_match_status=value.bios_match_status,
             citations=[
                 LibraryEvidenceCitationOut.model_validate(citation, from_attributes=True)
                 for citation in value.citations

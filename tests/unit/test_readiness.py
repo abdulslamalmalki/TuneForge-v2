@@ -5,7 +5,7 @@ def test_readiness_reports_schema_storage_and_first_run_state(db_session):
     result = readiness.check(db_session)
 
     assert result.status == "ready"
-    assert result.database_revision == "0024"
+    assert result.database_revision == "0025"
     assert result.authentication_initialized is False
     assert result.checks == {
         "database": True,

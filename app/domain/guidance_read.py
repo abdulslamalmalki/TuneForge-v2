@@ -23,7 +23,7 @@ from app.db.models import (
 from app.domain import canonical_settings, guidance_claims
 from app.domain.canonical_settings import CanonicalClassificationView, VendorEquivalentName
 from app.domain.errors import GuidanceReadError
-from app.domain.guidance_claims import GuidanceApplicabilityTarget
+from app.domain.guidance_claims import GuidanceApplicabilityTarget, GuidanceBiosScope
 from app.domain.review import effective_description
 from app.domain.system_context import SystemContext
 from app.normalization.canonical_settings import normalize_alias
@@ -35,6 +35,11 @@ RECOMMENDATION_NOTICE = (
     "invent values or a tuning plan."
 )
 CLAIM_TYPE_ORDER = {"definition": 0, "behavior": 1, "constraint": 2, "safety": 3}
+BIOS_UNSCOPED = "unscoped"
+BIOS_VERSION_NOT_PROVIDED = "version_not_provided"
+BIOS_MATCHED = "matched"
+BIOS_NOT_APPLICABLE = "not_applicable"
+BIOS_UNKNOWN = "unknown"
 
 
 @dataclass(frozen=True)
@@ -63,6 +68,8 @@ class GuidanceReadFact:
     applicability_scope: str
     citations: tuple[GuidanceReadCitation, ...]
     applicability_targets: tuple[GuidanceApplicabilityTarget, ...] = ()
+    bios_scopes: tuple[GuidanceBiosScope, ...] = ()
+    bios_match_status: str = BIOS_UNSCOPED
 
 
 @dataclass(frozen=True)
@@ -311,6 +318,7 @@ def _explanation_for_identity(
         )
         if not citations:
             raise RuntimeError(f"Approved guidance claim {claim.id} has no approved citation.")
+        bios_scopes = guidance_claims.list_bios_scopes(session, claim.id)
         facts.append(
             GuidanceReadFact(
                 claim_id=claim.id,
@@ -318,6 +326,8 @@ def _explanation_for_identity(
                 claim_type=claim.claim_type,
                 applicability_scope=claim.applicability_scope,
                 applicability_targets=guidance_claims.list_applicability_targets(session, claim.id),
+                bios_scopes=bios_scopes,
+                bios_match_status=_bios_match_status(system_context, bios_scopes),
                 citations=citations,
             )
         )
@@ -361,11 +371,19 @@ def _scope_notice(facts: Sequence[GuidanceReadFact]) -> str:
             source_labels.append(f"{citation.publisher_name} — {citation.source_title}")
     sources = "; ".join(source_labels)
     reviewed_target_count = sum(bool(fact.applicability_targets) for fact in facts)
+    reviewed_bios_count = sum(bool(fact.bios_scopes) for fact in facts)
     if reviewed_target_count:
         return (
             f"{reviewed_target_count} accepted fact(s) carry explicit reviewed hardware "
-            f"targets; other facts, if shown, retain source scope. Sources: {sources}. "
+            f"targets and {reviewed_bios_count} carry explicit reviewed BIOS-version "
+            f"scope; other facts, if shown, retain source scope. Sources: {sources}. "
             "TuneForge does not generalize any target beyond its recorded identity."
+        )
+    if reviewed_bios_count:
+        return (
+            f"{reviewed_bios_count} accepted fact(s) carry explicit reviewed BIOS-version "
+            f"scope. Sources: {sources}. TuneForge does not order opaque firmware labels "
+            "or infer applicability outside recorded boundaries."
         )
     if any(fact.applicability_scope == "source_scope" for fact in facts):
         return (
@@ -392,7 +410,20 @@ def _context_notice(
         f"System identity resolved as {context.motherboard_model_name} with "
         f"{context.cpu_model_name}. "
     )
+    bios_counts = {
+        status: sum(fact.bios_match_status == status for fact in facts)
+        for status in (BIOS_MATCHED, BIOS_NOT_APPLICABLE, BIOS_VERSION_NOT_PROVIDED, BIOS_UNKNOWN)
+    }
+    bios_scoped = sum(bios_counts.values())
     if not targeted:
+        if bios_scoped:
+            return summary + (
+                "Hardware applicability remains source-scoped. "
+                f"BIOS scope: {bios_counts[BIOS_MATCHED]} matched, "
+                f"{bios_counts[BIOS_NOT_APPLICABLE]} not applicable, "
+                f"{bios_counts[BIOS_VERSION_NOT_PROVIDED]} need a version, and "
+                f"{bios_counts[BIOS_UNKNOWN]} remain informational or unorderable."
+            )
         return summary + (
             "Current accepted guidance remains source-scoped and is not validated for "
             "this exact motherboard, CPU, or BIOS version."
@@ -400,8 +431,68 @@ def _context_notice(
     return summary + (
         f"{matched} reviewed hardware-scoped fact(s) match this context, "
         f"{incompatible} target-scoped fact(s) do not, and {broad} fact(s) remain broad. "
-        "BIOS-version applicability is still unverified."
+        f"BIOS scope: {bios_counts[BIOS_MATCHED]} matched, "
+        f"{bios_counts[BIOS_NOT_APPLICABLE]} not applicable, "
+        f"{bios_counts[BIOS_VERSION_NOT_PROVIDED]} need a version, and "
+        f"{bios_counts[BIOS_UNKNOWN]} remain informational or unorderable."
     )
+
+
+def _bios_match_status(
+    context: SystemContext | None,
+    scopes: Sequence[GuidanceBiosScope],
+) -> str:
+    if not scopes:
+        return BIOS_UNSCOPED
+    if context is None:
+        return BIOS_VERSION_NOT_PROVIDED
+    relevant = tuple(
+        scope
+        for scope in scopes
+        if (
+            scope.context_type == "motherboard_model"
+            and scope.context_id == context.motherboard_model_id
+        )
+        or (scope.context_type == "vendor" and scope.context_id == context.vendor_id)
+    )
+    if not relevant:
+        return BIOS_NOT_APPLICABLE
+    if not context.bios_version:
+        return BIOS_VERSION_NOT_PROVIDED
+    comparable = False
+    for scope in relevant:
+        if scope.bios_version_exact is not None:
+            comparable = True
+            if scope.bios_version_exact.casefold() == context.bios_version.casefold():
+                return BIOS_MATCHED
+            continue
+        if scope.valid_from is None and scope.valid_until is None:
+            continue
+        comparable = True
+        try:
+            actual = _bios_version_key(context.bios_version, scope.comparison_mode)
+        except ValueError:
+            continue
+        if scope.valid_from is not None and actual < _bios_version_key(
+            scope.valid_from, scope.comparison_mode
+        ):
+            continue
+        if scope.valid_until is not None and actual > _bios_version_key(
+            scope.valid_until, scope.comparison_mode
+        ):
+            continue
+        return BIOS_MATCHED
+    return BIOS_NOT_APPLICABLE if comparable else BIOS_UNKNOWN
+
+
+def _bios_version_key(value: str, mode: str) -> tuple[int, ...]:
+    if mode == "integer_numeric" and value.isdecimal():
+        return (int(value),)
+    if mode == "dotted_numeric":
+        parts = value.split(".")
+        if len(parts) > 1 and all(part.isdecimal() for part in parts):
+            return tuple(int(part) for part in parts)
+    raise ValueError("BIOS version is not comparable under the reviewed comparison mode.")
 
 
 def _targets_match_context(

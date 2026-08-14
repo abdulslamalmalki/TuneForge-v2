@@ -12,6 +12,7 @@
 <form action="/guidance" method="get">
   {% if motherboard_model_id %}<input type="hidden" name="motherboard_model_id" value="{{ motherboard_model_id }}">{% endif %}
   {% if cpu_model_id %}<input type="hidden" name="cpu_model_id" value="{{ cpu_model_id }}">{% endif %}
+  {% if bios_version %}<input type="hidden" name="bios_version" value="{{ bios_version }}">{% endif %}
   <label for="setting">Setting</label>
   <input id="setting" name="setting" value="{{ setting }}" list="covered-settings" required>
   <datalist id="covered-settings">
@@ -27,7 +28,7 @@
   <strong>System context:</strong>
   {{ system_context.vendor_name }} {{ system_context.motherboard_model_name }} ·
   {{ system_context.cpu_model_name }}
-  <span class="equivalence-citations">Identity resolved; exact BIOS applicability is not yet modeled.</span>
+  <span class="equivalence-citations">BIOS: {{ system_context.bios_version or 'not provided' }}.</span>
 </section>
 {% else %}
 <p class="notice"><a href="/system-context">Set My System</a> to evaluate reviewed hardware context.</p>
@@ -83,6 +84,14 @@
   <p><strong>{{ fact.claim_text }}</strong></p>
   <p><span class="status">{{ fact.applicability_scope }}</span></p>
   {% if fact.applicability_targets %}<ul class="guidance-applicability">{% for target in fact.applicability_targets %}<li>{{ target.canonical_name }} · {{ target.evidence_level|replace('_', ' ') }}<small>{{ target.evidence_basis }}</small></li>{% endfor %}</ul>{% endif %}
+  {% if fact.bios_scopes %}
+  <p><span class="status">BIOS {{ fact.bios_match_status|replace('_', ' ') }}</span></p>
+  <ul class="guidance-applicability">
+    {% for scope in fact.bios_scopes %}
+    <li>{{ scope.context_name }} · {% if scope.bios_version_exact %}exact {{ scope.bios_version_exact }}{% else %}{{ scope.valid_from or 'open' }}–{{ scope.valid_until or 'open' }}{% endif %}<small>{{ scope.version_notes }} Evidence: {{ scope.evidence_basis }}</small></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
   {% for citation in fact.citations %}
   <details class="evidence-passage">
     <summary>

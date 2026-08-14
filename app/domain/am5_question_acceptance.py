@@ -8,7 +8,7 @@ from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import CanonicalSetting, GuidanceClaim, GuidanceClaimSetting
-from app.domain import am5_coverage, guidance_read, system_context
+from app.domain import am5_coverage, guidance_read
 
 REPORT_VERSION = "1.0"
 PLATFORM_ID = "amd-am5"
@@ -289,7 +289,8 @@ def _evaluate_question(
     elif spec.capability == CAPABILITY_BIOS_VERSION:
         actual_outcome = OUTCOME_REFUSED
         reason = (
-            f"BIOS-version applicability is {system_context.BIOS_VERSION_STATUS.replace('_', ' ')}."
+            "BIOS-version applicability requires an exact system version and a matching "
+            "reviewed BIOS scope; this fixed acceptance query provides neither."
         )
     else:
         raise RuntimeError(f"Unknown question capability: {spec.capability}")

@@ -307,3 +307,147 @@ def test_html_guidance_review_queue_and_detail(client, pdf_bytes_factory):
     assert approved.status_code == 303
     page = client.get(detail_url)
     assert "claim_approved" in page.text
+
+
+def test_reviewed_bios_scopes_are_audited_and_matched_without_version_inference(
+    client,
+    pdf_bytes_factory,
+):
+    passage_id = _approved_evidence_and_setting(client, pdf_bytes_factory)
+    scope = {
+        "context_type": "motherboard_model",
+        "context_id": "asrock-x870e-taichi-white",
+        "bios_version_exact": "3.20",
+        "comparison_mode": "opaque",
+        "version_notes": "The cited release documents this behavior for BIOS 3.20.",
+        "evidence_basis": "Reviewer verified the exact board and version in official evidence.",
+    }
+    created = client.post(
+        "/api/v1/guidance-claims",
+        json={
+            "claim_text": "This behavior is documented for ASRock BIOS 3.20.",
+            "claim_type": "behavior",
+            "passage_ids": [passage_id],
+            "canonical_ids": ["precision-boost-overdrive"],
+            "bios_scopes": [scope],
+        },
+    )
+    assert created.status_code == 201
+    body = created.json()
+    assert body["bios_scopes"][0]["context_name"] == "X870E Taichi White"
+    assert body["bios_scopes"][0]["bios_version_exact"] == "3.20"
+    assert "bios_scopes" in body["events"][0]["detail"]
+
+    approved = client.post(
+        f"/api/v1/guidance-claims/{body['id']}/review",
+        json={"decision": "approved", "note": "Exact BIOS scope verified."},
+    )
+    assert approved.status_code == 200
+
+    matched = client.get(
+        "/api/v1/guidance/explain",
+        params={
+            "setting": "precision-boost-overdrive",
+            "motherboard_model_id": "asrock-x870e-taichi-white",
+            "cpu_model_id": "amd-ryzen-7-9800x3d",
+            "bios_version": "3.20",
+        },
+    )
+    assert matched.status_code == 200
+    assert matched.json()["facts"][0]["bios_match_status"] == "matched"
+    assert matched.json()["facts"][0]["bios_scopes"][0]["evidence_basis"].startswith(
+        "Reviewer verified"
+    )
+
+    different = client.get(
+        "/api/v1/guidance/explain",
+        params={
+            "setting": "precision-boost-overdrive",
+            "motherboard_model_id": "asrock-x870e-taichi-white",
+            "cpu_model_id": "amd-ryzen-7-9800x3d",
+            "bios_version": "3.21",
+        },
+    )
+    assert different.json()["facts"][0]["bios_match_status"] == "not_applicable"
+
+    no_version = client.get(
+        "/api/v1/guidance/explain",
+        params={
+            "setting": "precision-boost-overdrive",
+            "motherboard_model_id": "asrock-x870e-taichi-white",
+            "cpu_model_id": "amd-ryzen-7-9800x3d",
+        },
+    )
+    assert no_version.json()["facts"][0]["bios_match_status"] == "version_not_provided"
+
+    page = client.get(f"/guidance-claims/{body['id']}")
+    assert "Reviewed BIOS-version applicability" in page.text
+    assert "Exact version 3.20" in page.text
+
+
+def test_bios_ranges_require_explicit_numeric_semantics(client, pdf_bytes_factory):
+    passage_id = _approved_evidence_and_setting(client, pdf_bytes_factory)
+    base = {
+        "claim_text": "This behavior is documented for a reviewed BIOS range.",
+        "claim_type": "constraint",
+        "passage_ids": [passage_id],
+        "canonical_ids": ["precision-boost-overdrive"],
+    }
+    invalid = client.post(
+        "/api/v1/guidance-claims",
+        json={
+            **base,
+            "bios_scopes": [
+                {
+                    "context_type": "vendor",
+                    "context_id": "asrock",
+                    "valid_from": "3.10",
+                    "valid_until": "3.30",
+                    "comparison_mode": "opaque",
+                    "version_notes": "Range from official documentation.",
+                    "evidence_basis": "Official version history reviewed.",
+                }
+            ],
+        },
+    )
+    assert invalid.status_code == 400
+    assert "Opaque BIOS versions cannot use ranges" in invalid.json()["detail"]
+
+    valid = client.post(
+        "/api/v1/guidance-claims",
+        json={
+            **base,
+            "bios_scopes": [
+                {
+                    "context_type": "vendor",
+                    "context_id": "asrock",
+                    "valid_from": "3.10",
+                    "valid_until": "3.30",
+                    "comparison_mode": "dotted_numeric",
+                    "version_notes": "Range from official documentation.",
+                    "evidence_basis": "Official version history reviewed.",
+                }
+            ],
+        },
+    )
+    assert valid.status_code == 201
+
+    conflicting = client.put(
+        f"/api/v1/guidance-claims/{valid.json()['id']}",
+        json={
+            **base,
+            "bios_scopes": [
+                {
+                    "context_type": "vendor",
+                    "context_id": "asrock",
+                    "bios_version_exact": "3.20",
+                    "valid_from": "3.10",
+                    "comparison_mode": "dotted_numeric",
+                    "version_notes": "Conflicting exact and range markers.",
+                    "evidence_basis": "Validation regression test.",
+                }
+            ],
+        },
+    )
+    assert conflicting.status_code == 400
+    assert "either an exact BIOS version or a valid range" in conflicting.json()["detail"]

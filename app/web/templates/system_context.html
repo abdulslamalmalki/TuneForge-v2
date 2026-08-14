@@ -20,6 +20,10 @@
     </select>
   </div>
   <div>
+    <label for="bios_version">BIOS version <span>(optional, exactly as shown by firmware)</span></label>
+    <input id="bios_version" name="bios_version" value="{{ bios_version }}" maxlength="64" placeholder="For example: 1801 or F32">
+  </div>
+  <div>
     <label for="cpu_model_id">CPU</label>
     <select id="cpu_model_id" name="cpu_model_id" required>
       <option value="">Choose an AM5 CPU</option>
@@ -42,12 +46,12 @@
     <div><dt>CPU family</dt><dd>{{ system_context.cpu_family_name }}</dd></div>
     <div><dt>Platform</dt><dd>{{ system_context.platform_name }}</dd></div>
     <div><dt>Coverage</dt><dd>{{ system_context.coverage_status | replace('_', ' ') | capitalize }}</dd></div>
-    <div><dt>BIOS version</dt><dd>{{ system_context.bios_version_status | replace('_', ' ') | capitalize }}</dd></div>
+    <div><dt>BIOS version</dt><dd>{{ system_context.bios_version or 'Not provided' }} · {{ system_context.bios_version_status | replace('_', ' ') }}</dd></div>
   </dl>
   {% for warning in system_context.warnings %}<p class="public-warning">{{ warning }}</p>{% endfor %}
   <div class="system-actions">
-    <a class="primary-link-button" href="/assistant?motherboard_model_id={{ system_context.motherboard_model_id }}&amp;cpu_model_id={{ system_context.cpu_model_id }}">Browse guided answers</a>
-    <a class="secondary-button" href="/answer?motherboard_model_id={{ system_context.motherboard_model_id }}&amp;cpu_model_id={{ system_context.cpu_model_id }}">Find a setting</a>
+    <a class="primary-link-button" href="/assistant?motherboard_model_id={{ system_context.motherboard_model_id }}&amp;cpu_model_id={{ system_context.cpu_model_id }}{% if system_context.bios_version %}&amp;bios_version={{ system_context.bios_version }}{% endif %}">Browse guided answers</a>
+    <a class="secondary-button" href="/answer?motherboard_model_id={{ system_context.motherboard_model_id }}&amp;cpu_model_id={{ system_context.cpu_model_id }}{% if system_context.bios_version %}&amp;bios_version={{ system_context.bios_version }}{% endif %}">Find a setting</a>
   </div>
 </section>
 {% else %}

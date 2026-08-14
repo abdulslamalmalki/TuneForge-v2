@@ -32,12 +32,14 @@ def explain_setting(
     setting: str = Query(min_length=1),
     motherboard_model_id: str = "",
     cpu_model_id: str = "",
+    bios_version: str = "",
 ):
     try:
         context = system_context_domain.resolve_optional(
             session,
             motherboard_model_id=motherboard_model_id,
             cpu_model_id=cpu_model_id,
+            bios_version=bios_version,
         )
         explanation = guidance_read.explain_setting(
             session,
@@ -57,6 +59,7 @@ def explain_setting(
                 context={
                     "model_id": motherboard_model_id,
                     "cpu_model_id": cpu_model_id,
+                    "bios_version": bios_version,
                 },
             )
             matches = (
@@ -109,12 +112,14 @@ def explain_canonical_setting(
     session: SessionDep,
     motherboard_model_id: str = "",
     cpu_model_id: str = "",
+    bios_version: str = "",
 ):
     try:
         context = system_context_domain.resolve_optional(
             session,
             motherboard_model_id=motherboard_model_id,
             cpu_model_id=cpu_model_id,
+            bios_version=bios_version,
         )
     except SystemContextError as error:
         raise HTTPException(status_code=400, detail=error.message) from None

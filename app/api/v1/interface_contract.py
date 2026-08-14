@@ -63,12 +63,14 @@ def get_interface_presentation(
     setting: str = Query(min_length=1),
     motherboard_model_id: str = "",
     cpu_model_id: str = "",
+    bios_version: str = "",
 ) -> InterfacePresentationOut:
     try:
         context = system_context_domain.resolve_optional(
             session,
             motherboard_model_id=motherboard_model_id,
             cpu_model_id=cpu_model_id,
+            bios_version=bios_version,
         )
     except SystemContextError as error:
         raise HTTPException(status_code=400, detail=error.message) from None
@@ -128,12 +130,14 @@ def get_guided_answer(
     session: SessionDep,
     motherboard_model_id: str = "",
     cpu_model_id: str = "",
+    bios_version: str = "",
 ) -> GuidedAnswerOut:
     try:
         context = system_context_domain.resolve_optional(
             session,
             motherboard_model_id=motherboard_model_id,
             cpu_model_id=cpu_model_id,
+            bios_version=bios_version,
         )
         answer = guided_answers.build_answer(
             session,

@@ -59,6 +59,11 @@ def create_guidance_claim(
                 if body.applicability_targets
                 else None
             ),
+            bios_scopes=(
+                tuple(scope.to_domain() for scope in body.bios_scopes)
+                if body.bios_scopes
+                else None
+            ),
         )
     except GuidanceClaimError as error:
         raise HTTPException(status_code=400, detail=error.message) from None
@@ -101,6 +106,11 @@ def edit_guidance_claim(
             applicability_targets=(
                 tuple(target.to_domain() for target in body.applicability_targets)
                 if body.applicability_targets
+                else None
+            ),
+            bios_scopes=(
+                tuple(scope.to_domain() for scope in body.bios_scopes)
+                if body.bios_scopes
                 else None
             ),
         )

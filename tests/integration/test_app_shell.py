@@ -34,7 +34,7 @@ def test_public_readiness_reports_head_schema_and_storage(client):
     assert response.json() == {
         "status": "ready",
         "app_version": "1.33.0",
-        "database_revision": "0024",
+        "database_revision": "0025",
         "authentication_initialized": False,
         "checks": {
             "database": True,
@@ -139,7 +139,7 @@ def test_my_system_page_resolves_only_reviewed_am5_identifiers(client):
     assert resolved.status_code == 200
     assert "Identity resolved" in resolved.text
     assert "ASRock X870E Taichi White" in resolved.text
-    assert "BIOS-version applicability is not modeled" in resolved.text
+    assert "BIOS version was not provided" in resolved.text
     assert "Browse guided answers" in resolved.text
     assert (
         'href="/assistant?motherboard_model_id=asrock-x870e-taichi-white&amp;'
@@ -149,6 +149,17 @@ def test_my_system_page_resolves_only_reviewed_am5_identifiers(client):
         'href="/answer?motherboard_model_id=asrock-x870e-taichi-white&amp;'
         'cpu_model_id=amd-ryzen-7-9800x3d"'
     ) in resolved.text
+
+    versioned = client.get(
+        "/system-context",
+        params={
+            "motherboard_model_id": "asrock-x870e-taichi-white",
+            "cpu_model_id": "amd-ryzen-7-9800x3d",
+            "bios_version": "3.20",
+        },
+    )
+    assert "3.20 · provided unverified" in versioned.text
+    assert "bios_version=3.20" in versioned.text
 
 
 def test_public_answer_landing_is_clear_and_has_reviewed_examples(client):

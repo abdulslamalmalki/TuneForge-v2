@@ -55,12 +55,14 @@ def resolve_system_context(
     session: SessionDep,
     motherboard_model_id: str = Query(min_length=1),
     cpu_model_id: str = Query(min_length=1),
+    bios_version: str = "",
 ) -> SystemContextOut:
     try:
         context = system_context.resolve(
             session,
             motherboard_model_id=motherboard_model_id,
             cpu_model_id=cpu_model_id,
+            bios_version=bios_version,
         )
     except SystemContextError as error:
         raise HTTPException(status_code=400, detail=error.message) from None

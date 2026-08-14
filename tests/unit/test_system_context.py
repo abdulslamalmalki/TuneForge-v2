@@ -21,9 +21,31 @@ def test_resolves_reviewed_am5_hardware_identity_graph(db_session):
     assert context.chipset_id == "amd-x870e"
     assert context.chipset_family_id == "amd-800-series"
     assert context.cpu_model_name == "AMD Ryzen 7 9800X3D"
-    assert context.bios_version_status == "not_modeled"
+    assert context.bios_version is None
+    assert context.bios_version_status == "not_provided"
     assert context.coverage_status == "identity_resolved"
-    assert "will not infer it" in context.warnings[0]
+    assert "not provided" in context.warnings[0]
+
+
+def test_accepts_optional_user_provided_bios_version_without_inference(db_session):
+    context = system_context.resolve(
+        db_session,
+        motherboard_model_id="asrock-x870e-taichi-white",
+        cpu_model_id="amd-ryzen-7-9800x3d",
+        bios_version="  3.20  ",
+    )
+
+    assert context.bios_version == "3.20"
+    assert context.bios_version_status == "provided_unverified"
+    assert "matched only against explicit reviewed version scopes" in context.warnings[0]
+
+    with pytest.raises(SystemContextError, match="64 characters"):
+        system_context.resolve(
+            db_session,
+            motherboard_model_id="asrock-x870e-taichi-white",
+            cpu_model_id="amd-ryzen-7-9800x3d",
+            bios_version="x" * 65,
+        )
 
 
 def test_am5_pilot_options_exclude_other_platforms(db_session):

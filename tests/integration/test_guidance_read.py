@@ -463,7 +463,7 @@ def test_guidance_carries_system_identity_without_inventing_exact_applicability(
     assert response.status_code == 200
     body = response.json()
     assert body["system_context"]["motherboard_model_name"] == "X870E Taichi White"
-    assert body["system_context"]["bios_version_status"] == "not_modeled"
+    assert body["system_context"]["bios_version_status"] == "not_provided"
     assert "Current accepted guidance remains source-scoped" in body["context_notice"]
     assert "not validated for this exact motherboard" in body["context_notice"]
 

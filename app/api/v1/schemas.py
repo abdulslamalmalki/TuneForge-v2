@@ -31,6 +31,7 @@ from app.domain.canonical_suggestions import SuggestionQueueRow
 from app.domain.evidence_sources import EvidenceSourceDetail, EvidenceSourceOverview
 from app.domain.guidance_claims import (
     ApplicabilityTargetInput,
+    BiosScopeInput,
     GuidanceClaimDetail,
     GuidanceClaimOverview,
 )
@@ -293,6 +294,23 @@ class GuidanceApplicabilityTargetIn(BaseModel):
         )
 
 
+class GuidanceBiosScopeIn(BaseModel):
+    context_type: str = ""
+    context_id: str = ""
+    bios_version_exact: str = ""
+    valid_from: str = ""
+    valid_until: str = ""
+    introduced_in: str = ""
+    changed_in: str = ""
+    deprecated_in: str = ""
+    comparison_mode: str = "opaque"
+    version_notes: str = ""
+    evidence_basis: str = ""
+
+    def to_domain(self) -> BiosScopeInput:
+        return BiosScopeInput(**self.model_dump())
+
+
 class CreateGuidanceClaimIn(BaseModel):
     claim_text: str = ""
     claim_type: str = ""
@@ -302,6 +320,7 @@ class CreateGuidanceClaimIn(BaseModel):
     applicability_scope: str = "source_scope"
     cpu_model_id: str | None = None
     applicability_targets: list[GuidanceApplicabilityTargetIn] = Field(default_factory=list)
+    bios_scopes: list[GuidanceBiosScopeIn] = Field(default_factory=list)
 
 
 class EditGuidanceClaimIn(CreateGuidanceClaimIn):
@@ -377,6 +396,21 @@ class GuidanceApplicabilityTargetOut(BaseModel):
     evidence_basis: str
 
 
+class GuidanceBiosScopeOut(BaseModel):
+    context_type: str
+    context_id: str
+    context_name: str
+    bios_version_exact: str | None
+    valid_from: str | None
+    valid_until: str | None
+    introduced_in: str | None
+    changed_in: str | None
+    deprecated_in: str | None
+    comparison_mode: str
+    version_notes: str
+    evidence_basis: str
+
+
 class GuidanceClaimEventOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -404,6 +438,7 @@ class GuidanceClaimDetailOut(BaseModel):
     source_settings: list[GuidanceSourceSettingCitationOut]
     settings: list[GuidanceSettingOut]
     applicability_targets: list[GuidanceApplicabilityTargetOut]
+    bios_scopes: list[GuidanceBiosScopeOut]
     events: list[GuidanceClaimEventOut]
 
     @classmethod
@@ -463,6 +498,10 @@ class GuidanceClaimDetailOut(BaseModel):
                 GuidanceApplicabilityTargetOut.model_validate(target, from_attributes=True)
                 for target in detail.applicability_targets
             ],
+            bios_scopes=[
+                GuidanceBiosScopeOut.model_validate(scope, from_attributes=True)
+                for scope in detail.bios_scopes
+            ],
             events=[GuidanceClaimEventOut.model_validate(event) for event in detail.events],
         )
 
@@ -490,6 +529,8 @@ class CitationFirstFactOut(BaseModel):
     claim_type: str
     applicability_scope: str
     applicability_targets: list[GuidanceApplicabilityTargetOut]
+    bios_scopes: list[GuidanceBiosScopeOut]
+    bios_match_status: str
     citations: list[CitationFirstCitationOut]
 
 
@@ -521,6 +562,7 @@ class SystemContextOut(BaseModel):
     cpu_family_name: str
     cpu_architecture_id: str
     cpu_architecture_name: str
+    bios_version: str | None
     bios_version_status: str
     coverage_status: str
     warnings: list[str]
@@ -792,6 +834,11 @@ class CitationFirstExplanationOut(BaseModel):
                         GuidanceApplicabilityTargetOut.model_validate(target, from_attributes=True)
                         for target in fact.applicability_targets
                     ],
+                    bios_scopes=[
+                        GuidanceBiosScopeOut.model_validate(scope, from_attributes=True)
+                        for scope in fact.bios_scopes
+                    ],
+                    bios_match_status=fact.bios_match_status,
                     citations=[
                         CitationFirstCitationOut.model_validate(citation, from_attributes=True)
                         for citation in fact.citations

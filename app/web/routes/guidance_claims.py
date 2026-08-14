@@ -76,6 +76,7 @@ def edit_claim(
     canonical_ids: Annotated[str, Form()] = "",
     applicability_scope: Annotated[str, Form()] = "source_scope",
     applicability_targets: Annotated[str, Form()] = "",
+    bios_scopes: Annotated[str, Form()] = "",
 ):
     claim = claim_domain.get_claim(session, claim_id)
     if claim is None:
@@ -91,6 +92,7 @@ def edit_claim(
             canonical_ids=_parse_canonical_ids(canonical_ids),
             applicability_scope=applicability_scope,
             applicability_targets=_parse_applicability_targets(applicability_targets),
+            bios_scopes=_parse_bios_scopes(bios_scopes),
         )
     except GuidanceClaimError as error:
         return _detail_error(request, session, claim_id, error.message)
@@ -148,6 +150,47 @@ def _parse_applicability_targets(
             )
         )
     return targets
+
+
+def _parse_bios_scopes(value: str) -> list[claim_domain.BiosScopeInput]:
+    scopes = []
+    allowed = {
+        "exact": "bios_version_exact",
+        "from": "valid_from",
+        "until": "valid_until",
+        "introduced": "introduced_in",
+        "changed": "changed_in",
+        "deprecated": "deprecated_in",
+        "mode": "comparison_mode",
+        "notes": "version_notes",
+        "basis": "evidence_basis",
+    }
+    for line in value.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = [part.strip() for part in line.split("|")]
+        context_type, colon, context_id = parts[0].partition(":")
+        if not colon or not context_id.strip():
+            raise GuidanceClaimError(
+                "BIOS scopes must start with motherboard_model:id or vendor:id."
+            )
+        fields = {
+            "context_type": context_type,
+            "context_id": context_id,
+            "comparison_mode": "opaque",
+        }
+        for part in parts[1:]:
+            key, separator, item = part.partition("=")
+            key = key.strip().casefold()
+            if not separator or key not in allowed:
+                raise GuidanceClaimError(
+                    "BIOS scope fields must use exact/from/until/introduced/changed/"
+                    "deprecated/mode/notes/basis=value."
+                )
+            fields[allowed[key]] = item.strip()
+        scopes.append(claim_domain.BiosScopeInput(**fields))
+    return scopes
 
 
 def _detail_error(

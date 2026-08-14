@@ -39,6 +39,7 @@ def search(
     category_id: str = "",
     risk_level: str = "",
     cpu_model_id: str = "",
+    bios_version: str = "",
 ) -> list[SearchResultOut]:
     resolved_context = None
     if cpu_model_id.strip():
@@ -47,6 +48,7 @@ def search(
                 session,
                 motherboard_model_id=model_id,
                 cpu_model_id=cpu_model_id,
+                bios_version=bios_version,
             )
             system_context.validate_vendor_filter(resolved_context, vendor_id)
         except SystemContextError as error:

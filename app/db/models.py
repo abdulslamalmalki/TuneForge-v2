@@ -414,6 +414,71 @@ class GuidanceClaimApplicabilityTarget(Base):
     evidence_basis: Mapped[str] = mapped_column(Text)
 
 
+class GuidanceClaimBiosScope(Base):
+    """One reviewed BIOS-version boundary; opaque unless comparison is explicit."""
+
+    __tablename__ = "guidance_claim_bios_scopes"
+    __table_args__ = (
+        CheckConstraint(
+            "(motherboard_model_id IS NOT NULL) + (vendor_id IS NOT NULL) = 1",
+            name="ck_guidance_bios_scope_exactly_one_context",
+        ),
+        CheckConstraint(
+            "bios_version_exact IS NOT NULL OR valid_from IS NOT NULL OR "
+            "valid_until IS NOT NULL OR introduced_in IS NOT NULL OR "
+            "changed_in IS NOT NULL OR deprecated_in IS NOT NULL",
+            name="ck_guidance_bios_scope_has_version",
+        ),
+        CheckConstraint(
+            "NOT (bios_version_exact IS NOT NULL AND "
+            "(valid_from IS NOT NULL OR valid_until IS NOT NULL))",
+            name="ck_guidance_bios_scope_exact_or_range",
+        ),
+        CheckConstraint(
+            "comparison_mode IN ('opaque', 'integer_numeric', 'dotted_numeric')",
+            name="ck_guidance_bios_scope_comparison_mode",
+        ),
+        CheckConstraint(
+            "comparison_mode != 'opaque' OR "
+            "(valid_from IS NULL AND valid_until IS NULL)",
+            name="ck_guidance_bios_scope_opaque_not_ordered",
+        ),
+        CheckConstraint(
+            "length(version_notes) BETWEEN 1 AND 1000",
+            name="ck_guidance_bios_scope_notes_length",
+        ),
+        CheckConstraint(
+            "length(evidence_basis) BETWEEN 1 AND 1000",
+            name="ck_guidance_bios_scope_basis_length",
+        ),
+        Index("ix_guidance_claim_bios_scopes_model", "motherboard_model_id"),
+        Index("ix_guidance_claim_bios_scopes_vendor", "vendor_id"),
+        Index("ix_guidance_claim_bios_scopes_exact", "bios_version_exact"),
+    )
+
+    claim_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("guidance_claims.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    ordinal: Mapped[int] = mapped_column(Integer, primary_key=True)
+    motherboard_model_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("motherboard_models.model_id", ondelete="RESTRICT")
+    )
+    vendor_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("vendors.vendor_id", ondelete="RESTRICT")
+    )
+    bios_version_exact: Mapped[str | None] = mapped_column(Text)
+    valid_from: Mapped[str | None] = mapped_column(Text)
+    valid_until: Mapped[str | None] = mapped_column(Text)
+    introduced_in: Mapped[str | None] = mapped_column(Text)
+    changed_in: Mapped[str | None] = mapped_column(Text)
+    deprecated_in: Mapped[str | None] = mapped_column(Text)
+    comparison_mode: Mapped[str] = mapped_column(Text)
+    version_notes: Mapped[str] = mapped_column(Text)
+    evidence_basis: Mapped[str] = mapped_column(Text)
+
+
 class GuidanceClaimSourceSetting(Base):
     """An approved manual setting used as direct page-scoped claim evidence."""
 

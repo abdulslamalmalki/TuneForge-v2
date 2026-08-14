@@ -23,6 +23,7 @@ def guided_answers_page(
     question_id: str = "",
     motherboard_model_id: str = "",
     cpu_model_id: str = "",
+    bios_version: str = "",
 ) -> HTMLResponse:
     answer = None
     context = None
@@ -33,6 +34,7 @@ def guided_answers_page(
             session,
             motherboard_model_id=motherboard_model_id,
             cpu_model_id=cpu_model_id,
+            bios_version=bios_version,
         )
         if question_id.strip():
             answer = guided_answers.build_answer(
@@ -54,6 +56,7 @@ def guided_answers_page(
             "question_id": question_id,
             "motherboard_model_id": motherboard_model_id,
             "cpu_model_id": cpu_model_id,
+            "bios_version": bios_version,
             "system_context": context,
             "answer": answer,
             "error": error,

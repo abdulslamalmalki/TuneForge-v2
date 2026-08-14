@@ -1,6 +1,7 @@
 """Reviewer-controlled guidance claims grounded in accepted evidence passages."""
 
 import json
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -21,6 +22,7 @@ from app.db.models import (
     EvidenceSource,
     GuidanceClaim,
     GuidanceClaimApplicabilityTarget,
+    GuidanceClaimBiosScope,
     GuidanceClaimEvent,
     GuidanceClaimEvidence,
     GuidanceClaimSetting,
@@ -46,6 +48,8 @@ CLAIM_TYPES = ("definition", "behavior", "constraint", "safety")
 APPLICABILITY_SOURCE_SCOPE = "source_scope"
 APPLICABILITY_CPU_MODEL = "cpu_model"
 APPLICABILITY_REVIEWED_HARDWARE = "reviewed_hardware"
+BIOS_COMPARISON_MODES = ("opaque", "integer_numeric", "dotted_numeric")
+BIOS_CONTEXT_TYPES = ("motherboard_model", "vendor")
 
 TARGET_CPU_MODEL = "cpu_model"
 TARGET_CPU_FAMILY = "cpu_family"
@@ -133,6 +137,37 @@ class GuidanceApplicabilityTarget:
 
 
 @dataclass(frozen=True)
+class BiosScopeInput:
+    context_type: str
+    context_id: str
+    bios_version_exact: str = ""
+    valid_from: str = ""
+    valid_until: str = ""
+    introduced_in: str = ""
+    changed_in: str = ""
+    deprecated_in: str = ""
+    comparison_mode: str = "opaque"
+    version_notes: str = ""
+    evidence_basis: str = ""
+
+
+@dataclass(frozen=True)
+class GuidanceBiosScope:
+    context_type: str
+    context_id: str
+    context_name: str
+    bios_version_exact: str | None
+    valid_from: str | None
+    valid_until: str | None
+    introduced_in: str | None
+    changed_in: str | None
+    deprecated_in: str | None
+    comparison_mode: str
+    version_notes: str
+    evidence_basis: str
+
+
+@dataclass(frozen=True)
 class GuidanceClaimOverview:
     claim: GuidanceClaim
     evidence_count: int
@@ -147,6 +182,7 @@ class GuidanceClaimDetail:
     settings: tuple[CanonicalSetting, ...]
     cpu_model: CpuModel | None
     applicability_targets: tuple[GuidanceApplicabilityTarget, ...]
+    bios_scopes: tuple[GuidanceBiosScope, ...]
     events: tuple[GuidanceClaimEvent, ...]
 
 
@@ -161,6 +197,7 @@ def create_claim(
     applicability_scope: str = APPLICABILITY_SOURCE_SCOPE,
     cpu_model_id: str | None = None,
     applicability_targets: Sequence[ApplicabilityTargetInput] | None = None,
+    bios_scopes: Sequence[BiosScopeInput] | None = None,
     actor: str | None = None,
     commit: bool = True,
 ) -> GuidanceClaim:
@@ -175,6 +212,7 @@ def create_claim(
         applicability_scope=applicability_scope,
         cpu_model_id=cpu_model_id,
         applicability_targets=applicability_targets,
+        bios_scopes=bios_scopes,
     )
     duplicate = session.scalar(
         select(GuidanceClaim.id).where(
@@ -208,6 +246,7 @@ def create_claim(
         canonical_ids=values["canonical_ids"],
     )
     _replace_applicability_targets(session, claim.id, values["applicability_targets"])
+    _replace_bios_scopes(session, claim.id, values["bios_scopes"])
     session.add(
         GuidanceClaimEvent(
             claim_id=claim.id,
@@ -301,6 +340,19 @@ def list_applicability_targets(
     )
 
 
+def list_bios_scopes(
+    session: Session, claim_id: int
+) -> tuple[GuidanceBiosScope, ...]:
+    return tuple(
+        _bios_scope_view(session, row)
+        for row in session.scalars(
+            select(GuidanceClaimBiosScope)
+            .where(GuidanceClaimBiosScope.claim_id == claim_id)
+            .order_by(GuidanceClaimBiosScope.ordinal)
+        )
+    )
+
+
 def get_detail(session: Session, claim_id: int) -> GuidanceClaimDetail | None:
     claim = session.get(GuidanceClaim, claim_id)
     if claim is None:
@@ -344,6 +396,7 @@ def get_detail(session: Session, claim_id: int) -> GuidanceClaimDetail | None:
     )
     cpu_model = session.get(CpuModel, claim.cpu_model_id) if claim.cpu_model_id else None
     applicability_targets = list_applicability_targets(session, claim_id)
+    bios_scopes = list_bios_scopes(session, claim_id)
     events = tuple(
         session.scalars(
             select(GuidanceClaimEvent)
@@ -358,6 +411,7 @@ def get_detail(session: Session, claim_id: int) -> GuidanceClaimDetail | None:
         settings=settings,
         cpu_model=cpu_model,
         applicability_targets=applicability_targets,
+        bios_scopes=bios_scopes,
         events=events,
     )
 
@@ -374,6 +428,7 @@ def edit_claim(
     applicability_scope: str = APPLICABILITY_SOURCE_SCOPE,
     cpu_model_id: str | None = None,
     applicability_targets: Sequence[ApplicabilityTargetInput] | None = None,
+    bios_scopes: Sequence[BiosScopeInput] | None = None,
 ) -> bool:
     if claim.status != STATUS_DRAFT:
         raise GuidanceClaimError("Only draft guidance claims can be edited.")
@@ -387,6 +442,7 @@ def edit_claim(
         applicability_scope=applicability_scope,
         cpu_model_id=cpu_model_id,
         applicability_targets=applicability_targets,
+        bios_scopes=bios_scopes,
     )
     detail = get_detail(session, claim.id)
     if detail is None:
@@ -401,6 +457,7 @@ def edit_claim(
         "source_setting_ids": list(values["source_setting_ids"]),
         "canonical_ids": list(values["canonical_ids"]),
         "applicability_targets": list(values["applicability_targets"]),
+        "bios_scopes": list(values["bios_scopes"]),
     }
     if before == after:
         return False
@@ -428,6 +485,7 @@ def edit_claim(
         canonical_ids=values["canonical_ids"],
     )
     _replace_applicability_targets(session, claim.id, values["applicability_targets"])
+    _replace_bios_scopes(session, claim.id, values["bios_scopes"])
     session.add(
         GuidanceClaimEvent(
             claim_id=claim.id,
@@ -518,6 +576,7 @@ def _validate_claim_values(
     applicability_scope: str,
     cpu_model_id: str | None,
     applicability_targets: Sequence[ApplicabilityTargetInput] | None,
+    bios_scopes: Sequence[BiosScopeInput] | None,
 ) -> dict[str, object]:
     claim_text = " ".join(claim_text.split())
     if not claim_text:
@@ -557,6 +616,10 @@ def _validate_claim_values(
         )
     clean_applicability_targets = _validate_applicability_targets(
         session, applicability_targets or ()
+    )
+    clean_bios_scopes = _validate_bios_scopes(session, bios_scopes or ())
+    _validate_bios_scope_coherence(
+        session, clean_applicability_targets, clean_bios_scopes
     )
     clean_passage_ids = tuple(sorted(dict.fromkeys(int(value) for value in passage_ids)))
     evidence_rows = session.execute(
@@ -618,6 +681,7 @@ def _validate_claim_values(
         "source_setting_ids": clean_source_setting_ids,
         "canonical_ids": clean_canonical_ids,
         "applicability_targets": clean_applicability_targets,
+        "bios_scopes": clean_bios_scopes,
     }
 
 
@@ -692,6 +756,163 @@ def _validate_applicability_targets(
         )
     _validate_target_coherence(identities)
     return tuple(clean)
+
+
+def _validate_bios_scopes(
+    session: Session,
+    scopes: Sequence[BiosScopeInput],
+) -> tuple[dict[str, str | None], ...]:
+    clean: list[dict[str, str | None]] = []
+    seen: set[tuple[object, ...]] = set()
+    for scope in scopes:
+        context_type = scope.context_type.strip().casefold()
+        context_id = scope.context_id.strip().casefold()
+        if context_type not in BIOS_CONTEXT_TYPES:
+            raise GuidanceClaimError(
+                "BIOS scope context must be motherboard_model or vendor."
+            )
+        context_model = MotherboardModel if context_type == "motherboard_model" else Vendor
+        if not context_id or session.get(context_model, context_id) is None:
+            raise GuidanceClaimError(f"Unknown BIOS scope {context_type}: {context_id}.")
+        versions = {
+            "bios_version_exact": _clean_version(scope.bios_version_exact),
+            "valid_from": _clean_version(scope.valid_from),
+            "valid_until": _clean_version(scope.valid_until),
+            "introduced_in": _clean_version(scope.introduced_in),
+            "changed_in": _clean_version(scope.changed_in),
+            "deprecated_in": _clean_version(scope.deprecated_in),
+        }
+        if not any(versions.values()):
+            raise GuidanceClaimError("A BIOS scope requires at least one version marker.")
+        if versions["bios_version_exact"] and (
+            versions["valid_from"] or versions["valid_until"]
+        ):
+            raise GuidanceClaimError("Use either an exact BIOS version or a valid range.")
+        comparison_mode = scope.comparison_mode.strip().casefold()
+        if comparison_mode not in BIOS_COMPARISON_MODES:
+            raise GuidanceClaimError(
+                "BIOS comparison mode must be opaque, integer_numeric, or dotted_numeric."
+            )
+        if comparison_mode == "opaque" and (
+            versions["valid_from"] or versions["valid_until"]
+        ):
+            raise GuidanceClaimError(
+                "Opaque BIOS versions cannot use ranges; choose an explicit numeric mode."
+            )
+        if comparison_mode != "opaque":
+            for value in versions.values():
+                if value:
+                    _version_key(value, comparison_mode)
+            if versions["valid_from"] and versions["valid_until"]:
+                if _version_key(versions["valid_from"], comparison_mode) > _version_key(
+                    versions["valid_until"], comparison_mode
+                ):
+                    raise GuidanceClaimError(
+                        "BIOS valid_from must not be later than valid_until."
+                    )
+        version_notes = _required_scope_text(scope.version_notes, "BIOS version notes")
+        evidence_basis = _required_scope_text(
+            scope.evidence_basis, "BIOS scope evidence basis"
+        )
+        value = {
+            "context_type": context_type,
+            "context_id": context_id,
+            **versions,
+            "comparison_mode": comparison_mode,
+            "version_notes": version_notes,
+            "evidence_basis": evidence_basis,
+        }
+        key = tuple(value.items())
+        if key in seen:
+            continue
+        seen.add(key)
+        clean.append(value)
+    return tuple(clean)
+
+
+def _clean_version(value: str) -> str | None:
+    value = " ".join(value.split())
+    if not value:
+        return None
+    if len(value) > 64:
+        raise GuidanceClaimError("BIOS version identifiers must be 64 characters or fewer.")
+    return value
+
+
+def _validate_bios_scope_coherence(
+    session: Session,
+    targets: Sequence[dict[str, str]],
+    scopes: Sequence[dict[str, str | None]],
+) -> None:
+    exact_models = {
+        target["target_id"]
+        for target in targets
+        if target["target_type"] == TARGET_MOTHERBOARD_MODEL
+    }
+    target_vendors = {
+        target["target_id"]
+        for target in targets
+        if target["target_type"] == TARGET_VENDOR
+    }
+    for model_id in exact_models:
+        model = session.get(MotherboardModel, model_id)
+        if model is None:
+            raise RuntimeError("Validated motherboard applicability target disappeared.")
+        target_vendors.add(model.vendor_id)
+    for target in targets:
+        if target["target_type"] != TARGET_MOTHERBOARD_FAMILY:
+            continue
+        family = session.get(MotherboardFamily, target["target_id"])
+        if family is None:
+            raise RuntimeError("Validated motherboard family target disappeared.")
+        target_vendors.add(family.vendor_id)
+
+    for scope in scopes:
+        if exact_models and (
+            scope["context_type"] != "motherboard_model"
+            or scope["context_id"] not in exact_models
+        ):
+            raise GuidanceClaimError(
+                "A claim with exact motherboard targets requires BIOS scopes for those "
+                "exact motherboard identities."
+            )
+        if not target_vendors:
+            continue
+        scope_vendor = scope["context_id"]
+        if scope["context_type"] == "motherboard_model":
+            model = session.get(MotherboardModel, scope["context_id"])
+            if model is None:
+                raise RuntimeError("Validated BIOS motherboard context disappeared.")
+            scope_vendor = model.vendor_id
+        if scope_vendor not in target_vendors:
+            raise GuidanceClaimError(
+                "BIOS scope vendor conflicts with reviewed hardware applicability."
+            )
+
+
+def _required_scope_text(value: str, label: str) -> str:
+    value = " ".join(value.split())
+    if not value:
+        raise GuidanceClaimError(f"{label} is required.")
+    if len(value) > 1000:
+        raise GuidanceClaimError(f"{label} must be 1000 characters or fewer.")
+    return value
+
+
+def _version_key(value: str, mode: str) -> tuple[int, ...]:
+    if mode == "integer_numeric":
+        if not re.fullmatch(r"\d+", value):
+            raise GuidanceClaimError(
+                f"BIOS version {value!r} is not an integer_numeric identifier."
+            )
+        return (int(value),)
+    if mode == "dotted_numeric":
+        if not re.fullmatch(r"\d+(?:\.\d+)+", value):
+            raise GuidanceClaimError(
+                f"BIOS version {value!r} is not a dotted_numeric identifier."
+            )
+        return tuple(int(part) for part in value.split("."))
+    raise GuidanceClaimError("Opaque BIOS versions cannot be ordered.")
 
 
 def _validate_target_coherence(identities: Sequence[tuple[str, object]]) -> None:
@@ -774,6 +995,69 @@ def _replace_applicability_targets(
     session.add_all(rows)
 
 
+def _replace_bios_scopes(
+    session: Session,
+    claim_id: int,
+    scopes: tuple[dict[str, str | None], ...],
+) -> None:
+    session.execute(
+        delete(GuidanceClaimBiosScope).where(GuidanceClaimBiosScope.claim_id == claim_id)
+    )
+    rows = []
+    for ordinal, scope in enumerate(scopes):
+        rows.append(
+            GuidanceClaimBiosScope(
+                claim_id=claim_id,
+                ordinal=ordinal,
+                motherboard_model_id=(
+                    scope["context_id"]
+                    if scope["context_type"] == "motherboard_model"
+                    else None
+                ),
+                vendor_id=(
+                    scope["context_id"] if scope["context_type"] == "vendor" else None
+                ),
+                bios_version_exact=scope["bios_version_exact"],
+                valid_from=scope["valid_from"],
+                valid_until=scope["valid_until"],
+                introduced_in=scope["introduced_in"],
+                changed_in=scope["changed_in"],
+                deprecated_in=scope["deprecated_in"],
+                comparison_mode=scope["comparison_mode"],
+                version_notes=scope["version_notes"],
+                evidence_basis=scope["evidence_basis"],
+            )
+        )
+    session.add_all(rows)
+
+
+def _bios_scope_view(session: Session, row: GuidanceClaimBiosScope) -> GuidanceBiosScope:
+    if row.motherboard_model_id:
+        context_type = "motherboard_model"
+        context_id = row.motherboard_model_id
+        identity = session.get(MotherboardModel, context_id)
+    else:
+        context_type = "vendor"
+        context_id = row.vendor_id or ""
+        identity = session.get(Vendor, context_id)
+    if identity is None:
+        raise RuntimeError(f"Guidance BIOS scope {row.claim_id}/{row.ordinal} is orphaned.")
+    return GuidanceBiosScope(
+        context_type=context_type,
+        context_id=context_id,
+        context_name=identity.canonical_name,
+        bios_version_exact=row.bios_version_exact,
+        valid_from=row.valid_from,
+        valid_until=row.valid_until,
+        introduced_in=row.introduced_in,
+        changed_in=row.changed_in,
+        deprecated_in=row.deprecated_in,
+        comparison_mode=row.comparison_mode,
+        version_notes=row.version_notes,
+        evidence_basis=row.evidence_basis,
+    )
+
+
 def _applicability_target_view(
     session: Session,
     row: GuidanceClaimApplicabilityTarget,
@@ -814,6 +1098,7 @@ def _claim_snapshot(claim: GuidanceClaim, values: dict[str, object]) -> dict[str
         "source_setting_ids": list(values["source_setting_ids"]),
         "canonical_ids": list(values["canonical_ids"]),
         "applicability_targets": list(values["applicability_targets"]),
+        "bios_scopes": list(values["bios_scopes"]),
     }
 
 
@@ -834,5 +1119,21 @@ def _detail_snapshot(detail: GuidanceClaimDetail) -> dict[str, object]:
                 "evidence_basis": target.evidence_basis,
             }
             for target in detail.applicability_targets
+        ],
+        "bios_scopes": [
+            {
+                "context_type": scope.context_type,
+                "context_id": scope.context_id,
+                "bios_version_exact": scope.bios_version_exact,
+                "valid_from": scope.valid_from,
+                "valid_until": scope.valid_until,
+                "introduced_in": scope.introduced_in,
+                "changed_in": scope.changed_in,
+                "deprecated_in": scope.deprecated_in,
+                "comparison_mode": scope.comparison_mode,
+                "version_notes": scope.version_notes,
+                "evidence_basis": scope.evidence_basis,
+            }
+            for scope in detail.bios_scopes
         ],
     }

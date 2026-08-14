@@ -40,6 +40,7 @@ def system_context_page(
     session: SessionDep,
     motherboard_model_id: str = "",
     cpu_model_id: str = "",
+    bios_version: str = "",
 ) -> HTMLResponse:
     context = None
     error = None
@@ -49,6 +50,7 @@ def system_context_page(
             session,
             motherboard_model_id=motherboard_model_id,
             cpu_model_id=cpu_model_id,
+            bios_version=bios_version,
         )
     except SystemContextError as exception:
         error = exception.message
@@ -59,6 +61,7 @@ def system_context_page(
         {
             "motherboard_model_id": motherboard_model_id,
             "cpu_model_id": cpu_model_id,
+            "bios_version": bios_version,
             "motherboards": system_context_domain.list_pilot_motherboards(session),
             "cpus": system_context_domain.list_pilot_cpus(session),
             "system_context": context,

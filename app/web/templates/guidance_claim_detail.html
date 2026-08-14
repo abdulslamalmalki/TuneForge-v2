@@ -24,6 +24,25 @@
 <p>This claim retains broad source scope. It is not verified for an exact CPU, motherboard, chipset, or platform.</p>
 {% endif %}
 
+<h2>Reviewed BIOS-version applicability</h2>
+{% if detail.bios_scopes %}
+<ul>
+  {% for scope in detail.bios_scopes %}
+  <li>
+    <strong>{{ scope.context_name }}</strong> · {{ scope.context_type|replace('_', ' ') }} · {{ scope.comparison_mode|replace('_', ' ') }}<br>
+    {% if scope.bios_version_exact %}Exact version {{ scope.bios_version_exact }}{% endif %}
+    {% if scope.valid_from or scope.valid_until %}Valid {{ scope.valid_from or 'earliest documented' }} through {{ scope.valid_until or 'latest documented' }}{% endif %}
+    {% if scope.introduced_in %} · Introduced {{ scope.introduced_in }}{% endif %}
+    {% if scope.changed_in %} · Changed {{ scope.changed_in }}{% endif %}
+    {% if scope.deprecated_in %} · Deprecated {{ scope.deprecated_in }}{% endif %}<br>
+    <small>{{ scope.version_notes }} Evidence: {{ scope.evidence_basis }}</small>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p>No reviewed BIOS-version boundary is attached to this claim.</p>
+{% endif %}
+
 <h2>Canonical settings</h2>
 <ul>
   {% for setting in detail.settings %}
@@ -81,6 +100,10 @@
   <textarea id="applicability_targets" name="applicability_targets" rows="6" placeholder="motherboard_model:asus-example | Exact board named by official evidence">{% for target in detail.applicability_targets %}{{ target.target_type }}:{{ target.target_id }} | {{ target.evidence_basis }}{% if not loop.last %}
 {% endif %}{% endfor %}</textarea>
   <small>Supported target types: {{ target_types|join(', ') }}. Broad source scope must not include targets.</small>
+  <label for="bios_scopes">Reviewed BIOS scopes, one per line</label>
+  <textarea id="bios_scopes" name="bios_scopes" rows="8" placeholder="motherboard_model:asus-example | exact=1801 | mode=opaque | notes=Applies to this release | basis=Official release documentation">{% for scope in detail.bios_scopes %}{{ scope.context_type }}:{{ scope.context_id }}{% if scope.bios_version_exact %} | exact={{ scope.bios_version_exact }}{% endif %}{% if scope.valid_from %} | from={{ scope.valid_from }}{% endif %}{% if scope.valid_until %} | until={{ scope.valid_until }}{% endif %}{% if scope.introduced_in %} | introduced={{ scope.introduced_in }}{% endif %}{% if scope.changed_in %} | changed={{ scope.changed_in }}{% endif %}{% if scope.deprecated_in %} | deprecated={{ scope.deprecated_in }}{% endif %} | mode={{ scope.comparison_mode }} | notes={{ scope.version_notes }} | basis={{ scope.evidence_basis }}{% if not loop.last %}
+{% endif %}{% endfor %}</textarea>
+  <small>Opaque labels support exact versions only. Ordered ranges require integer_numeric or dotted_numeric review.</small>
   <button type="submit">Save draft</button>
 </form>
 
