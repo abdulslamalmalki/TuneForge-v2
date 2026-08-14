@@ -23,6 +23,20 @@ def _alembic(data_dir: Path, revision: str) -> None:
     assert completed.returncode == 0, completed.stdout + completed.stderr
 
 
+def _alembic_downgrade(data_dir: Path, revision: str) -> None:
+    env = os.environ.copy()
+    env["KNOWLEDGE_BUILDER_DATA_DIR"] = str(data_dir)
+    completed = subprocess.run(
+        [sys.executable, "-m", "alembic", "downgrade", revision],
+        cwd=COMPONENT_ROOT,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
 def test_asus_model_migration_repairs_an_existing_0014_catalog(tmp_path):
     data_dir = tmp_path / "asus-model-migration-data"
     _alembic(data_dir, "0014")
@@ -285,7 +299,54 @@ def test_upgrade_backfills_existing_manual_provenance(tmp_path):
             )
         }
         assert len(research_tables) == 5
+        recommendation_tables = {
+            row[0]
+            for row in connection.execute(
+                """
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name IN (
+                    'recommendation_claims', 'recommendation_claim_evidence',
+                    'recommendation_claim_source_settings',
+                    'recommendation_claim_applicability_targets',
+                    'recommendation_claim_bios_scopes',
+                    'recommendation_claim_events'
+                )
+                """
+            )
+        }
+        assert len(recommendation_tables) == 6
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0027",)
+
+
+def test_recommendation_foundation_upgrade_downgrade_upgrade_cycle(tmp_path):
+    data_dir = tmp_path / "recommendation-migration-data"
+    _alembic(data_dir, "0026")
+    database = data_dir / "knowledge_builder.sqlite3"
+
+    _alembic(data_dir, "0027")
+    with sqlite3.connect(database) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM sqlite_master "
+            "WHERE type='table' AND name LIKE 'recommendation_claim%'"
+        ).fetchone() == (6,)
+        assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+        assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
+
+    _alembic_downgrade(data_dir, "0026")
+    with sqlite3.connect(database) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM sqlite_master "
+            "WHERE type='table' AND name LIKE 'recommendation_claim%'"
+        ).fetchone() == (0,)
         assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0026",)
+
+    _alembic(data_dir, "head")
+    with sqlite3.connect(database) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM sqlite_master "
+            "WHERE type='table' AND name LIKE 'recommendation_claim%'"
+        ).fetchone() == (6,)
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0027",)
 
 
 def test_hardware_migration_backfill_matches_phase1_scope_rules(tmp_path):

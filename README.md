@@ -100,6 +100,11 @@ The current release includes:
 - Complete deterministic investigation coverage for all 2,812 approved-unmapped
   settings, with explicit conflict, research, insufficient-evidence, and human
   review states. Assessments organize work but never create mappings.
+- A separate v1.33 recommendation-claim foundation with structured actions and
+  values, reviewed hardware/BIOS scope, risk, prerequisites, evidence,
+  confidence, conflict assessment, human review, and append-only history. It is
+  intentionally excluded from public answers until an exact safe resolver is
+  implemented.
 
 This tree is the **TuneForge 1.33 knowledge-expansion development release**. The
 public product is limited to BIOS Settings, Compare Vendors, Ask TuneForge, and
@@ -114,6 +119,8 @@ The candidate trust boundary, migration, metrics, and reviewer workflow are
 documented in `docs/v1.33-guidance-coverage.md`.
 The complete canonical backlog classification is documented in
 `docs/v1.33-canonical-backlog-classification.md`.
+The recommendation trust boundary and reviewer workflow are documented in
+`docs/v1.33-recommendation-foundation.md`.
 
 ## Requirements
 

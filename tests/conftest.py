@@ -293,6 +293,12 @@ def _clean_state(_create_schema):
         IngestionBatch,
         IngestionBatchItem,
         Manual,
+        RecommendationClaim,
+        RecommendationClaimApplicabilityTarget,
+        RecommendationClaimBiosScope,
+        RecommendationClaimEvent,
+        RecommendationClaimEvidence,
+        RecommendationClaimSourceSetting,
         ReferralPointer,
         ReferralPointerEvent,
         ReferralPointerSetting,
@@ -333,6 +339,12 @@ def _clean_state(_create_schema):
         session.query(GuidanceClaimSourceSetting).delete()
         session.query(GuidanceClaimSetting).delete()
         session.query(GuidanceClaim).delete()
+        session.query(RecommendationClaimEvent).delete()
+        session.query(RecommendationClaimBiosScope).delete()
+        session.query(RecommendationClaimApplicabilityTarget).delete()
+        session.query(RecommendationClaimEvidence).delete()
+        session.query(RecommendationClaimSourceSetting).delete()
+        session.query(RecommendationClaim).delete()
         session.query(EvidencePassage).delete()
         session.query(EvidenceSourceEvent).delete()
         session.query(EvidenceExtractionRun).delete()

@@ -1,0 +1,55 @@
+{% extends "admin_layout.html" %}
+
+{% set claim = detail.claim %}
+{% block title %}Recommendation {{ claim.id }} — TuneForge Admin{% endblock %}
+{% block page_title %}Recommendation claim {{ claim.id }}{% endblock %}
+
+{% block content %}
+<div class="admin-page-heading">
+  <div><p class="eyebrow">Human-reviewed action knowledge</p><h1>{{ detail.canonical_setting.canonical_name }}</h1><p>{{ claim.recommendation_text }}</p></div>
+  <div><span class="admin-status status-{{ claim.status }}">{{ claim.status }}</span> <span class="admin-status status-{{ claim.risk_level }}">{{ claim.risk_level }} risk</span></div>
+</div>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<div class="admin-detail-grid">
+  <section class="admin-panel">
+    <h2>Decision model</h2>
+    <dl><dt>Action</dt><dd>{{ claim.recommended_action|replace('_', ' ') }}</dd><dt>Value</dt><dd>{% if claim.value_mode == 'exact' %}{{ claim.exact_value }} {{ claim.value_unit or '' }}{% elif claim.value_mode == 'range' %}{{ claim.minimum_value }}–{{ claim.maximum_value }} {{ claim.value_unit or '' }}{% else %}No numeric value{% endif %}</dd><dt>Use case</dt><dd>{{ claim.use_case|replace('_', ' ') }}</dd><dt>Confidence</dt><dd>{{ claim.confidence_level|replace('_', ' ') }}</dd><dt>Conflict assessment</dt><dd>{{ claim.conflict_state|replace('_', ' ') }}</dd></dl>
+    <h3>Prerequisites</h3><ul>{% for item in detail.prerequisites %}<li>{{ item }}</li>{% else %}<li>No prerequisites recorded.</li>{% endfor %}</ul>
+  </section>
+  <section class="admin-panel">
+    <h2>Reviewed applicability</h2>
+    <h3>Hardware</h3><ul>{% for target in detail.applicability_targets %}<li><strong>{{ target.canonical_name }}</strong><small>{{ target.target_type|replace('_', ' ') }} · {{ target.evidence_level|replace('_', ' ') }} · {{ target.evidence_basis }}</small></li>{% endfor %}</ul>
+    <h3>BIOS versions</h3><ul>{% for scope in detail.bios_scopes %}<li><strong>{{ scope.context_name }}</strong><small>{% if scope.bios_version_exact %}Exact {{ scope.bios_version_exact }}{% else %}{{ scope.valid_from or 'documented start' }}–{{ scope.valid_until or 'documented end' }}{% endif %} · {{ scope.version_notes }} · {{ scope.evidence_basis }}</small></li>{% else %}<li>No BIOS-version boundary is claimed.</li>{% endfor %}</ul>
+  </section>
+</div>
+
+<section class="admin-panel"><h2>Supporting citations</h2>
+{% for citation in detail.evidence %}<article class="evidence-passage"><h3><a href="/evidence-sources/{{ citation.source.id }}">{{ citation.source.title }}</a>, page {{ citation.passage.page_number }}</h3><p>{{ citation.passage.section_heading or 'Untitled section' }}</p><pre>{{ citation.passage.passage_text }}</pre><small>Passage {{ citation.passage.id }} · SHA-256 {{ citation.passage.text_sha256 }}</small></article>{% endfor %}
+{% for citation in detail.source_settings %}<article class="evidence-passage"><h3>{{ citation.manual.document_title }}, page {{ citation.setting.edited_page_number or citation.setting.page_number }}</h3><pre>{{ citation.setting.edited_description or citation.setting.extracted_description }}</pre><small>Approved source setting {{ citation.setting.id }} · Manual {{ citation.manual.id }}</small></article>{% endfor %}
+</section>
+
+{% if claim.status == 'draft' %}
+<section class="admin-panel"><h2>Edit draft</h2><form action="/recommendation-claims/{{ claim.id }}/edit" method="post">
+  <label for="canonical_id">Canonical ID</label><input id="canonical_id" name="canonical_id" value="{{ claim.canonical_id }}" required>
+  <label for="recommendation_text">Recommendation</label><textarea id="recommendation_text" name="recommendation_text" rows="4" required>{{ claim.recommendation_text }}</textarea>
+  <div class="admin-form-grid"><div><label for="recommended_action">Action</label><select id="recommended_action" name="recommended_action">{% for value in actions %}<option value="{{ value }}"{% if claim.recommended_action == value %} selected{% endif %}>{{ value|replace('_', ' ') }}</option>{% endfor %}</select></div><div><label for="use_case">Use case</label><select id="use_case" name="use_case">{% for value in use_cases %}<option value="{{ value }}"{% if claim.use_case == value %} selected{% endif %}>{{ value|replace('_', ' ') }}</option>{% endfor %}</select></div></div>
+  <div class="admin-form-grid"><div><label for="exact_value">Exact value</label><input id="exact_value" name="exact_value" value="{{ claim.exact_value or '' }}"></div><div><label for="minimum_value">Minimum</label><input id="minimum_value" name="minimum_value" value="{{ claim.minimum_value or '' }}"></div><div><label for="maximum_value">Maximum</label><input id="maximum_value" name="maximum_value" value="{{ claim.maximum_value or '' }}"></div><div><label for="value_unit">Unit</label><input id="value_unit" name="value_unit" value="{{ claim.value_unit or '' }}"></div></div>
+  <div class="admin-form-grid"><div><label for="risk_level">Risk</label><select id="risk_level" name="risk_level">{% for value in risk_levels %}<option value="{{ value }}"{% if claim.risk_level == value %} selected{% endif %}>{{ value }}</option>{% endfor %}</select></div><div><label for="confidence_level">Confidence</label><select id="confidence_level" name="confidence_level">{% for value in confidence_levels %}<option value="{{ value }}"{% if claim.confidence_level == value %} selected{% endif %}>{{ value|replace('_', ' ') }}</option>{% endfor %}</select></div><div><label for="conflict_state">Conflict state</label><select id="conflict_state" name="conflict_state">{% for value in conflict_states %}<option value="{{ value }}"{% if claim.conflict_state == value %} selected{% endif %}>{{ value|replace('_', ' ') }}</option>{% endfor %}</select></div></div>
+  <label for="prerequisites">Prerequisites, one per line</label><textarea id="prerequisites" name="prerequisites" rows="4">{% for item in detail.prerequisites %}{{ item }}{% if not loop.last %}
+{% endif %}{% endfor %}</textarea>
+  <label for="passage_ids">Evidence passage IDs</label><input id="passage_ids" name="passage_ids" value="{% for item in detail.evidence %}{{ item.passage.id }}{% if not loop.last %}, {% endif %}{% endfor %}">
+  <label for="source_setting_ids">Approved source setting IDs</label><input id="source_setting_ids" name="source_setting_ids" value="{% for item in detail.source_settings %}{{ item.setting.id }}{% if not loop.last %}, {% endif %}{% endfor %}">
+  <label for="applicability_targets">Hardware targets, one per line</label><textarea id="applicability_targets" name="applicability_targets" rows="6" required>{% for target in detail.applicability_targets %}{{ target.target_type }}:{{ target.target_id }} | {{ target.evidence_basis }}{% if not loop.last %}
+{% endif %}{% endfor %}</textarea><small>Supported: {{ target_types|join(', ') }}</small>
+  <label for="bios_scopes">BIOS scopes, one per line</label><textarea id="bios_scopes" name="bios_scopes" rows="6">{% for scope in detail.bios_scopes %}{{ scope.context_type }}:{{ scope.context_id }}{% if scope.bios_version_exact %} | exact={{ scope.bios_version_exact }}{% endif %}{% if scope.valid_from %} | from={{ scope.valid_from }}{% endif %}{% if scope.valid_until %} | until={{ scope.valid_until }}{% endif %}{% if scope.introduced_in %} | introduced={{ scope.introduced_in }}{% endif %}{% if scope.changed_in %} | changed={{ scope.changed_in }}{% endif %}{% if scope.deprecated_in %} | deprecated={{ scope.deprecated_in }}{% endif %} | mode={{ scope.comparison_mode }} | notes={{ scope.version_notes }} | basis={{ scope.evidence_basis }}{% if not loop.last %}
+{% endif %}{% endfor %}</textarea>
+  <button type="submit">Save reviewed draft</button>
+</form></section>
+<section class="admin-panel"><h2>Reviewer decision</h2><p>Approval fails closed unless confidence is high or very high and conflicts are assessed as none or resolved.</p><form action="/recommendation-claims/{{ claim.id }}/review" method="post"><label for="note">Reviewer note</label><textarea id="note" name="note" rows="3" required></textarea><button type="submit" name="decision" value="approved">Approve recommendation</button> <button class="danger" type="submit" name="decision" value="rejected">Reject recommendation</button></form></section>
+{% else %}
+<section class="admin-panel"><h2>Review decision</h2><dl><dt>Reviewer</dt><dd>{{ claim.reviewer }}</dd><dt>Reviewed</dt><dd>{{ claim.reviewed_at }}</dd><dt>Note</dt><dd>{{ claim.review_note }}</dd></dl></section>
+{% endif %}
+
+<section class="admin-panel"><h2>Append-only audit history</h2><table><thead><tr><th>Time</th><th>Action</th><th>Actor</th><th>Recorded detail</th></tr></thead><tbody>{% for event in detail.events %}<tr><td>{{ event.created_at }}</td><td>{{ event.action|replace('_', ' ') }}</td><td>{{ event.actor }}</td><td><code>{{ event.detail }}</code></td></tr>{% endfor %}</tbody></table></section>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "admin_layout.html" %}
+
+{% block title %}Recommendation Review — TuneForge Admin{% endblock %}
+{% block page_title %}Recommendation review{% endblock %}
+
+{% block content %}
+<div class="admin-page-heading">
+  <div><p class="eyebrow">Safety-gated knowledge</p><h1>Recommendation claims</h1><p>Actions stay separate from factual guidance and require reviewed evidence, explicit hardware scope, confidence, conflict assessment, and human approval.</p></div>
+</div>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<nav class="admin-filter-tabs" aria-label="Recommendation status">
+  <a{% if status_filter == 'draft' %} class="active"{% endif %} href="/recommendation-claims?status=draft">Drafts <strong>{{ counts.draft }}</strong></a>
+  <a{% if status_filter == 'approved' %} class="active"{% endif %} href="/recommendation-claims?status=approved">Approved <strong>{{ counts.approved }}</strong></a>
+  <a{% if status_filter == 'rejected' %} class="active"{% endif %} href="/recommendation-claims?status=rejected">Rejected <strong>{{ counts.rejected }}</strong></a>
+</nav>
+
+<section class="admin-panel">
+  <div class="admin-table-wrap">
+    <table>
+      <thead><tr><th>Recommendation</th><th>Canonical setting</th><th>Use case</th><th>Risk</th><th>Evidence</th><th>Scope</th></tr></thead>
+      <tbody>
+        {% for row in claims %}
+        <tr>
+          <td><a href="/recommendation-claims/{{ row.claim.id }}"><strong>{{ row.claim.recommendation_text }}</strong></a><small>{{ row.claim.recommended_action|replace('_', ' ') }} · {{ row.claim.confidence_level|replace('_', ' ') }} confidence</small></td>
+          <td>{{ row.canonical_name }}</td>
+          <td>{{ row.claim.use_case|replace('_', ' ') }}</td>
+          <td><span class="admin-status status-{{ row.claim.risk_level }}">{{ row.claim.risk_level }}</span></td>
+          <td>{{ row.evidence_count }}</td>
+          <td>{{ row.hardware_target_count }} hardware · {{ row.bios_scope_count }} BIOS</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6">No {{ status_filter }} recommendation claims. This is expected until reviewed evidence supports a safe action.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

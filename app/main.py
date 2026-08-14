@@ -34,6 +34,7 @@ from app.web.routes import (
     manuals,
     public,
     public_submissions,
+    recommendation_claims,
     refusal_gaps,
     review,
     search,
@@ -102,6 +103,13 @@ def create_app() -> FastAPI:
                 "description": "Reviewer-controlled factual claims linked to accepted evidence.",
             },
             {
+                "name": "recommendation claims",
+                "description": (
+                    "Reviewer-controlled actions with explicit evidence, hardware scope, "
+                    "BIOS scope, risk, confidence, and conflict assessment."
+                ),
+            },
+            {
                 "name": "citation-first guidance",
                 "description": "Read-only accepted facts with exact source and page citations.",
             },
@@ -146,6 +154,7 @@ def create_app() -> FastAPI:
     app.include_router(guidance_candidates.router, include_in_schema=False)
     app.include_router(guidance_claims.router, include_in_schema=False)
     app.include_router(guidance_conflicts.router, include_in_schema=False)
+    app.include_router(recommendation_claims.router, include_in_schema=False)
     app.include_router(guidance_read.router, include_in_schema=False)
     app.include_router(guided_answers.router, include_in_schema=False)
     app.include_router(library.router, include_in_schema=False)

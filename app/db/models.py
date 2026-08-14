@@ -595,6 +595,269 @@ class GuidanceClaimConflictEvent(Base):
     created_at: Mapped[str] = mapped_column(Text)
 
 
+class RecommendationClaim(Base):
+    """A reviewer-controlled action distinct from factual guidance."""
+
+    __tablename__ = "recommendation_claims"
+    __table_args__ = (
+        CheckConstraint(
+            "recommended_action IN ('enable', 'disable', 'set_value', 'set_range', "
+            "'leave_auto', 'avoid', 'informational')",
+            name="ck_recommendation_claim_action",
+        ),
+        CheckConstraint(
+            "value_mode IN ('none', 'exact', 'range')",
+            name="ck_recommendation_claim_value_mode",
+        ),
+        CheckConstraint(
+            "(recommended_action = 'set_value' AND value_mode = 'exact') OR "
+            "(recommended_action = 'set_range' AND value_mode = 'range') OR "
+            "(recommended_action NOT IN ('set_value', 'set_range') AND value_mode = 'none')",
+            name="ck_recommendation_claim_action_value_mode",
+        ),
+        CheckConstraint(
+            "(value_mode = 'none' AND exact_value IS NULL AND minimum_value IS NULL "
+            "AND maximum_value IS NULL AND value_unit IS NULL) OR "
+            "(value_mode = 'exact' AND exact_value IS NOT NULL AND minimum_value IS NULL "
+            "AND maximum_value IS NULL) OR "
+            "(value_mode = 'range' AND exact_value IS NULL AND minimum_value IS NOT NULL "
+            "AND maximum_value IS NOT NULL)",
+            name="ck_recommendation_claim_value_shape",
+        ),
+        CheckConstraint(
+            "use_case IN ('gaming', 'productivity', 'efficiency', 'quiet_operation', "
+            "'overclocking', 'undervolting', 'memory_tuning', "
+            "'stability_troubleshooting')",
+            name="ck_recommendation_claim_use_case",
+        ),
+        CheckConstraint(
+            "risk_level IN ('informational', 'low', 'moderate', 'advanced', 'high')",
+            name="ck_recommendation_claim_risk",
+        ),
+        CheckConstraint(
+            "confidence_level IN ('insufficient', 'moderate', 'high', 'very_high')",
+            name="ck_recommendation_claim_confidence",
+        ),
+        CheckConstraint(
+            "conflict_state IN ('not_assessed', 'none', 'potential', 'confirmed', 'resolved')",
+            name="ck_recommendation_claim_conflict",
+        ),
+        CheckConstraint(
+            "status IN ('draft', 'approved', 'rejected')",
+            name="ck_recommendation_claim_status",
+        ),
+        Index("ix_recommendation_claims_canonical_id", "canonical_id"),
+        Index("ix_recommendation_claims_status", "status"),
+        Index("ix_recommendation_claims_use_case", "use_case"),
+        Index("ix_recommendation_claims_risk_level", "risk_level"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    canonical_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("canonical_settings.canonical_id", ondelete="RESTRICT")
+    )
+    recommendation_text: Mapped[str] = mapped_column(Text)
+    recommended_action: Mapped[str] = mapped_column(Text)
+    value_mode: Mapped[str] = mapped_column(Text)
+    exact_value: Mapped[str | None] = mapped_column(Text)
+    minimum_value: Mapped[str | None] = mapped_column(Text)
+    maximum_value: Mapped[str | None] = mapped_column(Text)
+    value_unit: Mapped[str | None] = mapped_column(Text)
+    use_case: Mapped[str] = mapped_column(Text)
+    risk_level: Mapped[str] = mapped_column(Text)
+    prerequisites_json: Mapped[str] = mapped_column(Text)
+    confidence_level: Mapped[str] = mapped_column(Text)
+    conflict_state: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text)
+    review_note: Mapped[str | None] = mapped_column(Text)
+    reviewer: Mapped[str | None] = mapped_column(Text)
+    reviewed_at: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[str] = mapped_column(Text)
+
+
+class RecommendationClaimEvidence(Base):
+    __tablename__ = "recommendation_claim_evidence"
+    __table_args__ = (
+        CheckConstraint("relation = 'supports'", name="ck_recommendation_evidence_relation"),
+    )
+
+    claim_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("recommendation_claims.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    passage_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("evidence_passages.id", ondelete="RESTRICT"),
+        primary_key=True,
+        index=True,
+    )
+    relation: Mapped[str] = mapped_column(Text)
+
+
+class RecommendationClaimSourceSetting(Base):
+    __tablename__ = "recommendation_claim_source_settings"
+    __table_args__ = (
+        CheckConstraint(
+            "relation = 'supports'",
+            name="ck_recommendation_source_setting_relation",
+        ),
+    )
+
+    claim_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("recommendation_claims.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    setting_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("settings.id", ondelete="RESTRICT"),
+        primary_key=True,
+        index=True,
+    )
+    relation: Mapped[str] = mapped_column(Text)
+
+
+class RecommendationClaimApplicabilityTarget(Base):
+    __tablename__ = "recommendation_claim_applicability_targets"
+    __table_args__ = (
+        CheckConstraint(
+            "(cpu_model_id IS NOT NULL) + (cpu_family_id IS NOT NULL) + "
+            "(cpu_architecture_id IS NOT NULL) + (motherboard_model_id IS NOT NULL) + "
+            "(chipset_id IS NOT NULL) + (chipset_family_id IS NOT NULL) + "
+            "(platform_id IS NOT NULL) + (vendor_id IS NOT NULL) + "
+            "(cpu_vendor_id IS NOT NULL) + (motherboard_family_id IS NOT NULL) = 1",
+            name="ck_recommendation_applicability_exactly_one_target",
+        ),
+        CheckConstraint(
+            "evidence_level IN ('exact_model', 'exact_cpu', 'exact_chipset', "
+            "'family', 'architecture', 'platform', 'vendor')",
+            name="ck_recommendation_applicability_evidence_level",
+        ),
+    )
+
+    claim_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("recommendation_claims.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    ordinal: Mapped[int] = mapped_column(Integer, primary_key=True)
+    cpu_model_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("cpu_models.cpu_model_id", ondelete="RESTRICT")
+    )
+    cpu_family_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("cpu_families.family_id", ondelete="RESTRICT")
+    )
+    cpu_architecture_id: Mapped[str | None] = mapped_column(
+        Text,
+        ForeignKey("cpu_architectures.architecture_id", ondelete="RESTRICT"),
+    )
+    motherboard_model_id: Mapped[str | None] = mapped_column(
+        Text,
+        ForeignKey("motherboard_models.model_id", ondelete="RESTRICT"),
+    )
+    chipset_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("chipsets.chipset_id", ondelete="RESTRICT")
+    )
+    chipset_family_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("chipset_families.family_id", ondelete="RESTRICT")
+    )
+    platform_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("hardware_platforms.platform_id", ondelete="RESTRICT")
+    )
+    vendor_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("vendors.vendor_id", ondelete="RESTRICT")
+    )
+    cpu_vendor_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("cpu_vendors.vendor_id", ondelete="RESTRICT")
+    )
+    motherboard_family_id: Mapped[str | None] = mapped_column(
+        Text,
+        ForeignKey("motherboard_families.family_id", ondelete="RESTRICT"),
+    )
+    evidence_level: Mapped[str] = mapped_column(Text)
+    evidence_basis: Mapped[str] = mapped_column(Text)
+
+
+class RecommendationClaimBiosScope(Base):
+    __tablename__ = "recommendation_claim_bios_scopes"
+    __table_args__ = (
+        CheckConstraint(
+            "(motherboard_model_id IS NOT NULL) + (vendor_id IS NOT NULL) = 1",
+            name="ck_recommendation_bios_scope_exactly_one_context",
+        ),
+        CheckConstraint(
+            "bios_version_exact IS NOT NULL OR valid_from IS NOT NULL OR "
+            "valid_until IS NOT NULL OR introduced_in IS NOT NULL OR "
+            "changed_in IS NOT NULL OR deprecated_in IS NOT NULL",
+            name="ck_recommendation_bios_scope_has_version",
+        ),
+        CheckConstraint(
+            "NOT (bios_version_exact IS NOT NULL AND "
+            "(valid_from IS NOT NULL OR valid_until IS NOT NULL))",
+            name="ck_recommendation_bios_scope_exact_or_range",
+        ),
+        CheckConstraint(
+            "comparison_mode IN ('opaque', 'integer_numeric', 'dotted_numeric')",
+            name="ck_recommendation_bios_scope_comparison_mode",
+        ),
+        CheckConstraint(
+            "comparison_mode != 'opaque' OR "
+            "(valid_from IS NULL AND valid_until IS NULL)",
+            name="ck_recommendation_bios_scope_opaque_not_ordered",
+        ),
+        CheckConstraint(
+            "length(version_notes) BETWEEN 1 AND 1000",
+            name="ck_recommendation_bios_scope_notes_length",
+        ),
+        CheckConstraint(
+            "length(evidence_basis) BETWEEN 1 AND 1000",
+            name="ck_recommendation_bios_scope_basis_length",
+        ),
+        Index("ix_recommendation_bios_scopes_model", "motherboard_model_id"),
+        Index("ix_recommendation_bios_scopes_vendor", "vendor_id"),
+        Index("ix_recommendation_bios_scopes_exact", "bios_version_exact"),
+    )
+
+    claim_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("recommendation_claims.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    ordinal: Mapped[int] = mapped_column(Integer, primary_key=True)
+    motherboard_model_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("motherboard_models.model_id", ondelete="RESTRICT")
+    )
+    vendor_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("vendors.vendor_id", ondelete="RESTRICT")
+    )
+    bios_version_exact: Mapped[str | None] = mapped_column(Text)
+    valid_from: Mapped[str | None] = mapped_column(Text)
+    valid_until: Mapped[str | None] = mapped_column(Text)
+    introduced_in: Mapped[str | None] = mapped_column(Text)
+    changed_in: Mapped[str | None] = mapped_column(Text)
+    deprecated_in: Mapped[str | None] = mapped_column(Text)
+    comparison_mode: Mapped[str] = mapped_column(Text)
+    version_notes: Mapped[str] = mapped_column(Text)
+    evidence_basis: Mapped[str] = mapped_column(Text)
+
+
+class RecommendationClaimEvent(Base):
+    __tablename__ = "recommendation_claim_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    claim_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("recommendation_claims.id", ondelete="CASCADE"),
+        index=True,
+    )
+    action: Mapped[str] = mapped_column(Text)
+    actor: Mapped[str] = mapped_column(Text)
+    detail: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(Text)
+
+
 class GuidanceCandidate(Base):
     """Automated or edited candidate; never public until separately claim-approved."""
 

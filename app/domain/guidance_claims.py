@@ -565,6 +565,46 @@ def review_claim(
     return claim
 
 
+def validate_applicability_targets(
+    session: Session,
+    targets: Sequence[ApplicabilityTargetInput],
+) -> tuple[dict[str, str], ...]:
+    """Shared normalized hardware-scope validator for reviewed claim types."""
+
+    return _validate_applicability_targets(session, targets)
+
+
+def validate_bios_scopes(
+    session: Session,
+    scopes: Sequence[BiosScopeInput],
+) -> tuple[dict[str, str | None], ...]:
+    """Shared BIOS-scope validator for reviewed claim types."""
+
+    return _validate_bios_scopes(session, scopes)
+
+
+def validate_bios_scope_coherence(
+    session: Session,
+    targets: Sequence[dict[str, str]],
+    scopes: Sequence[dict[str, str | None]],
+) -> None:
+    """Reject BIOS contexts that conflict with normalized hardware scope."""
+
+    _validate_bios_scope_coherence(session, targets, scopes)
+
+
+def applicability_target_view(session: Session, row) -> GuidanceApplicabilityTarget:
+    """Project a validated hardware-target row from any reviewed claim table."""
+
+    return _applicability_target_view(session, row)
+
+
+def bios_scope_view(session: Session, row) -> GuidanceBiosScope:
+    """Project a validated BIOS-scope row from any reviewed claim table."""
+
+    return _bios_scope_view(session, row)
+
+
 def _validate_claim_values(
     session: Session,
     *,

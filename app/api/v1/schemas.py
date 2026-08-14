@@ -41,6 +41,10 @@ from app.domain.guided_answers import GuidedAnswer, GuidedQuestion
 from app.domain.hardware import ApplicabilityView
 from app.domain.interface_presentation import PresentationEnvelope
 from app.domain.manuals import ManualOverview, missing_provenance_fields
+from app.domain.recommendation_claims import (
+    RecommendationClaimDetail,
+    RecommendationClaimOverview,
+)
 from app.domain.refusal_gaps import (
     LookupGap,
     LookupGapSummary,
@@ -504,6 +508,176 @@ class GuidanceClaimDetailOut(BaseModel):
                 for scope in detail.bios_scopes
             ],
             events=[GuidanceClaimEventOut.model_validate(event) for event in detail.events],
+        )
+
+
+class RecommendationClaimIn(BaseModel):
+    canonical_id: str = ""
+    recommendation_text: str = ""
+    recommended_action: str = ""
+    exact_value: str = ""
+    minimum_value: str = ""
+    maximum_value: str = ""
+    value_unit: str = ""
+    use_case: str = ""
+    risk_level: str = ""
+    prerequisites: list[str] = Field(default_factory=list)
+    confidence_level: str = ""
+    conflict_state: str = "not_assessed"
+    passage_ids: list[int] = Field(default_factory=list)
+    source_setting_ids: list[int] = Field(default_factory=list)
+    applicability_targets: list[GuidanceApplicabilityTargetIn] = Field(default_factory=list)
+    bios_scopes: list[GuidanceBiosScopeIn] = Field(default_factory=list)
+
+    def domain_values(self) -> dict[str, object]:
+        values = self.model_dump(
+            exclude={"applicability_targets", "bios_scopes"}
+        )
+        values["applicability_targets"] = tuple(
+            target.to_domain() for target in self.applicability_targets
+        )
+        values["bios_scopes"] = tuple(scope.to_domain() for scope in self.bios_scopes)
+        return values
+
+
+class ReviewRecommendationClaimIn(BaseModel):
+    decision: str = ""
+    note: str = ""
+
+
+class RecommendationClaimSummaryOut(BaseModel):
+    id: int
+    canonical_id: str
+    canonical_name: str
+    recommendation_text: str
+    recommended_action: str
+    value_mode: str
+    use_case: str
+    risk_level: str
+    confidence_level: str
+    conflict_state: str
+    status: str
+    evidence_count: int
+    hardware_target_count: int
+    bios_scope_count: int
+    created_at: str
+    updated_at: str
+
+    @classmethod
+    def from_overview(
+        cls, value: RecommendationClaimOverview
+    ) -> "RecommendationClaimSummaryOut":
+        claim = value.claim
+        return cls(
+            id=claim.id,
+            canonical_id=claim.canonical_id,
+            canonical_name=value.canonical_name,
+            recommendation_text=claim.recommendation_text,
+            recommended_action=claim.recommended_action,
+            value_mode=claim.value_mode,
+            use_case=claim.use_case,
+            risk_level=claim.risk_level,
+            confidence_level=claim.confidence_level,
+            conflict_state=claim.conflict_state,
+            status=claim.status,
+            evidence_count=value.evidence_count,
+            hardware_target_count=value.hardware_target_count,
+            bios_scope_count=value.bios_scope_count,
+            created_at=claim.created_at,
+            updated_at=claim.updated_at,
+        )
+
+
+class RecommendationClaimDetailOut(BaseModel):
+    id: int
+    canonical_id: str
+    canonical_name: str
+    recommendation_text: str
+    recommended_action: str
+    value_mode: str
+    exact_value: str | None
+    minimum_value: str | None
+    maximum_value: str | None
+    value_unit: str | None
+    use_case: str
+    risk_level: str
+    prerequisites: list[str]
+    confidence_level: str
+    conflict_state: str
+    status: str
+    review_note: str | None
+    reviewer: str | None
+    reviewed_at: str | None
+    created_at: str
+    updated_at: str
+    evidence: list[GuidanceCitationOut]
+    source_settings: list[GuidanceSourceSettingCitationOut]
+    applicability_targets: list[GuidanceApplicabilityTargetOut]
+    bios_scopes: list[GuidanceBiosScopeOut]
+    events: list[GuidanceClaimEventOut]
+
+    @classmethod
+    def from_detail(
+        cls, detail: RecommendationClaimDetail
+    ) -> "RecommendationClaimDetailOut":
+        claim = detail.claim
+        return cls(
+            id=claim.id,
+            canonical_id=claim.canonical_id,
+            canonical_name=detail.canonical_setting.canonical_name,
+            recommendation_text=claim.recommendation_text,
+            recommended_action=claim.recommended_action,
+            value_mode=claim.value_mode,
+            exact_value=claim.exact_value,
+            minimum_value=claim.minimum_value,
+            maximum_value=claim.maximum_value,
+            value_unit=claim.value_unit,
+            use_case=claim.use_case,
+            risk_level=claim.risk_level,
+            prerequisites=list(detail.prerequisites),
+            confidence_level=claim.confidence_level,
+            conflict_state=claim.conflict_state,
+            status=claim.status,
+            review_note=claim.review_note,
+            reviewer=claim.reviewer,
+            reviewed_at=claim.reviewed_at,
+            created_at=claim.created_at,
+            updated_at=claim.updated_at,
+            evidence=[
+                GuidanceCitationOut(
+                    passage_id=item.passage.id,
+                    source_id=item.source.id,
+                    source_title=item.source.title,
+                    document_id=item.source.document_id,
+                    document_version=item.source.document_version,
+                    page_number=item.passage.page_number,
+                    section_heading=item.passage.section_heading,
+                    passage_text=item.passage.passage_text,
+                    text_sha256=item.passage.text_sha256,
+                )
+                for item in detail.evidence
+            ],
+            source_settings=[
+                GuidanceSourceSettingCitationOut(
+                    setting_id=item.setting.id,
+                    manual_id=item.manual.id,
+                    source_title=item.manual.document_title or item.manual.original_filename,
+                    source_url=item.manual.source_url,
+                    document_version=item.manual.document_version,
+                    page_number=item.setting.edited_page_number or item.setting.page_number,
+                    passage_text=effective_description(item.setting),
+                )
+                for item in detail.source_settings
+            ],
+            applicability_targets=[
+                GuidanceApplicabilityTargetOut.model_validate(item, from_attributes=True)
+                for item in detail.applicability_targets
+            ],
+            bios_scopes=[
+                GuidanceBiosScopeOut.model_validate(item, from_attributes=True)
+                for item in detail.bios_scopes
+            ],
+            events=[GuidanceClaimEventOut.model_validate(item) for item in detail.events],
         )
 
 

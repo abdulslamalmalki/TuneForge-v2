@@ -34,7 +34,7 @@ def test_public_readiness_reports_head_schema_and_storage(client):
     assert response.json() == {
         "status": "ready",
         "app_version": "1.33.0",
-        "database_revision": "0026",
+        "database_revision": "0027",
         "authentication_initialized": False,
         "checks": {
             "database": True,
@@ -107,6 +107,7 @@ def test_admin_shell_links_to_every_curator_workspace(client):
     assert 'href="/canonical-settings"' in response.text
     assert 'href="/evidence-sources"' in response.text
     assert 'href="/guidance-claims"' in response.text
+    assert 'href="/recommendation-claims"' in response.text
     assert 'href="/refusal-gaps"' in response.text
     assert 'href="/admin/release-readiness"' in response.text
     assert 'href="/">Open public site' in response.text

@@ -22,6 +22,8 @@ from app.db.models import (
     GuidanceClaimEvent,
     GuidanceClaimSetting,
     ManualEvent,
+    RecommendationClaim,
+    RecommendationClaimEvent,
     ReferralPointerEvent,
     ResearchEvidenceIntake,
     ResearchEvidenceIntakeEvent,
@@ -132,6 +134,16 @@ def build_dashboard(session: Session) -> AdminDashboard:
         GuidanceClaim.applicability_scope == "reviewed_hardware",
     )
     draft_claim_count = _count(session, GuidanceClaim, GuidanceClaim.status == "draft")
+    approved_recommendation_count = _count(
+        session,
+        RecommendationClaim,
+        RecommendationClaim.status == "approved",
+    )
+    draft_recommendation_count = _count(
+        session,
+        RecommendationClaim,
+        RecommendationClaim.status == "draft",
+    )
     pending_knowledge_conflict_count = _count(
         session,
         GuidanceClaimConflict,
@@ -221,6 +233,13 @@ def build_dashboard(session: Session) -> AdminDashboard:
             "/refusal-gaps",
             "gaps",
         ),
+        DashboardMetric(
+            "Reviewed recommendations",
+            approved_recommendation_count,
+            f"{draft_recommendation_count} awaiting safety review",
+            "/recommendation-claims",
+            "recommendations",
+        ),
     )
     tasks = (
         DashboardTask(
@@ -300,6 +319,15 @@ def build_dashboard(session: Session) -> AdminDashboard:
             "/guidance-claims?status=draft",
             "Review claims",
             "attention" if draft_claim_count else "clear",
+        ),
+        DashboardTask(
+            "recommendation-review",
+            "Recommendation review",
+            draft_recommendation_count,
+            "Hardware-scoped actions awaiting evidence, risk, and conflict review.",
+            "/recommendation-claims?status=draft",
+            "Review recommendations",
+            "attention" if draft_recommendation_count else "clear",
         ),
         DashboardTask(
             "knowledge-conflicts",
@@ -402,6 +430,13 @@ def _recent_activity(session: Session) -> tuple[DashboardActivity, ...]:
             "Guidance candidate",
             "candidate_id",
             "/guidance-candidates/{}",
+        ),
+        (
+            RecommendationClaimEvent,
+            "recommendation",
+            "Recommendation claim",
+            "claim_id",
+            "/recommendation-claims/{}",
         ),
         (
             CanonicalMappingEvent,

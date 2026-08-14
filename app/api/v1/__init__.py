@@ -17,6 +17,7 @@ from app.api.v1 import (
     library,
     manuals,
     meta,
+    recommendation_claims,
     refusal_gaps,
     search,
     settings,
@@ -36,6 +37,7 @@ router.include_router(evidence_sources.router)
 router.include_router(guidance_claims.router)
 router.include_router(guidance_conflicts.router)
 router.include_router(guidance_read.router)
+router.include_router(recommendation_claims.router)
 router.include_router(refusal_gaps.router)
 router.include_router(interface_contract.router)
 router.include_router(library.router)
