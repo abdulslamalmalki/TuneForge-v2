@@ -6,6 +6,8 @@ from sqlalchemy import desc, distinct, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
+    CanonicalBacklogAssessment,
+    CanonicalBacklogAssessmentEvent,
     CanonicalMappingEvent,
     CanonicalMappingSuggestion,
     CanonicalSetting,
@@ -91,6 +93,12 @@ def build_dashboard(session: Session) -> AdminDashboard:
         session,
         CanonicalMappingSuggestion,
         CanonicalMappingSuggestion.status == "pending",
+    )
+    canonical_conflict_count = _count(
+        session,
+        CanonicalBacklogAssessment,
+        CanonicalBacklogAssessment.outcome == "conflict",
+        CanonicalBacklogAssessment.review_status == "system_assessed",
     )
 
     approved_source_count = _count(
@@ -256,6 +264,15 @@ def build_dashboard(session: Session) -> AdminDashboard:
             "attention" if draft_claim_count else "clear",
         ),
         DashboardTask(
+            "canonical-assessments",
+            "Canonical assessments",
+            canonical_conflict_count,
+            "Complete backlog classifications with competing candidates to resolve.",
+            "/canonicalization/assessments?outcome=conflict",
+            "Review conflicts",
+            "attention" if canonical_conflict_count else "clear",
+        ),
+        DashboardTask(
             "mapping-suggestions",
             "Mapping suggestions",
             pending_suggestion_count,
@@ -345,6 +362,13 @@ def _recent_activity(session: Session) -> tuple[DashboardActivity, ...]:
             "Setting mapping",
             "setting_id",
             "/settings/{}",
+        ),
+        (
+            CanonicalBacklogAssessmentEvent,
+            "assessment",
+            "Canonical assessment",
+            "setting_id",
+            "/canonicalization/assessments/{}",
         ),
         (
             ReferralPointerEvent,

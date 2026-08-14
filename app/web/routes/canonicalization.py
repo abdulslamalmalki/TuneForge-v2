@@ -2,18 +2,96 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.db.session import get_session
-from app.domain import canonical_identity_review, canonicalization
+from app.domain import (
+    canonical_backlog_assessments,
+    canonical_identity_review,
+    canonicalization,
+)
 from app.domain.errors import CanonicalSettingError
 from app.normalization.vendors import VENDORS
 from app.web.templating import templates
 
 router = APIRouter()
 SessionDep = Annotated[Session, Depends(get_session)]
+
+
+@router.get("/canonicalization/assessments", response_class=HTMLResponse)
+def assessment_queue(
+    request: Request,
+    session: SessionDep,
+    outcome: str = "",
+    vendor_id: str = "",
+    review_status: str = "",
+) -> HTMLResponse:
+    try:
+        rows = canonical_backlog_assessments.list_assessments(
+            session,
+            outcome=outcome,
+            vendor_id=vendor_id,
+            review_status=review_status,
+        )
+    except CanonicalSettingError as error:
+        rows = ()
+        message = error.message
+    else:
+        message = ""
+    return templates.TemplateResponse(
+        request,
+        "canonical_assessments.html",
+        {
+            "rows": rows,
+            "metrics": canonical_backlog_assessments.metrics(session),
+            "outcomes": canonical_backlog_assessments.OUTCOMES,
+            "outcome_filter": outcome,
+            "vendor_id": vendor_id,
+            "vendors": VENDORS,
+            "review_status": review_status,
+            "error": message,
+        },
+        status_code=400 if message else 200,
+    )
+
+
+@router.get(
+    "/canonicalization/assessments/{setting_id}", response_class=HTMLResponse
+)
+def assessment_detail(
+    request: Request, setting_id: int, session: SessionDep
+) -> HTMLResponse:
+    return _assessment_detail_response(request, session, setting_id)
+
+
+@router.post("/canonicalization/assessments/{setting_id}/confirm")
+def confirm_assessment(
+    request: Request,
+    setting_id: int,
+    session: SessionDep,
+    outcome: Annotated[str, Form()] = "",
+    candidate_canonical_id: Annotated[str, Form()] = "",
+    assessment_method: Annotated[str, Form()] = "human_review",
+    note: Annotated[str, Form()] = "",
+):
+    try:
+        canonical_backlog_assessments.confirm_assessment(
+            session,
+            setting_id,
+            outcome=outcome,
+            candidate_canonical_id=candidate_canonical_id,
+            assessment_method=assessment_method,
+            note=note,
+        )
+    except CanonicalSettingError as error:
+        return _assessment_detail_response(
+            request, session, setting_id, error=error.message
+        )
+    return RedirectResponse(
+        f"/canonicalization/assessments/{setting_id}", status_code=303
+    )
 
 
 @router.get("/canonicalization", response_class=HTMLResponse)
@@ -221,4 +299,26 @@ def _render(
             "error": error,
         },
         status_code=status_code,
+    )
+
+
+def _assessment_detail_response(
+    request: Request,
+    session: Session,
+    setting_id: int,
+    *,
+    error: str = "",
+) -> HTMLResponse:
+    detail = canonical_backlog_assessments.get_detail(session, setting_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Canonical assessment not found.")
+    return templates.TemplateResponse(
+        request,
+        "canonical_assessment_detail.html",
+        {
+            "detail": detail,
+            "outcomes": canonical_backlog_assessments.OUTCOMES,
+            "error": error,
+        },
+        status_code=400 if error else 200,
     )

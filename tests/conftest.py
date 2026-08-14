@@ -242,6 +242,8 @@ def _clean_state(_create_schema):
     from app.db.models import (
         AuthEvent,
         AuthSession,
+        CanonicalBacklogAssessment,
+        CanonicalBacklogAssessmentEvent,
         CanonicalClassificationEvent,
         CanonicalIdentityEvent,
         CanonicalIdentityProposal,
@@ -304,6 +306,8 @@ def _clean_state(_create_schema):
         session.query(EvidenceSource).delete()
         session.query(CanonicalSuggestionEvent).delete()
         session.query(CanonicalMappingSuggestion).delete()
+        session.query(CanonicalBacklogAssessmentEvent).delete()
+        session.query(CanonicalBacklogAssessment).delete()
         session.query(CanonicalIdentityProposalEvent).delete()
         session.query(CanonicalIdentityProposalSetting).delete()
         session.query(CanonicalIdentityProposal).delete()

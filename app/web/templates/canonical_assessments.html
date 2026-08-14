@@ -1,0 +1,41 @@
+{% extends "admin_layout.html" %}
+
+{% block title %}Canonical Assessments — TuneForge Admin{% endblock %}
+{% block page_title %}Canonical assessments{% endblock %}
+
+{% block content %}
+<section class="admin-welcome compact">
+  <div><p class="admin-eyebrow">Complete backlog investigation</p><h1>{{ '{:,}'.format(metrics.assessed_unmapped_count) }} / {{ '{:,}'.format(metrics.approved_unmapped_count) }} unmapped settings classified</h1><p>Classification organizes evidence and research work. It never creates a mapping or lowers the 99.5% automatic gate.</p></div>
+  <a class="admin-button secondary" href="/canonicalization">Open mapping engine</a>
+</section>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<section class="admin-metrics" aria-label="Assessment coverage">
+  <div class="admin-metric metric-canonical"><span class="metric-value">{{ '{:,}'.format(metrics.assessed_unmapped_count) }}</span><strong>Investigated</strong><small>{{ metrics.missing_assessment_count }} missing assessments</small></div>
+  <div class="admin-metric metric-settings"><span class="metric-value">{{ '{:,}'.format(metrics.system_assessed_count) }}</span><strong>System assessed</strong><small>Deterministic triage, not human-confirmed</small></div>
+  <div class="admin-metric metric-claims"><span class="metric-value">{{ '{:,}'.format(metrics.human_confirmed_count) }}</span><strong>Human confirmed</strong><small>Explicit reviewer conclusions</small></div>
+  <div class="admin-metric metric-gaps"><span class="metric-value">{{ '{:,}'.format(metrics.outcome_counts.conflict) }}</span><strong>Conflicts</strong><small>Competing candidates require resolution</small></div>
+</section>
+
+<section class="admin-panel">
+  <form class="candidate-filters" method="get" action="/canonicalization/assessments">
+    <label>Outcome<select name="outcome"><option value="">All outcomes</option>{% for value in outcomes %}<option value="{{ value }}" {% if outcome_filter == value %}selected{% endif %}>{{ value|replace('_', ' ')|title }} ({{ metrics.outcome_counts[value] }})</option>{% endfor %}</select></label>
+    <label>Vendor<select name="vendor_id"><option value="">All vendors</option>{% for vendor in vendors %}<option value="{{ vendor.vendor_id }}" {% if vendor.vendor_id == vendor_id %}selected{% endif %}>{{ vendor.canonical_name }}</option>{% endfor %}</select></label>
+    <label>Review state<select name="review_status"><option value="">All states</option><option value="system_assessed" {% if review_status == 'system_assessed' %}selected{% endif %}>System assessed</option><option value="human_confirmed" {% if review_status == 'human_confirmed' %}selected{% endif %}>Human confirmed</option></select></label>
+    <button class="admin-button primary" type="submit">Apply filters</button>
+  </form>
+</section>
+
+<section class="admin-panel candidate-queue-panel">
+  <header class="admin-panel-heading"><div><p class="admin-eyebrow">Evidence-first worklist</p><h2>{{ rows|length }} assessments shown</h2></div><span>Highest confidence first</span></header>
+  <div class="candidate-list">
+    {% for row in rows %}
+    <a class="candidate-row{% if row.assessment.outcome == 'conflict' %} has-conflict{% endif %}" href="/canonicalization/assessments/{{ row.assessment.setting_id }}">
+      <span class="candidate-score">{{ '%.1f'|format(row.assessment.confidence_basis_points / 100) }}%</span>
+      <span class="candidate-main"><strong>{{ row.setting_name }}</strong><small>{{ row.vendor_name }} · {{ row.manual_title }} · Page {{ row.page_number }}</small><span>{{ row.description or 'No reviewed description.' }}</span></span>
+      <span class="candidate-meta"><span class="status status-{{ row.assessment.outcome }}">{{ row.assessment.outcome|replace('_', ' ') }}</span><small>{{ row.assessment.review_status|replace('_', ' ') }}</small><small>{{ row.candidate_name or 'No canonical candidate' }}</small></span>
+    </a>
+    {% else %}<p class="admin-empty">No assessments match these filters.</p>{% endfor %}
+  </div>
+</section>
+{% endblock %}

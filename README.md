@@ -97,6 +97,9 @@ The current release includes:
   with exact manual excerpts, deterministic atomic facts, explicit confidence,
   demand-aware priority, duplicate/conflict detection, and a protected human
   review queue. Candidates never become public facts automatically.
+- Complete deterministic investigation coverage for all 2,812 approved-unmapped
+  settings, with explicit conflict, research, insufficient-evidence, and human
+  review states. Assessments organize work but never create mappings.
 
 This tree is the **TuneForge 1.33 knowledge-expansion development release**. The
 public product is limited to BIOS Settings, Compare Vendors, Ask TuneForge, and
@@ -109,6 +112,8 @@ The scope reconciliation with the original desktop PRD is documented in
 `docs/v1-completion-audit.md`.
 The candidate trust boundary, migration, metrics, and reviewer workflow are
 documented in `docs/v1.33-guidance-coverage.md`.
+The complete canonical backlog classification is documented in
+`docs/v1.33-canonical-backlog-classification.md`.
 
 ## Requirements
 

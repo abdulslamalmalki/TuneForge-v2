@@ -229,6 +229,19 @@ def test_upgrade_backfills_existing_manual_provenance(tmp_path):
             )
         }
         assert len(guidance_candidate_tables) == 3
+        canonical_assessment_tables = {
+            row[0]
+            for row in connection.execute(
+                """
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name IN (
+                    'canonical_backlog_assessments',
+                    'canonical_backlog_assessment_events'
+                )
+                """
+            )
+        }
+        assert len(canonical_assessment_tables) == 2
         refusal_tables = {
             row[0]
             for row in connection.execute(
@@ -267,7 +280,7 @@ def test_upgrade_backfills_existing_manual_provenance(tmp_path):
             )
         }
         assert len(research_tables) == 3
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0021",)
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0022",)
 
 
 def test_hardware_migration_backfill_matches_phase1_scope_rules(tmp_path):

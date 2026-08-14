@@ -1,0 +1,47 @@
+{% extends "admin_layout.html" %}
+
+{% block title %}Canonical Assessment {{ detail.setting.id }} — TuneForge Admin{% endblock %}
+{% block page_title %}Assessment {{ detail.setting.id }}{% endblock %}
+
+{% block content %}
+{% set assessment = detail.assessment %}
+<nav class="candidate-step-nav" aria-label="Assessment navigation">{% if detail.previous_id %}<a href="/canonicalization/assessments/{{ detail.previous_id }}">← Previous</a>{% else %}<span></span>{% endif %}<a href="/canonicalization/assessments?outcome={{ assessment.outcome }}">Back to {{ assessment.outcome|replace('_', ' ') }}</a>{% if detail.next_id %}<a href="/canonicalization/assessments/{{ detail.next_id }}">Next →</a>{% endif %}</nav>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<div class="candidate-detail-grid">
+  <main>
+    <section class="admin-panel candidate-evidence-card">
+      <header class="admin-panel-heading"><div><p class="admin-eyebrow">Approved source setting</p><h1>{{ detail.setting.edited_name or detail.setting.extracted_name }}</h1></div><span class="status status-{{ assessment.outcome }}">{{ assessment.outcome|replace('_', ' ') }}</span></header>
+      <dl class="candidate-facts">
+        <div><dt>Vendor</dt><dd>{{ detail.manual.vendor }}</dd></div><div><dt>Manual / page</dt><dd>{{ detail.manual.document_title }} · {{ detail.setting.edited_page_number or detail.setting.page_number }}</dd></div>
+        <div><dt>Candidate</dt><dd>{% if detail.candidate %}<a href="/canonical-settings/{{ detail.candidate.canonical_id }}">{{ detail.candidate.canonical_name }}</a>{% else %}No defensible candidate{% endif %}</dd></div><div><dt>Confidence</dt><dd>{{ '%.2f'|format(assessment.confidence_basis_points / 100) }}%</dd></div>
+        <div><dt>Assessment</dt><dd>{{ assessment.review_status|replace('_', ' ') }} · {{ assessment.assessment_method|replace('_', ' ') }}</dd></div><div><dt>Engine</dt><dd>{{ assessment.engine_version }}</dd></div>
+      </dl>
+      <h2>Reviewed description</h2><blockquote>{{ detail.setting.edited_description or detail.setting.extracted_description or 'No reviewed description.' }}</blockquote>
+      {% if detail.manual.source_url %}<p><a href="{{ detail.manual.source_url }}" target="_blank" rel="noreferrer">Open official manual source ↗</a></p>{% endif %}
+    </section>
+
+    <section class="admin-panel">
+      <h2>Why this classification was assigned</h2>
+      <ul>{% for reason in detail.evidence.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
+      {% if detail.evidence.signals %}<table><thead><tr><th>Signal</th><th>State</th><th>Score</th><th>Evidence</th></tr></thead><tbody>{% for signal in detail.evidence.signals %}<tr><td>{{ signal.label }}</td><td>{{ signal.state }}</td><td>{{ '%.2f'|format(signal.score_basis_points / 100) }}%</td><td>{{ signal.detail }}</td></tr>{% endfor %}</tbody></table>{% endif %}
+      {% if detail.evidence.identity_proposal %}<p><strong>New identity proposal:</strong> {{ detail.evidence.identity_proposal.canonical_name }} across {{ detail.evidence.identity_proposal.vendor_ids|length }} vendors. Review it in the <a href="/canonicalization">mapping engine</a>.</p>{% endif %}
+    </section>
+
+    <section class="admin-panel">
+      <h2>Human conclusion</h2><p>This records a reviewer conclusion only. It does not create or alter a canonical mapping.</p>
+      <form action="/canonicalization/assessments/{{ detail.setting.id }}/confirm" method="post">
+        <label>Outcome<select name="outcome">{% for value in outcomes %}<option value="{{ value }}" {% if assessment.outcome == value %}selected{% endif %}>{{ value|replace('_', ' ')|title }}</option>{% endfor %}</select></label>
+        <label>Canonical candidate ID<input name="candidate_canonical_id" value="{{ assessment.candidate_canonical_id or '' }}" placeholder="Required for equivalence outcomes"></label>
+        <label>Method<select name="assessment_method"><option value="human_review">Internal evidence review</option><option value="external_research">External official-source research</option></select></label>
+        <label>Evidence-based rationale<textarea name="note" rows="4" required>{{ assessment.review_note or '' }}</textarea></label>
+        <button class="admin-button primary" type="submit">Confirm assessment</button>
+      </form>
+    </section>
+  </main>
+  <aside>
+    <section class="admin-panel"><h2>Policy boundary</h2><p>Assessment is not mapping: <strong>{{ 'No' if detail.evidence.policy.assessment_is_mapping == false else 'Yes' }}</strong></p><p>Automatic mapping remains locked below {{ '%.2f'|format(detail.evidence.policy.automatic_mapping_threshold_basis_points / 100) }}% and requires every hard gate.</p></section>
+    <section class="admin-panel"><h2>Append-only history</h2><ol>{% for event in detail.events %}<li><strong>{{ event.action|replace('_', ' ') }}</strong><small>{{ event.actor }} · {{ event.created_at }}</small></li>{% endfor %}</ol></section>
+  </aside>
+</div>
+{% endblock %}

@@ -1139,6 +1139,73 @@ class CanonicalSuggestionEvent(Base):
     created_at: Mapped[str] = mapped_column(Text)
 
 
+class CanonicalBacklogAssessment(Base):
+    """Current classified state for one investigated canonicalization record."""
+
+    __tablename__ = "canonical_backlog_assessments"
+    __table_args__ = (
+        CheckConstraint(
+            "outcome IN ('verified_exact_mapping', 'strong_candidate', "
+            "'likely_equivalent', 'partial_equivalence', 'related_not_equivalent', "
+            "'vendor_specific', 'needs_human_review', 'needs_research', "
+            "'insufficient_evidence', 'conflict')",
+            name="ck_canonical_backlog_assessment_outcome",
+        ),
+        CheckConstraint(
+            "confidence_basis_points BETWEEN 0 AND 10000",
+            name="ck_canonical_backlog_assessment_confidence",
+        ),
+        CheckConstraint(
+            "assessment_method IN ('deterministic_triage', 'human_review', "
+            "'external_research')",
+            name="ck_canonical_backlog_assessment_method",
+        ),
+        CheckConstraint(
+            "review_status IN ('system_assessed', 'human_confirmed')",
+            name="ck_canonical_backlog_assessment_review_status",
+        ),
+        Index("ix_canonical_backlog_assessments_outcome", "outcome"),
+        Index("ix_canonical_backlog_assessments_review_status", "review_status"),
+    )
+
+    setting_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("settings.id", ondelete="RESTRICT"), primary_key=True
+    )
+    outcome: Mapped[str] = mapped_column(Text)
+    candidate_canonical_id: Mapped[str | None] = mapped_column(
+        Text,
+        ForeignKey("canonical_settings.canonical_id", ondelete="RESTRICT"),
+        index=True,
+    )
+    confidence_basis_points: Mapped[int] = mapped_column(Integer)
+    evidence_json: Mapped[str] = mapped_column(Text)
+    engine_version: Mapped[str] = mapped_column(Text)
+    assessment_method: Mapped[str] = mapped_column(Text)
+    review_status: Mapped[str] = mapped_column(Text)
+    reviewer: Mapped[str | None] = mapped_column(Text)
+    review_note: Mapped[str | None] = mapped_column(Text)
+    reviewed_at: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[str] = mapped_column(Text)
+
+
+class CanonicalBacklogAssessmentEvent(Base):
+    """Append-only history for automated triage and reviewer conclusions."""
+
+    __tablename__ = "canonical_backlog_assessment_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    setting_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("canonical_backlog_assessments.setting_id", ondelete="RESTRICT"),
+        index=True,
+    )
+    action: Mapped[str] = mapped_column(Text)
+    actor: Mapped[str] = mapped_column(Text)
+    detail: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(Text)
+
+
 class CanonicalIdentityProposal(Base):
     """Durable reviewer queue item for a proposed new canonical identity."""
 
