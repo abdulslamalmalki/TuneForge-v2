@@ -9,6 +9,7 @@ from dataclasses import dataclass
 _NON_ALNUM = re.compile(r"[^\w]+", re.UNICODE)
 _DASHES = re.compile(r"-+")
 _PARENTHESIZED_SIGN = re.compile(r"\(\s*([+\-\u2212])\s*\)")
+_TRADEMARK_MARKER = re.compile(r"\(\s*(?:r|tm)\s*\)|[®™]", re.IGNORECASE)
 
 RISK_UNCLASSIFIED = "unclassified"
 RISK_LOW = "low"
@@ -112,6 +113,21 @@ def normalize_alias(value: str) -> str:
         normalized,
     )
     return " ".join(_NON_ALNUM.sub(" ", normalized).split())
+
+
+def normalize_lookup_variants(value: str) -> tuple[str, ...]:
+    """Return exact lookup keys plus a typography-only trademark variant.
+
+    Stored alias normalization remains unchanged. Removing an explicit registered/trademark
+    marker at lookup time is safe because callers must still require one unique reviewed
+    canonical identity; this does not expand acronyms or infer semantic equivalence.
+    """
+
+    variants = [normalize_alias(value)]
+    without_trademark = normalize_alias(_TRADEMARK_MARKER.sub(" ", value))
+    if without_trademark and without_trademark not in variants:
+        variants.append(without_trademark)
+    return tuple(item for item in variants if item)
 
 
 def canonical_slug(value: str) -> str:

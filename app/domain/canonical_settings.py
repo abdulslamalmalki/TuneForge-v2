@@ -32,6 +32,7 @@ from app.normalization.canonical_settings import (
     RISK_UNCLASSIFIED,
     canonical_slug,
     normalize_alias,
+    normalize_lookup_variants,
 )
 
 MAPPING_REVIEWER = "reviewer"
@@ -133,6 +134,31 @@ class CanonicalMappedNameMatch:
     canonical_id: str
     canonical_name: str
     matched_name: str
+
+
+def find_alias_identity_matches(
+    session: Session,
+    value: str,
+) -> list[tuple[CanonicalSettingAlias, CanonicalSetting]]:
+    """Resolve typography-equivalent reviewed aliases without changing stored keys."""
+
+    requested = set(normalize_lookup_variants(value))
+    if not requested:
+        return []
+    rows = session.execute(
+        select(CanonicalSettingAlias, CanonicalSetting)
+        .join(
+            CanonicalSetting,
+            CanonicalSetting.canonical_id == CanonicalSettingAlias.canonical_id,
+        )
+        .where(CanonicalSetting.status == IDENTITY_ACTIVE)
+        .order_by(CanonicalSetting.canonical_id, CanonicalSettingAlias.normalized_alias)
+    )
+    return [
+        (alias, identity)
+        for alias, identity in rows
+        if requested.intersection(normalize_lookup_variants(alias.display_alias))
+    ]
 
 
 @dataclass(frozen=True)
@@ -329,7 +355,7 @@ def list_vendor_equivalences(
 
 def find_mapped_name_matches(session: Session, value: str) -> list[CanonicalMappedNameMatch]:
     """Resolve an exact normalized source name without guessing through ambiguity."""
-    normalized = normalize_alias(value)
+    normalized = set(normalize_lookup_variants(value))
     if not normalized:
         return []
     rows = session.execute(
@@ -348,7 +374,7 @@ def find_mapped_name_matches(session: Session, value: str) -> list[CanonicalMapp
     matches: dict[str, CanonicalMappedNameMatch] = {}
     for identity, setting in rows:
         setting_name = effective_name(setting)
-        if normalize_alias(setting_name) != normalized:
+        if not normalized.intersection(normalize_lookup_variants(setting_name)):
             continue
         matches.setdefault(
             identity.canonical_id,

@@ -25,20 +25,31 @@ def find_approved_matches(
     session: Session,
     question: str,
     *,
+    setting_hint: str = "",
     limit: int = 5,
 ) -> ApprovedLibraryMatches:
     """Return approved source records only; never treat them as generated claims."""
 
+    term_sources = tuple(
+        dict.fromkeys(value for value in (setting_hint, question) if value.strip())
+    )
     terms = tuple(
         dict.fromkeys(
             token
-            for token in _TOKEN.findall(question)
+            for source in term_sources
+            for token in _TOKEN.findall(source)
             if len(token) >= 2 and token.casefold() not in _STOP_WORDS
         )
     )[:8]
     if not terms:
         return ApprovedLibraryMatches(query_terms=(), results=())
-    attempts = [" ".join(terms)]
+    hint_terms = tuple(
+        token
+        for token in _TOKEN.findall(setting_hint)
+        if len(token) >= 2 and token.casefold() not in _STOP_WORDS
+    )
+    attempts = [" ".join(hint_terms)] if hint_terms else []
+    attempts.append(" ".join(terms))
     attempts.extend(sorted(terms, key=lambda item: (-len(item), item.casefold())))
     results: list[SearchResult] = []
     seen: set[int] = set()

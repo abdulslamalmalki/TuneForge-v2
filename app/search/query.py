@@ -14,15 +14,15 @@ error is unreachable. Terms combine with FTS5's implicit AND.
 from dataclasses import dataclass
 
 from markupsafe import Markup, escape
-from sqlalchemy import select, text
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.db.models import CanonicalSetting, CanonicalSettingAlias
+from app.db.models import CanonicalSetting
 from app.domain import canonical_settings
 from app.domain import system_context as system_context_domain
 from app.domain.canonical_settings import VendorEquivalentName
 from app.domain.system_context import ContextApplicabilityMatch, SystemContext
-from app.normalization.canonical_settings import normalize_alias
+from app.normalization.canonical_settings import normalize_lookup_variants
 
 # Sentinels FTS5 wraps around matches; swapped for <mark> only after the
 # snippet text itself is HTML-escaped.
@@ -212,21 +212,12 @@ def _resolve_exact_canonical_id(session: Session, query: str) -> str | None:
         if identity is not None and identity.status == canonical_settings.IDENTITY_ACTIVE
         else set()
     )
-    normalized = normalize_alias(value)
+    normalized = normalize_lookup_variants(value)
     if normalized:
-        alias = session.scalar(
-            select(CanonicalSettingAlias)
-            .join(
-                CanonicalSetting,
-                CanonicalSetting.canonical_id == CanonicalSettingAlias.canonical_id,
-            )
-            .where(
-                CanonicalSettingAlias.normalized_alias == normalized,
-                CanonicalSetting.status == canonical_settings.IDENTITY_ACTIVE,
-            )
+        candidate_ids.update(
+            identity.canonical_id
+            for _, identity in canonical_settings.find_alias_identity_matches(session, value)
         )
-        if alias is not None:
-            candidate_ids.add(alias.canonical_id)
         candidate_ids.update(
             match.canonical_id
             for match in canonical_settings.find_mapped_name_matches(session, value)

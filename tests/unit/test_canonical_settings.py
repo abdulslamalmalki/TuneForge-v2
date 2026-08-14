@@ -5,7 +5,18 @@ import pytest
 from app.db.models import ExtractionRun, Setting
 from app.domain import canonical_settings, canonical_suggestions, manuals, review
 from app.domain.errors import CanonicalSettingError, ReviewActionError
-from app.normalization.canonical_settings import canonical_slug, normalize_alias
+from app.normalization.canonical_settings import (
+    canonical_slug,
+    normalize_alias,
+    normalize_lookup_variants,
+)
+
+
+def test_lookup_variants_remove_only_trademark_typography():
+    assert normalize_lookup_variants("Intel(R) Speed Shift™ Technology") == (
+        "intel r speed shifttm technology",
+        "intel speed shift technology",
+    )
 
 
 def _setting(

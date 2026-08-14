@@ -409,6 +409,28 @@ def test_public_question_falls_back_to_approved_library_discovery(client, pdf_by
     assert "discovery results, not a generated recommendation" in page.text
 
 
+def test_lookup_ignores_registered_trademark_typography_without_creating_an_alias(client):
+    identity = client.post(
+        "/api/v1/canonical-settings",
+        json={
+            "name": "Intel(R) Speed Shift Technology",
+            "description": "Reviewed Intel firmware identity.",
+        },
+    ).json()
+
+    response = client.get(
+        "/api/v1/interface/presentation",
+        params={"setting": "Intel Speed Shift Technology"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["resolution_status"] == "resolved"
+    assert body["canonical_id"] == identity["canonical_id"]
+    assert body["outcome"] == "refused"
+    assert body["statements"] == []
+
+
 def test_unknown_guided_question_fails_closed(client):
     api = client.get("/api/v1/interface/questions/not-a-question/answer")
     assert api.status_code == 404

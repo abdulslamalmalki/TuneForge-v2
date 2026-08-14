@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 from app import config
 from app.db.models import (
     CanonicalSetting,
-    CanonicalSettingAlias,
     EvidencePassage,
     EvidenceSource,
     GuidanceClaim,
@@ -26,7 +25,7 @@ from app.domain.errors import GuidanceReadError
 from app.domain.guidance_claims import GuidanceApplicabilityTarget, GuidanceBiosScope
 from app.domain.review import effective_description
 from app.domain.system_context import SystemContext
-from app.normalization.canonical_settings import normalize_alias
+from app.normalization.canonical_settings import normalize_lookup_variants
 
 ANSWER_MODE = "accepted_claims_only"
 RECOMMENDATION_STATUS = "not_available"
@@ -185,41 +184,32 @@ def _resolve_identity(
     identity = session.get(CanonicalSetting, query)
     if identity is not None and identity.status == canonical_settings.IDENTITY_ACTIVE:
         return identity, "canonical_id", None
-    normalized = normalize_alias(query)
-    if not normalized:
+    normalized_variants = normalize_lookup_variants(query)
+    if not normalized_variants:
         raise GuidanceReadError("Enter a canonical setting name, ID, or reviewed alias.")
-    row = session.execute(
-        select(CanonicalSettingAlias, CanonicalSetting)
-        .join(
-            CanonicalSetting,
-            CanonicalSetting.canonical_id == CanonicalSettingAlias.canonical_id,
-        )
-        .where(
-            CanonicalSettingAlias.normalized_alias == normalized,
-            CanonicalSetting.status == canonical_settings.IDENTITY_ACTIVE,
-        )
-    ).first()
+    rows = canonical_settings.find_alias_identity_matches(session, query)
     mapped_matches = canonical_settings.find_mapped_name_matches(session, query)
     candidate_ids = {match.canonical_id for match in mapped_matches}
-    if row is not None:
-        candidate_ids.add(row[1].canonical_id)
+    candidate_ids.update(row[1].canonical_id for row in rows)
     if len(candidate_ids) > 1:
         raise GuidanceReadError(
             "Ambiguous vendor setting name maps to multiple canonical settings; "
             "use an exact canonical ID."
         )
-    if row is None and not mapped_matches:
+    if not rows and not mapped_matches:
         raise GuidanceReadError("No exact canonical setting or reviewed alias matched this lookup.")
-    if row is None:
+    if not rows:
         match = mapped_matches[0]
         identity = session.get(CanonicalSetting, match.canonical_id)
         if identity is None:  # guarded by the mapping foreign key
             raise RuntimeError("Mapped canonical identity could not be loaded.")
         return identity, "mapped_vendor_name", match.matched_name
-    alias, identity = row
+    alias, identity = rows[0]
     resolved_by = (
         "canonical_name"
-        if normalize_alias(identity.canonical_name) == normalized
+        if set(normalize_lookup_variants(identity.canonical_name)).intersection(
+            normalized_variants
+        )
         else "reviewed_alias"
     )
     return identity, resolved_by, alias.display_alias

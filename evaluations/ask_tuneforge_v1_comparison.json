@@ -1,0 +1,40 @@
+{
+  "comparison_version": "1.0",
+  "dataset": "evaluations/ask_tuneforge_v1.json",
+  "dataset_version": "1.0",
+  "case_count": 54,
+  "baseline": {
+    "code_point": "9f4f793 plus evaluation harness, before evaluation-driven fixes",
+    "failed_case_ids": [
+      "soc-voltage-library",
+      "speed-shift-library"
+    ],
+    "metrics": {
+      "retrieval_accuracy_percent": 96.3,
+      "canonical_resolution_accuracy_percent": 96.43,
+      "citation_accuracy_percent": 100.0,
+      "unsupported_statement_rate_percent": 0.0,
+      "answer_completeness_percent": 100.0,
+      "safe_refusal_accuracy_percent": 100.0,
+      "hardware_scope_correctness_percent": 100.0,
+      "vendor_equivalence_accuracy_percent": 100.0
+    }
+  },
+  "improved": {
+    "fixes": [
+      "Search the routed setting hint before question-noise terms during approved-library fallback.",
+      "Permit a unique reviewed identity match when only registered/trademark typography differs."
+    ],
+    "failed_case_ids": [],
+    "metrics": {
+      "retrieval_accuracy_percent": 100.0,
+      "canonical_resolution_accuracy_percent": 100.0,
+      "citation_accuracy_percent": 100.0,
+      "unsupported_statement_rate_percent": 0.0,
+      "answer_completeness_percent": 100.0,
+      "safe_refusal_accuracy_percent": 100.0,
+      "hardware_scope_correctness_percent": 100.0,
+      "vendor_equivalence_accuracy_percent": 100.0
+    }
+  }
+}

@@ -75,7 +75,13 @@ def public_answer(
                 )
             if presentation.outcome != "supported":
                 library_matches = assistant_retrieval.find_approved_matches(
-                    session, routing.original_query
+                    session,
+                    routing.original_query,
+                    setting_hint=(
+                        routing.routed_value
+                        if routing.kind == question_routing.KIND_SETTING_LOOKUP
+                        else ""
+                    ),
                 )
                 if trusted_web == "1":
                     web_research = trusted_web_research.research(
