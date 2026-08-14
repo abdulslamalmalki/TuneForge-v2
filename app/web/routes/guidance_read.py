@@ -24,6 +24,7 @@ def guidance_page(
     motherboard_model_id: str = "",
     cpu_model_id: str = "",
     bios_version: str = "",
+    use_case: str = "",
 ) -> HTMLResponse:
     explanation = None
     error = None
@@ -36,6 +37,7 @@ def guidance_page(
             motherboard_model_id=motherboard_model_id,
             cpu_model_id=cpu_model_id,
             bios_version=bios_version,
+            use_case=use_case,
         )
         if setting.strip():
             explanation = guidance_read.explain_setting(
@@ -100,6 +102,7 @@ def guidance_page(
             "motherboard_model_id": motherboard_model_id,
             "cpu_model_id": cpu_model_id,
             "bios_version": bios_version,
+            "use_case": use_case,
             "system_context": context,
             "explanation": explanation,
             "groups": groups,

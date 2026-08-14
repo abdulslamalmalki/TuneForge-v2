@@ -216,6 +216,7 @@ def test_api_resolves_am5_system_context_without_claiming_bios_coverage(client):
         params={
             "motherboard_model_id": "asrock-x870e-taichi-white",
             "cpu_model_id": "amd-ryzen-7-9800x3d",
+            "use_case": "efficiency",
         },
     )
     assert response.status_code == 200
@@ -224,8 +225,12 @@ def test_api_resolves_am5_system_context_without_claiming_bios_coverage(client):
     assert body["motherboard_model_name"] == "X870E Taichi White"
     assert body["cpu_model_name"] == "AMD Ryzen 7 9800X3D"
     assert body["bios_version_status"] == "not_provided"
+    assert body["use_case"] == "efficiency"
+    assert body["use_case_label"] == "Efficiency"
+    assert body["use_case_status"] == "provided"
     assert body["coverage_status"] == "identity_resolved"
     assert "will not infer it" in body["warnings"][0]
+    assert "does not yet expose recommendation retrieval" in body["warnings"][1]
 
     refused = client.get(
         "/api/v1/hardware/system-context",

@@ -866,6 +866,9 @@ class SystemContextOut(BaseModel):
     cpu_architecture_name: str
     bios_version: str | None
     bios_version_status: str
+    use_case: str | None
+    use_case_label: str | None
+    use_case_status: str
     coverage_status: str
     warnings: list[str]
 

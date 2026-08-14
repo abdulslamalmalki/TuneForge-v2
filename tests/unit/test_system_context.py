@@ -23,6 +23,8 @@ def test_resolves_reviewed_am5_hardware_identity_graph(db_session):
     assert context.cpu_model_name == "AMD Ryzen 7 9800X3D"
     assert context.bios_version is None
     assert context.bios_version_status == "not_provided"
+    assert context.use_case is None
+    assert context.use_case_status == "not_provided"
     assert context.coverage_status == "identity_resolved"
     assert "not provided" in context.warnings[0]
 
@@ -45,6 +47,28 @@ def test_accepts_optional_user_provided_bios_version_without_inference(db_sessio
             motherboard_model_id="asrock-x870e-taichi-white",
             cpu_model_id="amd-ryzen-7-9800x3d",
             bios_version="x" * 65,
+        )
+
+
+def test_accepts_only_the_reviewed_recommendation_use_case_vocabulary(db_session):
+    context = system_context.resolve(
+        db_session,
+        motherboard_model_id="asrock-x870e-taichi-white",
+        cpu_model_id="amd-ryzen-7-9800x3d",
+        use_case="  QUIET_OPERATION  ",
+    )
+
+    assert context.use_case == "quiet_operation"
+    assert context.use_case_label == "Quiet operation"
+    assert context.use_case_status == "provided"
+    assert "does not yet expose recommendation retrieval" in context.warnings[1]
+
+    with pytest.raises(SystemContextError, match="Use case must be one of"):
+        system_context.resolve(
+            db_session,
+            motherboard_model_id="asrock-x870e-taichi-white",
+            cpu_model_id="amd-ryzen-7-9800x3d",
+            use_case="maximum-fps-at-any-cost",
         )
 
 

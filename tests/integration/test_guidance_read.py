@@ -458,6 +458,7 @@ def test_guidance_carries_system_identity_without_inventing_exact_applicability(
         "setting": "Precision Boost Overdrive",
         "motherboard_model_id": "asrock-x870e-taichi-white",
         "cpu_model_id": "amd-ryzen-7-9800x3d",
+        "use_case": "productivity",
     }
 
     response = client.get("/api/v1/guidance/explain", params=params)
@@ -465,6 +466,7 @@ def test_guidance_carries_system_identity_without_inventing_exact_applicability(
     body = response.json()
     assert body["system_context"]["motherboard_model_name"] == "X870E Taichi White"
     assert body["system_context"]["bios_version_status"] == "not_provided"
+    assert body["system_context"]["use_case"] == "productivity"
     assert body["answer_state"] == "Partially Verified Answer"
     assert "Current accepted guidance remains source-scoped" in body["context_notice"]
     assert "not validated for this exact motherboard" in body["context_notice"]
@@ -473,6 +475,7 @@ def test_guidance_carries_system_identity_without_inventing_exact_applicability(
     assert page.status_code == 200
     assert "System context:" in page.text
     assert "ASRock X870E Taichi White" in page.text
+    assert "Use case: Productivity" in page.text
     assert "Current accepted guidance remains source-scoped" in page.text
 
     refused = client.get(

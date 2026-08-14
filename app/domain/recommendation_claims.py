@@ -35,6 +35,7 @@ from app.domain.guidance_claims import (
     GuidanceCitation,
     GuidanceSourceSettingCitation,
 )
+from app.domain.recommendation_policy import USE_CASES
 
 STATUS_DRAFT = "draft"
 STATUS_APPROVED = "approved"
@@ -54,16 +55,6 @@ VALUE_NONE = "none"
 VALUE_EXACT = "exact"
 VALUE_RANGE = "range"
 VALUE_MODES = (VALUE_NONE, VALUE_EXACT, VALUE_RANGE)
-USE_CASES = (
-    "gaming",
-    "productivity",
-    "efficiency",
-    "quiet_operation",
-    "overclocking",
-    "undervolting",
-    "memory_tuning",
-    "stability_troubleshooting",
-)
 RISK_LEVELS = ("informational", "low", "moderate", "advanced", "high")
 CONFIDENCE_LEVELS = ("insufficient", "moderate", "high", "very_high")
 APPROVABLE_CONFIDENCE_LEVELS = ("high", "very_high")

@@ -254,7 +254,13 @@ def test_approved_recommendation_is_not_exposed_as_factual_guidance(
 
     factual = client.get(
         "/api/v1/interface/presentation",
-        params={"setting": canonical_id},
+        params={
+            "setting": canonical_id,
+            "motherboard_model_id": "asus-tuf-gaming-x870-plus-wifi",
+            "cpu_model_id": "amd-ryzen-7-9800x3d",
+            "bios_version": "1801",
+            "use_case": "gaming",
+        },
     ).json()
 
     assert factual["outcome"] == "refused"

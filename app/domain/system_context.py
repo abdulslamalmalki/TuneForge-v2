@@ -20,10 +20,13 @@ from app.db.models import (
     Vendor,
 )
 from app.domain.errors import SystemContextError
+from app.domain.recommendation_policy import USE_CASE_LABELS, USE_CASES
 
 PILOT_PLATFORM_ID = "amd-am5"
 BIOS_VERSION_NOT_PROVIDED = "not_provided"
 BIOS_VERSION_PROVIDED = "provided_unverified"
+USE_CASE_NOT_PROVIDED = "not_provided"
+USE_CASE_PROVIDED = "provided"
 COVERAGE_IDENTITY_RESOLVED = "identity_resolved"
 
 MATCH_EXACT_MODEL = "exact_model"
@@ -58,6 +61,9 @@ class SystemContext:
     cpu_architecture_name: str
     bios_version: str | None
     bios_version_status: str
+    use_case: str | None
+    use_case_label: str | None
+    use_case_status: str
     coverage_status: str
     warnings: tuple[str, ...]
 
@@ -75,13 +81,19 @@ def resolve(
     motherboard_model_id: str,
     cpu_model_id: str,
     bios_version: str = "",
+    use_case: str = "",
 ) -> SystemContext:
     """Resolve reviewed hardware IDs and enforce the current AM5 pilot boundary."""
     motherboard_model_id = motherboard_model_id.strip().casefold()
     cpu_model_id = cpu_model_id.strip().casefold()
     bios_version = " ".join(bios_version.split())
+    use_case = use_case.strip().casefold()
     if len(bios_version) > 64:
         raise SystemContextError("BIOS version must be 64 characters or fewer.")
+    if use_case and use_case not in USE_CASES:
+        raise SystemContextError(
+            f"Use case must be one of: {', '.join(USE_CASES)}."
+        )
     if not motherboard_model_id or not cpu_model_id:
         raise SystemContextError("Choose both a motherboard and CPU model.")
     motherboard = session.get(MotherboardModel, motherboard_model_id)
@@ -135,6 +147,9 @@ def resolve(
         bios_version_status=(
             BIOS_VERSION_PROVIDED if bios_version else BIOS_VERSION_NOT_PROVIDED
         ),
+        use_case=use_case or None,
+        use_case_label=USE_CASE_LABELS.get(use_case),
+        use_case_status=USE_CASE_PROVIDED if use_case else USE_CASE_NOT_PROVIDED,
         coverage_status=COVERAGE_IDENTITY_RESOLVED,
         warnings=(
             (
@@ -145,8 +160,14 @@ def resolve(
             else (
                 "BIOS version was not provided; TuneForge will not infer it and "
                 "version-scoped facts remain unverified."
-            )
-        ,),
+            ),
+            (
+                "Use case is request context only. TuneForge does not yet expose "
+                "recommendation retrieval."
+                if use_case
+                else "Use case was not provided; factual BIOS answers remain available."
+            ),
+        ),
     )
 
 
@@ -156,14 +177,21 @@ def resolve_optional(
     motherboard_model_id: str = "",
     cpu_model_id: str = "",
     bios_version: str = "",
+    use_case: str = "",
 ) -> SystemContext | None:
-    if not motherboard_model_id.strip() and not cpu_model_id.strip() and not bios_version.strip():
+    if (
+        not motherboard_model_id.strip()
+        and not cpu_model_id.strip()
+        and not bios_version.strip()
+        and not use_case.strip()
+    ):
         return None
     return resolve(
         session,
         motherboard_model_id=motherboard_model_id,
         cpu_model_id=cpu_model_id,
         bios_version=bios_version,
+        use_case=use_case,
     )
 
 

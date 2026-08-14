@@ -13,7 +13,7 @@
 {% if system_context %}
 <section class="public-context-bar">
   <span class="context-icon" aria-hidden="true">✓</span>
-  <div><strong>{{ system_context.vendor_name }} {{ system_context.motherboard_model_name }}</strong><span>{{ system_context.cpu_model_name }} · Identity context only</span></div>
+  <div><strong>{{ system_context.vendor_name }} {{ system_context.motherboard_model_name }}</strong><span>{{ system_context.cpu_model_name }}{% if system_context.use_case_label %} · {{ system_context.use_case_label }}{% endif %} · Identity context only</span></div>
   <a href="/system-context">Change</a>
 </section>
 {% else %}
@@ -23,6 +23,8 @@
 <form class="question-picker" action="/assistant" method="get">
   {% if motherboard_model_id %}<input type="hidden" name="motherboard_model_id" value="{{ motherboard_model_id }}">{% endif %}
   {% if cpu_model_id %}<input type="hidden" name="cpu_model_id" value="{{ cpu_model_id }}">{% endif %}
+  {% if bios_version %}<input type="hidden" name="bios_version" value="{{ bios_version }}">{% endif %}
+  {% if use_case %}<input type="hidden" name="use_case" value="{{ use_case }}">{% endif %}
   <label for="question_id">What would you like to understand?</label>
   <div class="picker-row">
     <select id="question_id" name="question_id" required>
@@ -110,7 +112,7 @@
   <div class="section-heading compact-heading"><div><p class="eyebrow">Available now</p><h2 id="available-questions">Choose from {{ questions | length }} reviewed questions</h2></div></div>
   <div class="question-list">
     {% for question in questions %}
-    <a href="/assistant?question_id={{ question.question_id }}{% if motherboard_model_id and cpu_model_id %}&amp;motherboard_model_id={{ motherboard_model_id }}&amp;cpu_model_id={{ cpu_model_id }}{% endif %}">
+    <a href="/assistant?question_id={{ question.question_id }}{% if motherboard_model_id and cpu_model_id %}&amp;motherboard_model_id={{ motherboard_model_id }}&amp;cpu_model_id={{ cpu_model_id }}{% endif %}{% if bios_version %}&amp;bios_version={{ bios_version }}{% endif %}{% if use_case %}&amp;use_case={{ use_case }}{% endif %}">
       <span class="question-outcome {% if question.outcome == 'supported' %}available{% else %}limited{% endif %}" aria-hidden="true"></span>
       <span><strong>{{ question.question }}</strong><small>{% if question.outcome == 'supported' %}Reviewed evidence available{% else %}TuneForge will explain the current limitation{% endif %}</small></span>
       <span aria-hidden="true">→</span>

@@ -105,6 +105,10 @@ The current release includes:
   confidence, conflict assessment, human review, and append-only history. It is
   intentionally excluded from public answers until an exact safe resolver is
   implemented.
+- A privacy-preserving AM5 system context with exact reviewed motherboard/CPU
+  identities, optional literal BIOS version, and a normalized optional use
+  case carried across factual answers without being persisted or enabling
+  recommendations.
 
 This tree is the **TuneForge 1.33 knowledge-expansion development release**. The
 public product is limited to BIOS Settings, Compare Vendors, Ask TuneForge, and
@@ -121,6 +125,8 @@ The complete canonical backlog classification is documented in
 `docs/v1.33-canonical-backlog-classification.md`.
 The recommendation trust boundary and reviewer workflow are documented in
 `docs/v1.33-recommendation-foundation.md`.
+The request-scoped hardware profile contract and intentionally deferred fields
+are documented in `docs/v1.33-hardware-profile.md`.
 
 ## Requirements
 

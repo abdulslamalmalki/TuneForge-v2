@@ -13,6 +13,7 @@
   {% if motherboard_model_id %}<input type="hidden" name="motherboard_model_id" value="{{ motherboard_model_id }}">{% endif %}
   {% if cpu_model_id %}<input type="hidden" name="cpu_model_id" value="{{ cpu_model_id }}">{% endif %}
   {% if bios_version %}<input type="hidden" name="bios_version" value="{{ bios_version }}">{% endif %}
+  {% if use_case %}<input type="hidden" name="use_case" value="{{ use_case }}">{% endif %}
   <label for="setting">Setting</label>
   <input id="setting" name="setting" value="{{ setting }}" list="covered-settings" required>
   <datalist id="covered-settings">
@@ -29,6 +30,7 @@
   {{ system_context.vendor_name }} {{ system_context.motherboard_model_name }} ·
   {{ system_context.cpu_model_name }}
   <span class="equivalence-citations">BIOS: {{ system_context.bios_version or 'not provided' }}.</span>
+  <span class="equivalence-citations">Use case: {{ system_context.use_case_label or 'not provided' }}.</span>
 </section>
 {% else %}
 <p class="notice"><a href="/system-context">Set My System</a> to evaluate reviewed hardware context.</p>

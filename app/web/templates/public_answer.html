@@ -12,6 +12,8 @@
   <form class="public-search compact-search" action="/answer" method="get">
     {% if motherboard_model_id %}<input type="hidden" name="motherboard_model_id" value="{{ motherboard_model_id }}">{% endif %}
     {% if cpu_model_id %}<input type="hidden" name="cpu_model_id" value="{{ cpu_model_id }}">{% endif %}
+    {% if bios_version %}<input type="hidden" name="bios_version" value="{{ bios_version }}">{% endif %}
+    {% if use_case %}<input type="hidden" name="use_case" value="{{ use_case }}">{% endif %}
     <label class="sr-only" for="answer-setting">BIOS setting or question</label>
     <div class="search-row">
       <input id="answer-setting" name="setting" type="search" value="{{ setting }}" list="answer-covered-settings" placeholder="What does PBO Scalar do?" autocomplete="off" required maxlength="300">
@@ -31,7 +33,7 @@
 {% if system_context %}
 <section class="public-context-bar">
   <span class="context-icon" aria-hidden="true">✓</span>
-  <div><strong>{{ system_context.vendor_name }} {{ system_context.motherboard_model_name }}</strong><span>{{ system_context.cpu_model_name }} · Identity context only</span></div>
+  <div><strong>{{ system_context.vendor_name }} {{ system_context.motherboard_model_name }}</strong><span>{{ system_context.cpu_model_name }}{% if system_context.use_case_label %} · {{ system_context.use_case_label }}{% endif %} · Identity context only</span></div>
   <a href="/system-context">Change</a>
 </section>
 {% endif %}
@@ -212,6 +214,8 @@
     <input type="hidden" name="setting" value="{{ setting }}">
     {% if motherboard_model_id %}<input type="hidden" name="motherboard_model_id" value="{{ motherboard_model_id }}">{% endif %}
     {% if cpu_model_id %}<input type="hidden" name="cpu_model_id" value="{{ cpu_model_id }}">{% endif %}
+    {% if bios_version %}<input type="hidden" name="bios_version" value="{{ bios_version }}">{% endif %}
+    {% if use_case %}<input type="hidden" name="use_case" value="{{ use_case }}">{% endif %}
     <input type="hidden" name="trusted_web" value="1">
     <div><strong>Need more places to investigate?</strong><span>Search only allowlisted official hardware and standards websites.</span></div>
     <button type="submit">Research official websites</button>

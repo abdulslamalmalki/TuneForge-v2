@@ -32,6 +32,15 @@
       {% endfor %}
     </select>
   </div>
+  <div>
+    <label for="use_case">Primary use case <span>(optional)</span></label>
+    <select id="use_case" name="use_case">
+      <option value="">No use case selected</option>
+      {% for value, label in use_cases %}
+      <option value="{{ value }}"{% if use_case == value %} selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
   <button type="submit">Use this system</button>
 </form>
 
@@ -47,14 +56,15 @@
     <div><dt>Platform</dt><dd>{{ system_context.platform_name }}</dd></div>
     <div><dt>Coverage</dt><dd>{{ system_context.coverage_status | replace('_', ' ') | capitalize }}</dd></div>
     <div><dt>BIOS version</dt><dd>{{ system_context.bios_version or 'Not provided' }} · {{ system_context.bios_version_status | replace('_', ' ') }}</dd></div>
+    <div><dt>Use case</dt><dd>{{ system_context.use_case_label or 'Not provided' }} · {{ system_context.use_case_status | replace('_', ' ') }}</dd></div>
   </dl>
   {% for warning in system_context.warnings %}<p class="public-warning">{{ warning }}</p>{% endfor %}
   <div class="system-actions">
-    <a class="primary-link-button" href="/assistant?motherboard_model_id={{ system_context.motherboard_model_id }}&amp;cpu_model_id={{ system_context.cpu_model_id }}{% if system_context.bios_version %}&amp;bios_version={{ system_context.bios_version }}{% endif %}">Browse guided answers</a>
-    <a class="secondary-button" href="/answer?motherboard_model_id={{ system_context.motherboard_model_id }}&amp;cpu_model_id={{ system_context.cpu_model_id }}{% if system_context.bios_version %}&amp;bios_version={{ system_context.bios_version }}{% endif %}">Find a setting</a>
+    <a class="primary-link-button" href="/assistant?motherboard_model_id={{ system_context.motherboard_model_id }}&amp;cpu_model_id={{ system_context.cpu_model_id }}{% if system_context.bios_version %}&amp;bios_version={{ system_context.bios_version }}{% endif %}{% if system_context.use_case %}&amp;use_case={{ system_context.use_case }}{% endif %}">Browse guided answers</a>
+    <a class="secondary-button" href="/answer?motherboard_model_id={{ system_context.motherboard_model_id }}&amp;cpu_model_id={{ system_context.cpu_model_id }}{% if system_context.bios_version %}&amp;bios_version={{ system_context.bios_version }}{% endif %}{% if system_context.use_case %}&amp;use_case={{ system_context.use_case }}{% endif %}">Find a setting</a>
   </div>
 </section>
 {% else %}
-<section class="privacy-note"><strong>Nothing is saved.</strong><p>System context stays in the current page links. TuneForge does not create a hardware profile or infer your BIOS version.</p></section>
+<section class="privacy-note"><strong>Nothing is saved.</strong><p>System context stays in the current page links. TuneForge does not create a persistent hardware profile, infer your BIOS version, or use the selected use case to generate recommendations.</p></section>
 {% endif %}
 {% endblock %}

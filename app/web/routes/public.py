@@ -40,6 +40,7 @@ def public_answer(
     motherboard_model_id: str = "",
     cpu_model_id: str = "",
     bios_version: str = "",
+    use_case: str = "",
     trusted_web: str = "",
 ) -> HTMLResponse:
     context = None
@@ -55,6 +56,7 @@ def public_answer(
             motherboard_model_id=motherboard_model_id,
             cpu_model_id=cpu_model_id,
             bios_version=bios_version,
+            use_case=use_case,
         )
         if setting.strip():
             routing = question_routing.route(setting)
@@ -104,6 +106,7 @@ def public_answer(
             "motherboard_model_id": motherboard_model_id,
             "cpu_model_id": cpu_model_id,
             "bios_version": bios_version,
+            "use_case": use_case,
             "system_context": context,
             "presentation": presentation,
             "routing": routing,

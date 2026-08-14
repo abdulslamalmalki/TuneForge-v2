@@ -157,10 +157,27 @@ def test_my_system_page_resolves_only_reviewed_am5_identifiers(client):
             "motherboard_model_id": "asrock-x870e-taichi-white",
             "cpu_model_id": "amd-ryzen-7-9800x3d",
             "bios_version": "3.20",
+            "use_case": "gaming",
         },
     )
     assert "3.20 · provided unverified" in versioned.text
     assert "bios_version=3.20" in versioned.text
+    assert "Gaming · provided" in versioned.text
+    assert "use_case=gaming" in versioned.text
+    assert "does not yet expose recommendation retrieval" in versioned.text
+
+    answer = client.get(
+        "/answer",
+        params={
+            "motherboard_model_id": "asrock-x870e-taichi-white",
+            "cpu_model_id": "amd-ryzen-7-9800x3d",
+            "bios_version": "3.20",
+            "use_case": "gaming",
+        },
+    )
+    assert 'name="bios_version" value="3.20"' in answer.text
+    assert 'name="use_case" value="gaming"' in answer.text
+    assert "AMD Ryzen 7 9800X3D · Gaming · Identity context only" in answer.text
 
 
 def test_public_answer_landing_is_clear_and_has_reviewed_examples(client):
